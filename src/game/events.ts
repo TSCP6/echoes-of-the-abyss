@@ -7,7 +7,7 @@ import type { HudSnapshot, SlotEntry } from './domain/types';
 
 export type UiState =
     | 'none' | 'mainMenu' | 'levelSelect' | 'paused' | 'result'
-    | 'inventory' | 'shop' | 'skillTree' | 'settings' | 'records';
+    | 'inventory' | 'shop' | 'skillTree' | 'settings' | 'records' | 'help';
 
 /** DR-04 事件名 → 载荷类型映射（唯一权威表） */
 export interface EventPayloads {
