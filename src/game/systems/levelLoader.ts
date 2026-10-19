@@ -43,7 +43,9 @@ export class LevelLoader {
             return fail('LEVEL_NOT_FOUND', `关卡不存在：${levelId}`);
         }
         const cacheKey = `map_${levelId}`;
-        const raw = this.scene.cache.json.get(cacheKey) as Record<string, unknown> | undefined;
+        // Phaser 4 的 tilemapTiledJSON 存入 cache.tilemap，值为 { format, data } 包装
+        const stored = this.scene.cache.tilemap.get(cacheKey) as { format: number; data: Record<string, unknown> } | undefined;
+        const raw = stored?.data;
         if (raw === undefined) {
             return fail('ASSET_MISSING', `地图资源未加载：${levelId}`);
         }
@@ -143,9 +145,7 @@ export class LevelLoader {
      * 单向平台碰撞回调（7.2.2）：仅当玩家下落且底边在瓦片顶上方容差内才分离。
      * 注册方式：scene.physics.add.collider(player, ctx.onewayGroup, undefined, process)。
      */
-    onewayProcess(playerObj: Physics.Arcade.Body | Physics.Arcade.Sprite, tileObj: Physics.Arcade.Body | Tilemaps.Tile): boolean {
-        const body = (playerObj as Physics.Arcade.Sprite).body as Physics.Arcade.Body;
-        const tile = tileObj as Tilemaps.Tile;
+    onewayProcess(body: Physics.Arcade.Body, tile: Tilemaps.Tile): boolean {
         if (body.velocity.y <= 0) { return false; }
         // 图层置于 (0,0)，tile.pixelY 即世界坐标顶边
         return body.bottom <= tile.pixelY + ONEWAY_TOLERANCE;

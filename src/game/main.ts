@@ -1,31 +1,38 @@
-import { Boot } from './scenes/Boot';
-import { GameOver } from './scenes/GameOver';
-import { Game as MainGame } from './scenes/Game';
-import { MainMenu } from './scenes/MainMenu';
-import { AUTO, Game } from 'phaser';
-import { Preloader } from './scenes/Preloader';
+import { BootScene } from './scenes/BootScene';
+import { PreloaderScene } from './scenes/PreloaderScene';
+import { MenuScene } from './scenes/MenuScene';
+import { LevelScene } from './scenes/LevelScene';
+import { AUTO, Game, Scale } from 'phaser';
 
-// Find out more information about the Game Config at:
-// https://docs.phaser.io/api-documentation/typedef/types-core#gameconfig
+// GameConfig：1024×768 逻辑分辨率（SRS 2.2 基线）+ Scale.FIT 等比缩放（NFR-06 / EX-06）
+// Arcade Physics 重力 1300（SRS 附录 A，与 MotionModel 同源；Body 级 allowGravity 默认继承）
 const config: Phaser.Types.Core.GameConfig = {
     type: AUTO,
     width: 1024,
     height: 768,
     parent: 'game-container',
-    backgroundColor: '#028af8',
+    backgroundColor: '#1a1c2c',
+    scale: {
+        mode: Scale.FIT,
+        autoCenter: Scale.CENTER_BOTH
+    },
+    physics: {
+        default: 'arcade',
+        arcade: {
+            gravity: { x: 0, y: 1300 },
+            debug: false
+        }
+    },
     scene: [
-        Boot,
-        Preloader,
-        MainMenu,
-        MainGame,
-        GameOver
+        BootScene,
+        PreloaderScene,
+        MenuScene,
+        LevelScene
     ]
 };
 
 const StartGame = (parent: string) => {
-
     return new Game({ ...config, parent });
-
-}
+};
 
 export default StartGame;

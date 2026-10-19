@@ -13,6 +13,12 @@ const emit = defineEmits(['current-active-scene']);
 onMounted(() => {
 
     game.value = StartGame('game-container');
+    // 开发期可观测接缝（13.2 测试接缝；生产构建被 tree-shake，NFR-09 不受影响）
+    if (import.meta.env.DEV) {
+        interface DevWindow { __SEAPP__?: { game: unknown } }
+        const devWin = window as DevWindow; // 仅 DEV 分支的调试钩子，运行时形状由本行赋值保证
+        devWin.__SEAPP__ = { game: game.value };
+    }
     
     EventBus.on('current-scene-ready', (scene_instance: Phaser.Scene) => {
         

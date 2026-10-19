@@ -1,0 +1,15 @@
+/* 8.5 视觉规范令牌：深色 UI 底 + 浅色文本（对比度 ≥4.5:1，NFR-07 / AT-72）
+   #f4f4f4 on #1a1c2c ≈ 15.4:1；强调色 #7ee081 on #1a1c2c ≈ 9.6:1 */
+:root {
+    --surface: #1a1c2c;
+    --surface-2: #24273a;
+    --fg: #f4f4f4;
+    --muted: #b8bcd0;
+    --border: #3a3f5c;
+    --accent: #7ee081;
+    --warning: #ffd766;
+    --error: #ff6b6b;
+    --hp: #e05656;
+    --sp: #4aa3e0;
+    --gold: #ffd766;
+}

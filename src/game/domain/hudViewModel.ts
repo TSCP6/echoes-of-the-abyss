@@ -62,7 +62,5 @@ export class HudViewModel {
     }
 }
 
-/** 场景级实例（每关一个，随 LevelScene 生命周期） */
-export function createHudViewModel(): HudViewModel {
-    return new HudViewModel();
-}
+/** 全局单例：LevelScene 写入上下文/tick，HudOverlay 经 rAF 读 getPerFrame（4.3.10 双通道） */
+export const hudViewModel = new HudViewModel();
