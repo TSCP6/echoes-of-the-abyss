@@ -73,8 +73,8 @@ h3 { margin: 10px 0 6px; font-size: 15px; color: var(--muted); }
 .row { display: flex; align-items: center; gap: 10px; margin: 8px 0; font-size: 15px; }
 .row input[type="range"] { flex: 1; accent-color: var(--accent); }
 .remap { margin-top: 10px; }
-.btn { padding: 6px 12px; margin: 2px; font-size: 13px; cursor: pointer; background: var(--surface); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; }
+.btn { padding: 6px 12px; margin: 2px; font-size: 14px; cursor: pointer; background: var(--surface); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; }
 .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .close { margin-top: 14px; width: 100%; padding: 9px 0; font-size: 15px; }
-.warn { color: var(--error); font-size: 13px; }
+.warn { color: var(--error); font-size: 14px; }
 </style>

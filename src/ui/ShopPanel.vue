@@ -79,9 +79,9 @@ h3 { margin: 14px 0 8px; font-size: 17px; color: var(--muted); }
 .name { flex: 1; font-size: 15px; }
 .name i { color: var(--muted); font-style: normal; }
 .price { color: var(--gold); font-size: 14px; }
-.state { color: var(--muted); font-size: 13px; }
+.state { color: var(--muted); font-size: 14px; }
 .state.short { color: var(--error); }
-.btn { padding: 5px 14px; font-size: 13px; cursor: pointer; background: var(--surface-2); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; }
+.btn { padding: 5px 14px; font-size: 14px; cursor: pointer; background: var(--surface-2); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; }
 .btn:hover { border-color: var(--accent); }
 .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .close { margin-top: 14px; width: 100%; padding: 9px 0; font-size: 15px; }

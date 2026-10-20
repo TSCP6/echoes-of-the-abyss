@@ -42,5 +42,5 @@ h2 { margin: 0 0 20px; }
 .btn:hover { border-color: var(--accent); }
 .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .btn.danger:hover { border-color: var(--error); }
-.hint { display: block; font-size: 12px; color: var(--muted); margin-top: 4px; }
+.hint { display: block; font-size: 14px; color: var(--muted); margin-top: 4px; }
 </style>

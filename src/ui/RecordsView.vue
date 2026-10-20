@@ -56,7 +56,7 @@ td { padding: 3px 14px; font-size: 14px; }
 .id { color: var(--accent); text-align: left; }
 .time { min-width: 70px; }
 .shards { color: var(--gold); }
-.stats { color: var(--muted); font-size: 13px; margin: 10px 0; }
+.stats { color: var(--muted); font-size: 14px; margin: 10px 0; }
 .btn { padding: 8px 28px; font-size: 14px; cursor: pointer; background: var(--surface); color: var(--fg); border: 2px solid var(--border); border-radius: 6px; }
 .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 </style>

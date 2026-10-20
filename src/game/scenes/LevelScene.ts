@@ -28,6 +28,7 @@ import { ConfigRegistry } from '../domain/configRegistry';
 import { EventBus } from '../EventBus';
 import { emitEvent, onEvent, offEvent } from '../events';
 import { audioDirector } from '../systems/audioDirector';
+import { warnThrottled } from '../domain/warn';
 import { TutorialDirector } from '../systems/tutorialDirector';
 
 const DEATH_PAUSE_MS = 800; // FR-16 规则 3
@@ -56,6 +57,42 @@ export class LevelScene extends Scene {
     private bossWoken = false;
     /** create 完成前置位；preload 窗口期（同关重启）update 跳过管线（防旧 player/combat 空引用，EXD-4） */
     private ready = false;
+    /** TT-06（DEV）：管线阶段打点，超预算 console.warn（生产 tree-shake） */
+    private stageMarks: number[] = [];
+    private stageWarnAt = 0;
+    private mark(): void {
+        if (!import.meta.env.DEV) { return; }
+        this.stageMarks.push(performance.now());
+    }
+    private stageReport(): void {
+        if (!import.meta.env.DEV || this.stageMarks.length < 2) { this.stageMarks.length = 0; return; }
+        const names = ['input', 'player', 'projectiles', 'combat', 'enemies', 'hazards', 'pickups', 'resources', 'camera', 'hud'];
+        const budgets = [2, 2, 1, 2, 3, 1, 1, 1, 2, 1]; // ms 阶段预算（TT-06 设计参数）
+        const now = performance.now();
+        if (now - this.stageWarnAt < 5000) { this.stageMarks.length = 0; return; }
+        for (let i = 1; i < this.stageMarks.length; i++) {
+            const cost = this.stageMarks[i] - (this.stageMarks[i - 1] ?? 0);
+            const b = budgets[i - 1] ?? 2;
+            if (cost > b) {
+                this.stageWarnAt = now;
+                console.warn(`[TT-06] 管线阶段 ${names[i - 1] ?? i} 超预算：${cost.toFixed(2)} ms > ${b} ms`);
+            }
+        }
+        this.stageMarks.length = 0; // 每帧重置（NF-04 零累积）
+    }
+    private ex11Count = 0;
+    /** EX-11：掉出地图（y > 地图高 + 512）→ 传送最近检查点，不判死亡不扣金币；连续 3 次警告 */
+    private ex11Rescue(): void {
+        this.ex11Count += 1;
+        if (this.ex11Count >= 3) {
+            warnThrottled(`ex11-${this.levelId}`, `关卡 ${this.levelId} 连续掉出地图 ${this.ex11Count} 次`);
+        }
+        const cp = this.ctx.checkpoints.find((c) => c.id === this.activeCheckpoint) ?? this.ctx.checkpoints[0];
+        if (cp === undefined) { return; }
+        this.cameras.main.fadeOut(150, 0, 0, 0);
+        this.player.teleportTo(cp.x, cp.y);
+        this.cameras.main.fadeIn(150, 0, 0, 0);
+    }
     private onPlayerDamaged = (p: { amount: number; sourceId: string; hp: number }): void => {
         void p;
         audioDirector.playSfx('hit_taken');
@@ -335,7 +372,9 @@ export class LevelScene extends Scene {
         if (this.overlayOpen || !this.ready) { return; }
 
         // 阶段 1：输入
+        this.mark(); // 帧起点
         this.gateway.poll();
+        this.mark();
 
         // 攻击（FR-05）
         if (!this.dead && !weaponService.isSwitchLocked()) {
@@ -365,22 +404,31 @@ export class LevelScene extends Scene {
 
         // 阶段 2：玩家
         this.player.update(deltaMs);
+        this.mark();
         this.tutorial?.update(dt); // MOD-09：move 完成判定 + 8 s 超时
         this.bossWakeCheck();
         if (this.dashTimer > 0) { this.dashTimer -= dt; }
 
         // 阶段 3：弹丸
         this.projectiles.update(dt);
+        this.mark();
 
         // 阶段 5：战斗
         this.combat.update(dt);
+        this.mark();
 
         // 阶段 6：敌人
         this.enemies.update(dt, this.time.now);
+        this.mark();
 
         // Boss 血条（FR-14 规则 5）
         const boss = this.enemies.getBoss();
         this.hud.setBossBar(boss !== null ? { name: boss.def.id, ratio: Math.max(0, boss.hp / boss.def.hp) } : null);
+
+        // EX-11：掉出地图救援（先于即死区判定，避免穿透死亡面后误判死亡）
+        if (!this.dead && this.player.sprite.y > this.ctx.mapHeight + 512) {
+            this.ex11Rescue();
+        }
 
         // 即死区 + Boss 危险区
         if (!this.dead) {
@@ -403,23 +451,29 @@ export class LevelScene extends Scene {
             }
             if (died && !this.dead) { this.onPlayerDeath(); }
         }
+        this.mark();
 
         // 阶段 7：拾取
         this.pickups.update(dt);
+        this.mark();
 
         // 阶段 8：资源/冷却/切换锁/FX
         resourceSystem.tick(dt);
         skillService.tickCooldowns(dt);
         weaponService.tickSwitchLock(dt);
         this.fx.tick(dt);
+        this.mark();
 
         // 阶段 9：相机
         this.cameraRig.update(deltaMs);
+        this.mark();
 
         // 阶段 10：HUD + 计时
         this.hud.tick(dt);
         this.elapsedSec += dt;
         recordStore.addPlayTime(dt);
+        this.mark();
+        this.stageReport();
 
         if (this.gateway.justPressed('pause')) {
             emitEvent('game:requestPause', { reason: 'esc' });

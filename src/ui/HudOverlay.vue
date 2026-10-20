@@ -28,6 +28,7 @@ const spBar = ref<HTMLElement | null>(null);
 const bossBar = ref<HTMLElement | null>(null);
 const cdMasks = ref<(HTMLElement | null)[]>([null, null, null, null]);
 const loadout = ref<(string | null)[]>([null, null, null, null]);
+const hudRoot = ref<HTMLElement | null>(null);
 
 let rafId = 0;
 
@@ -41,6 +42,16 @@ const onUpdate = (p: EventPayloads['hud:update']): void => {
 // 高频通道：条形逐帧（FR-14 规则 8）
 const loop = (): void => {
     const pf = hudViewModel.getPerFrame();
+    // EX-06/FR-14：HUD 锚定画布矩形（Scale.FIT 黑边内），每帧重算锚点
+    const canvas = document.querySelector('canvas');
+    if (canvas !== null && hudRoot.value !== null) {
+        const r = canvas.getBoundingClientRect();
+        const el = hudRoot.value;
+        el.style.left = `${r.left}px`;
+        el.style.top = `${r.top}px`;
+        el.style.width = `${r.width}px`;
+        el.style.height = `${r.height}px`;
+    }
     if (hpBar.value !== null) { hpBar.value.style.transform = `scaleX(${pf.hpRatio})`; }
     if (spBar.value !== null) { spBar.value.style.transform = `scaleX(${pf.spRatio})`; }
     lowHp.value = pf.lowHp;
@@ -80,7 +91,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="hud">
+    <div ref="hudRoot" class="hud">
         <div class="topleft">
             <div class="bar hp" :class="{ low: lowHp }">
                 <div ref="hpBar" class="fill"></div>
@@ -122,15 +133,15 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.hud { position: absolute; inset: 0; pointer-events: none; color: var(--fg); }
+.hud { position: absolute; pointer-events: none; color: var(--fg); overflow: hidden; }
 .topleft { position: absolute; top: 12px; left: 12px; display: flex; flex-direction: column; gap: 6px; }
 .bar {
-    position: relative; width: 180px; height: 14px;
+    position: relative; width: 180px; height: 18px;
     background: rgba(0, 0, 0, 0.55); border: 1px solid var(--border); border-radius: 3px;
     overflow: hidden;
 }
-.bar.sp { height: 10px; }
-.bar.boss { width: 600px; height: 12px; }
+.bar.sp { height: 14px; }
+.bar.boss { width: 600px; height: 16px; }
 .fill {
     position: absolute; inset: 0; transform-origin: left center;
     background: var(--hp); will-change: transform;
@@ -141,12 +152,12 @@ onUnmounted(() => {
 @keyframes blink { 50% { opacity: 0.35; } }
 .txt {
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    font-size: 10px; line-height: 1; color: #fff; text-shadow: 0 1px 2px #000;
+    font-size: 14px; line-height: 1; color: #fff; text-shadow: 0 1px 2px #000;
 }
 .row { display: flex; gap: 14px; font-size: 15px; }
 .coin { color: var(--gold); }
 .shard { color: #9fe8ff; }
-.muted { color: var(--muted); font-size: 13px; }
+.muted { color: var(--muted); font-size: 14px; }
 .bossbar {
     position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
     display: flex; flex-direction: column; align-items: center; gap: 3px;
@@ -156,7 +167,7 @@ onUnmounted(() => {
 .weapons { display: flex; gap: 6px; }
 .wslot {
     width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
-    background: rgba(0,0,0,0.5); border: 1px solid var(--border); border-radius: 4px; font-size: 13px;
+    background: rgba(0,0,0,0.5); border: 1px solid var(--border); border-radius: 4px; font-size: 14px;
 }
 .wslot.main { border-color: var(--gold); }
 .skills { display: flex; gap: 6px; }
@@ -165,8 +176,8 @@ onUnmounted(() => {
     background: rgba(0,0,0,0.55); border: 1px solid var(--border); border-radius: 6px;
     display: flex; align-items: center; justify-content: center;
 }
-.key { position: absolute; top: 2px; left: 4px; font-size: 11px; color: var(--muted); }
+.key { position: absolute; top: 2px; left: 4px; font-size: 14px; color: var(--muted); }
 .icon { font-size: 20px; color: var(--accent); }
 .cdmask { position: absolute; inset: 0; border-radius: 6px; }
-.cd { position: absolute; bottom: 2px; right: 4px; font-size: 11px; color: var(--warning); }
+.cd { position: absolute; bottom: 2px; right: 4px; font-size: 14px; color: var(--warning); }
 </style>

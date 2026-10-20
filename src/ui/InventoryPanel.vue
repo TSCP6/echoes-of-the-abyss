@@ -100,17 +100,17 @@ h2 { margin: 0 0 14px; font-size: 22px; }
 }
 .cell:hover { border-color: var(--accent); }
 .cell.equipped { border-color: var(--gold); }
-.count { position: absolute; right: 3px; bottom: 1px; font-size: 12px; color: var(--muted); }
+.count { position: absolute; right: 3px; bottom: 1px; font-size: 14px; color: var(--muted); }
 .drop {
     position: absolute; top: 1px; right: 2px;
-    background: none; border: none; color: var(--error); cursor: pointer; font-size: 12px;
+    background: none; border: none; color: var(--error); cursor: pointer; font-size: 14px;
 }
 .tip {
     position: absolute; left: 100%; top: 12px; margin-left: 12px; width: 200px;
     background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
-    padding: 10px; text-align: left; font-size: 13px;
+    padding: 10px; text-align: left; font-size: 14px;
 }
-.cat { color: var(--muted); margin-left: 8px; font-size: 12px; }
+.cat { color: var(--muted); margin-left: 8px; font-size: 14px; }
 .tip p { margin: 6px 0 0; color: var(--muted); }
 .meta { color: var(--gold) !important; }
 .foot { display: flex; gap: 10px; justify-content: center; margin-top: 14px; }
@@ -121,5 +121,5 @@ h2 { margin: 0 0 14px; font-size: 22px; }
 }
 .btn:hover { border-color: var(--accent); }
 .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.hint { color: var(--muted); font-size: 12px; margin: 10px 0 0; }
+.hint { color: var(--muted); font-size: 14px; margin: 10px 0 0; }
 </style>

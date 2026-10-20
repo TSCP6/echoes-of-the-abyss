@@ -68,7 +68,7 @@ h2 { margin: 0 0 14px; font-size: 22px; }
 h3 { margin: 0 0 4px; font-size: 16px; color: var(--muted); }
 .node {
     display: flex; justify-content: space-between; align-items: center;
-    width: 150px; padding: 7px 10px; font-size: 13px; cursor: pointer;
+    width: 150px; padding: 7px 10px; font-size: 14px; cursor: pointer;
     background: var(--surface); color: var(--fg);
     border: 2px solid var(--border); border-radius: 6px;
 }
@@ -77,7 +77,7 @@ h3 { margin: 0 0 4px; font-size: 16px; color: var(--muted); }
 .node.locked { opacity: 0.45; cursor: not-allowed; }
 .node:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .cost { color: var(--accent); }
-.hint { color: var(--muted); font-size: 12px; margin: 12px 0 8px; }
+.hint { color: var(--muted); font-size: 14px; margin: 12px 0 8px; }
 .btn { padding: 8px 28px; font-size: 14px; cursor: pointer; background: var(--surface); color: var(--fg); border: 2px solid var(--border); border-radius: 6px; }
 .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 </style>
