@@ -19,6 +19,10 @@ onMounted(() => {
         const devWin = window as DevWindow; // 仅 DEV 分支的调试钩子，运行时形状由本行赋值保证
         devWin.__SEAPP__ = { game: game.value };
     }
+    // DEV：领域层探针（冒烟/AT 验证接缝；生产 tree-shake）
+    if (import.meta.env.DEV) {
+        void import('./game/domain/devProbe').then((mod) => mod.installDevProbe());
+    }
     
     EventBus.on('current-scene-ready', (scene_instance: Phaser.Scene) => {
         

@@ -2,10 +2,11 @@ import { BootScene } from './scenes/BootScene';
 import { PreloaderScene } from './scenes/PreloaderScene';
 import { MenuScene } from './scenes/MenuScene';
 import { LevelScene } from './scenes/LevelScene';
+import { CampScene } from './scenes/CampScene';
 import { AUTO, Game, Scale } from 'phaser';
 
 // GameConfig：1024×768 逻辑分辨率（SRS 2.2 基线）+ Scale.FIT 等比缩放（NFR-06 / EX-06）
-// Arcade Physics 重力 1300（SRS 附录 A，与 MotionModel 同源；Body 级 allowGravity 默认继承）
+// Arcade Physics 重力 1300（SRS 附录 A，与 MotionModel 同源）
 const config: Phaser.Types.Core.GameConfig = {
     type: AUTO,
     width: 1024,
@@ -27,7 +28,8 @@ const config: Phaser.Types.Core.GameConfig = {
         BootScene,
         PreloaderScene,
         MenuScene,
-        LevelScene
+        LevelScene,
+        CampScene
     ]
 };
 

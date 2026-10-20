@@ -2,7 +2,7 @@
 /** UI-04 暂停（MOD-28）：五入口（FR-15 规则 3）。"放弃本关"不写存档。 */
 import { UI_TEXT } from './i18n';
 
-const emit = defineEmits<{ resume: []; help: []; abandon: [] }>();
+const emit = defineEmits<{ resume: []; help: []; settings: []; abandon: [] }>();
 </script>
 
 <template>
@@ -11,6 +11,7 @@ const emit = defineEmits<{ resume: []; help: []; abandon: [] }>();
             <h2>{{ UI_TEXT.pause.title }}</h2>
             <nav class="col">
                 <button class="btn" autofocus @click="emit('resume')">{{ UI_TEXT.pause.resume }}</button>
+                <button class="btn" @click="emit('settings')">{{ UI_TEXT.pause.settings }}</button>
                 <button class="btn" @click="emit('help')">{{ UI_TEXT.pause.help }}</button>
                 <button class="btn danger" @click="emit('abandon')">
                     {{ UI_TEXT.pause.abandon }}

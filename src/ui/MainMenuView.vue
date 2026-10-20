@@ -1,10 +1,10 @@
 <script setup lang="ts">
-/** UI-01 主菜单（MOD-26）：六入口；"继续游戏"无存档置灰（FR-13 规则 7 / FR-15 规则 1）。 */
+/** UI-01 主菜单（MOD-26）：六入口（FR-15 规则 1）；"继续游戏"无存档置灰（FR-13 规则 7）。 */
 import { UI_TEXT } from './i18n';
 
 defineProps<{ hasSave: boolean }>();
 const emit = defineEmits<{
-    start: []; continue: []; levels: []; help: [];
+    start: []; continue: []; levels: []; settings: []; help: []; records: [];
 }>();
 </script>
 
@@ -18,7 +18,9 @@ const emit = defineEmits<{
                 {{ UI_TEXT.menu.continue }}
             </button>
             <button class="btn" @click="emit('levels')">{{ UI_TEXT.menu.levelSelect }}</button>
+            <button class="btn" @click="emit('settings')">{{ UI_TEXT.menu.settings }}</button>
             <button class="btn" @click="emit('help')">{{ UI_TEXT.menu.help }}</button>
+            <button class="btn" @click="emit('records')">{{ UI_TEXT.menu.records }}</button>
         </nav>
     </div>
 </template>

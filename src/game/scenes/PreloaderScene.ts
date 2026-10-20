@@ -10,6 +10,9 @@ import { inventoryStore } from '../domain/inventoryStore';
 import { weaponService } from '../domain/weaponService';
 import { AppBoot } from '../domain/appBoot';
 import { emitEvent } from '../events';
+import { bootstrapSave, syncSkpFromProgress } from '../domain/saveBootstrap';
+import { saveSystem } from '../domain/saveSystem';
+import type { SaveData } from '../domain/saveSchema';
 
 export class PreloaderScene extends Scene {
     private retryCount = 0;
@@ -47,19 +50,33 @@ export class PreloaderScene extends Scene {
         this.load.spritesheet('fruit_apple', 'gen/fruit_apple.png', { frameWidth: 64, frameHeight: 64 });
         this.load.spritesheet('fruit_collected', 'gen/fruit_collected.png', { frameWidth: 64, frameHeight: 64 });
         this.load.image('bg_green', 'gen/bg_green.png');
-        // 关卡地图按关懒加载（NF-03）：M2 仅 1-1
-        this.load.tilemapTiledJSON('map_1-1', 'levels/1-1.json');
     }
 
     create(): void {
         if (this.registry.get('configInvalid') === true) { return; }
         this.registerPlaceholderTextures();
         this.registerAnimations();
-        // M2：新档基线（FR-13 规则 7：主菜单"继续游戏"置灰由 AppBoot 结果驱动；SaveSystem P3）
-        progressService.reset();
-        inventoryStore.initNewGame();
-        weaponService.initNewGame();
-        AppBoot.resolve({ save: null, configErrors: [] });
+        // FLOW-R1：存档装配 → 读档（checksum/迁移/损坏处置）→ 各 store 恢复
+        bootstrapSave();
+        const loadResult = saveSystem.load(0);
+        let save: SaveData | null = null;
+        if (loadResult.ok) {
+            save = loadResult.value;
+            if (save === null) {
+                progressService.reset();
+                inventoryStore.initNewGame();
+                weaponService.initNewGame();
+            } else {
+                syncSkpFromProgress();
+            }
+        } else {
+            // EX-02：损坏已备份并新建（handleCorrupt 内完成）；新档基线
+            console.warn(`[Preloader] 读档失败 ${loadResult.code}，新建存档`);
+            progressService.reset();
+            inventoryStore.initNewGame();
+            weaponService.initNewGame();
+        }
+        AppBoot.resolve({ save, configErrors: [] });
         this.scene.start('Menu');
     }
 

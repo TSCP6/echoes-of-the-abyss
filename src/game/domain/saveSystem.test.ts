@@ -1,0 +1,113 @@
+/**
+ * TT-01：SaveSystem 单测（FR-13/DR-02/NFR-05 + EX-01/02 + AT-45~47）。
+ * 内存 Storage 注入 StorageAdapter 不可行（单例已绑定）——此处用可替换 Storage 的
+ * 独立 SaveSystem 实例 + 直接注入 storageAdapter 不可行（模块单例），
+ * 故测试经 globalThis.localStorage 垫片（Node 环境提供最小实现）。
+ */
+import { describe, it, expect, beforeEach } from 'vitest';
+import { SaveSystem, type SaveParticipant } from './saveSystem';
+import { validateAll, markValidated } from './configRegistry';
+import type { SaveData } from './saveSchema';
+
+class MemStorage implements Storage {
+    map = new Map<string, string>();
+    failSet = false;
+    get length(): number { return this.map.size; }
+    clear(): void { this.map.clear(); }
+    getItem(k: string): string | null { return this.map.get(k) ?? null; }
+    key(i: number): string | null { return [...this.map.keys()][i] ?? null; }
+    removeItem(k: string): void { this.map.delete(k); }
+    setItem(k: string, v: string): void {
+        if (this.failSet) { const e = new Error('quota'); e.name = 'QuotaExceededError'; throw e; }
+        this.map.set(k, v);
+    }
+}
+
+// Node 环境注入 localStorage 垫片（StorageAdapter.detect 读取 globalThis.localStorage）
+const mem = new MemStorage();
+(globalThis as unknown as { localStorage: Storage }).localStorage = mem;
+
+interface CounterSection { n: number }
+const counter: SaveParticipant<'player'> = {
+    key: 'player',
+    toSnapshot: () => ({ n: 7 } as unknown as CounterSection & SaveData['player']),
+    fromSnapshot: () => { /* 测试只验证写入/读取链路 */ }
+};
+
+beforeEach(() => {
+    const r = validateAll();
+    if (!r.ok) { throw new Error('config invalid'); }
+    markValidated();
+    mem.clear();
+    mem.failSet = false;
+});
+
+describe('SaveSystem（FR-13/DR-02）', () => {
+    it('无存档 → load 返回 null（FR-13 规则 7 置灰依据）', () => {
+        const ss = new SaveSystem();
+        ss.register(counter);
+        expect(ss.load(0)).toEqual({ ok: true, value: null });
+    });
+
+    it('双键写入：正式键 + pending 清除（DD-10）', () => {
+        const ss = new SaveSystem();
+        ss.register(counter);
+        expect(ss.write(0).ok).toBe(true);
+        expect(mem.map.has('seapp.echoes.save.slot0')).toBe(true);
+        expect(mem.map.has('seapp.echoes.save.slot0.pending')).toBe(false);
+    });
+
+    it('配额失败 → 正式键不被覆盖 + save:failed 语义（EX-01 / AT-47）', () => {
+        const ss = new SaveSystem();
+        ss.register(counter);
+        ss.write(0); // 先写一份好档
+        const good = mem.map.get('seapp.echoes.save.slot0');
+        mem.failSet = true;
+        const r = ss.write(0);
+        expect(r.ok).toBe(false);
+        if (!r.ok) { expect(r.code).toBe('QUOTA'); }
+        expect(mem.map.get('seapp.echoes.save.slot0')).toBe(good); // 原档完好
+        expect(ss.isMemoryOnlyMode()).toBe(true);
+    });
+
+    it('篡改存档 → checksum 拒载 + corrupt 备份（EX-02 / AT-46）', () => {
+        const ss = new SaveSystem();
+        ss.register(counter);
+        ss.write(0);
+        const text = mem.map.get('seapp.echoes.save.slot0') as string;
+        const tampered = text.replace(/"coins":\d+/, '"coins":999999').replace(/"n":\d+/, '"n":99');
+        mem.map.set('seapp.echoes.save.slot0', tampered);
+        const r = ss.load(0);
+        expect(r.ok).toBe(false);
+        if (!r.ok) { expect(r.code).toBe('CORRUPT'); }
+        // 备份键存在
+        const corruptKeys = [...mem.map.keys()].filter((k) => k.includes('.corrupt.'));
+        expect(corruptKeys.length).toBe(1);
+        // 正式键已被移除（rename 语义）
+        expect(mem.map.has('seapp.echoes.save.slot0')).toBe(false);
+    });
+
+    it('非法 JSON → CORRUPT', () => {
+        const ss = new SaveSystem();
+        ss.register(counter);
+        mem.map.set('seapp.echoes.save.slot0', '{not json');
+        expect(ss.load(0).ok).toBe(false);
+    });
+
+    it('schemaVersion 高于当前 → SCHEMA_NEWER', () => {
+        const ss = new SaveSystem();
+        ss.register(counter);
+        mem.map.set('seapp.echoes.save.slot0', JSON.stringify({ schemaVersion: 99, checksum: 'x' }));
+        const r = ss.load(0);
+        expect(r.ok).toBe(false);
+        if (!r.ok) { expect(r.code).toBe('SCHEMA_NEWER'); }
+    });
+
+    it('残留 pending 启动清除（DD-10 崩溃一致性 ③）', () => {
+        const ss = new SaveSystem();
+        ss.register(counter);
+        mem.map.set('seapp.echoes.save.slot0.pending', 'stale');
+        ss.load(0);
+        expect(mem.map.has('seapp.echoes.save.slot0.pending')).toBe(false);
+    });
+});

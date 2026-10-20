@@ -48,6 +48,11 @@ export class SceneDirector {
         if (this.transitioning) { return; }
         this.fadeTo('Menu');
     }
+
+    gotoCamp(sceneId: 1 | 2 | 3): void {
+        if (this.transitioning) { return; }
+        this.fadeTo('Camp', { sceneId });
+    }
 }
 
 /** 全局单例（跨场景共享切换闸） */

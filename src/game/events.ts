@@ -4,6 +4,7 @@
  * 事件名字面量的单一出处（TT-05 门禁 ④）。
  */
 import type { HudSnapshot, SlotEntry } from './domain/types';
+import type { KeymapData } from './domain/saveSchema';
 
 export type UiState =
     | 'none' | 'mainMenu' | 'levelSelect' | 'paused' | 'result'
@@ -28,6 +29,9 @@ export interface EventPayloads {
     'load:progress': { percent: number };
     'game:requestPause': { reason: 'esc' | 'blur' };
     'game:requestInventory': { open: true };
+    'game:requestShop': { sceneId: 1 | 2 | 3 };
+    'game:requestLevelSelect': { from: 'camp' };
+    'game:requestSkillTree': { open: true };
 }
 
 /** IF-E09 载荷 = Settings 全量（IF-M11） */
@@ -37,7 +41,7 @@ export interface SettingsChangedPayload {
     sfxVolume: number;
     screenShake: boolean;
     fullscreen: boolean;
-    keymap: Record<string, string> | null;
+    keymap: KeymapData | null;
 }
 
 /**

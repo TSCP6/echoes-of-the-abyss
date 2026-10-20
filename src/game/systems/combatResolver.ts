@@ -14,6 +14,7 @@ import { ConfigRegistry } from '../domain/configRegistry';
 import type { PlayerController } from './playerController';
 import type { EnemyAI, EnemyEntity } from './enemyAI';
 import { weaponService } from '../domain/weaponService';
+import { skillService } from '../domain/skillService';
 import type { ProjectilePool } from './projectilePool';
 import type { WorldFxLayer } from './worldFxLayer';
 import { emitEvent } from '../events';
@@ -71,9 +72,20 @@ export class CombatResolver {
         });
     }
 
+    /** 范围伤害（旋风斩等技能执行器调用，FR-07 规则 4） */
+    areaDamage(x: number, y: number, radius: number, damage: number): void {
+        for (const enemy of this.enemies.getEntities()) {
+            if (enemy.dead) { continue; }
+            const dist = Math.hypot(enemy.sprite.x - x, enemy.sprite.y - y);
+            if (dist <= radius) {
+                this.hitEnemy(enemy, damage, x);
+            }
+        }
+    }
+
     private skillFactor(): number {
-        // P3：SkillService 被动 damagePct 聚合；M2 恒 1
-        return 1;
+        // FR-07：被动 damagePct 聚合（skillFactor = 1 + Σ pct/100）
+        return 1 + skillService.passiveBonuses().damagePct / 100;
     }
 
     /** 管线阶段 5（dt 秒） */
@@ -112,6 +124,21 @@ export class CombatResolver {
             }
         }
 
+        // 敌弹 vs 玩家（Boss 扇形弹等）
+        if (!this.playerIsInvincible() && this.player.getMotionState().state !== 'dead') {
+            for (const proj of this.projectiles.getActive()) {
+                if (proj.spec === null || proj.spec.side !== 'enemy') { continue; }
+                const pb = proj.sprite.body as Physics.Arcade.Body;
+                const plb = this.player.body;
+                if (Geom.Rectangle.Overlaps(new Geom.Rectangle(pb.x, pb.y, pb.width, pb.height),
+                    new Geom.Rectangle(plb.x, plb.y, plb.width, plb.height))) {
+                    this.hitPlayer(proj.spec.damage, proj.spec.sourceId, proj.sprite.x);
+                    this.projectiles.release(proj);
+                    break;
+                }
+            }
+        }
+
         // 敌人接触伤害玩家（先于玩家攻击结算，K7 同帧互杀以玩家死亡为准）
         const pm = this.player.getMotionState();
         if (pm.state !== 'dead' && !this.playerIsInvincible()) {
@@ -134,6 +161,8 @@ export class CombatResolver {
 
     private hitEnemy(enemy: EnemyEntity, baseDamage: number, fromX: number): void {
         const weaponLevelFactor = weaponService.getLevelFactor(this.activeWeaponId);
+        // AT-11：Boss 阶段切换无敌期间攻击不造成伤害
+        if (enemy.isInvincible(this.scene.time.now)) { return; }
         const result = calcDamage({
             baseDamage,
             weaponLevelFactor,

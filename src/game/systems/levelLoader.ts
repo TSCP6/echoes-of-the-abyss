@@ -27,6 +27,7 @@ export interface LevelContext {
     goal: Geom.Rectangle;
     hints: Array<{ id: string; action: string; x: number; y: number; w: number; h: number }>;
     bossArena: Geom.Rectangle | null;
+    bossId: string | null;
     bgmId: string;
     mapWidth: number;
     mapHeight: number;
@@ -134,6 +135,7 @@ export class LevelLoader {
             goal: new Geom.Rectangle(goalObj.x ?? 0, goalObj.y ?? 0, goalObj.width ?? 64, goalObj.height ?? 96),
             hints,
             bossArena: null,
+            bossId: def.bossId,
             bgmId: def.bgmId,
             mapWidth: map.widthInPixels,
             mapHeight: map.heightInPixels

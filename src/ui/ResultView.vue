@@ -1,8 +1,10 @@
 <script setup lang="ts">
 /** UI-05b 结算（MOD-29）：用时/击杀/碎片/金币/新纪录（FR-15 规则 4 / FR-19 规则 3）。
- *  载荷由 UiLayer 经 prop 传入（事件先于组件挂载发射，订阅会错过，故走状态机持有）。 */
+ *  载荷由 UiLayer 经 prop 传入（事件先于组件挂载发射，订阅会错过，故走状态机持有）；
+ *  新纪录标记读 RecordStore.getLastSubmit()（DD-15：IF-E06 载荷 + submitResult 返回）。 */
 import { computed } from 'vue';
 import { progressService } from '../game/domain/progressService';
+import { recordStore } from '../game/domain/recordStore';
 import type { EventPayloads } from '../game/events';
 import { UI_TEXT } from './i18n';
 
@@ -16,6 +18,8 @@ const nextLevelId = computed<string | null>(() => {
     const nxt = order[idx + 1];
     return nxt !== undefined && nxt.unlocked ? nxt.levelId : null;
 });
+
+const newRecord = computed(() => recordStore.getLastSubmit()?.newRecord ?? false);
 </script>
 
 <template>
@@ -28,6 +32,7 @@ const nextLevelId = computed<string | null>(() => {
                     <tr><td>{{ UI_TEXT.result.kills }}</td><td>{{ data.kills }}</td></tr>
                     <tr><td>{{ UI_TEXT.result.shards }}</td><td>{{ data.shards }} / 3</td></tr>
                     <tr><td>{{ UI_TEXT.result.coins }}</td><td>{{ data.coins }}</td></tr>
+                    <tr v-if="newRecord"><td colspan="2" class="record">★ {{ UI_TEXT.result.newRecord }}</td></tr>
                 </tbody>
             </table>
             <nav class="col">
@@ -55,6 +60,7 @@ h2 { margin: 0 0 16px; }
 table { margin: 0 auto 20px; border-collapse: collapse; }
 td { padding: 6px 18px; font-size: 17px; }
 td:first-child { color: var(--muted); text-align: right; }
+.record { color: var(--gold); text-align: center; font-weight: bold; }
 .col { display: flex; flex-direction: column; gap: 10px; }
 .btn {
     padding: 11px 0; font-size: 16px; cursor: pointer;
