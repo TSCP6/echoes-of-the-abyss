@@ -17,6 +17,7 @@ import { audioDirector } from '../systems/audioDirector';
 
 export class PreloaderScene extends Scene {
     private retryCount = 0;
+    private failedAssets: string[] = [];
 
     constructor() { super('Preloader'); }
 
@@ -56,16 +57,25 @@ export class PreloaderScene extends Scene {
         const audioFiles = [
             'sfx_jump', 'sfx_land', 'sfx_swing', 'sfx_hit_melee', 'sfx_shoot', 'sfx_hit_taken',
             'sfx_coin', 'sfx_pickup_item', 'sfx_checkpoint', 'sfx_death', 'sfx_skill', 'sfx_dash',
-            'sfx_heal', 'sfx_ui_click', 'sfx_ui_open', 'sfx_ui_close', 'sfx_ui_error', 'sfx_buy',
+            'sfx_heal', 'sfx_clear', 'sfx_ui_click', 'sfx_ui_open', 'sfx_ui_close', 'sfx_ui_error', 'sfx_buy',
             'bgm_scene1', 'bgm_scene2', 'bgm_boss1_tense', 'bgm_boss2_tense', 'bgm_boss3_tense'
         ];
         for (const f of audioFiles) {
             this.load.audio(f, [`audio/${f}.ogg`, `audio/${f}.m4a`]);
         }
+        // EX-03：资源加载失败 → 错误清单 + 重试（≤3 次后提示刷新）
+        this.load.on('loaderror', (file: { key?: string; url?: string }) => {
+            const name = file.key ?? file.url ?? 'unknown';
+            if (!this.failedAssets.includes(name)) { this.failedAssets.push(name); }
+        });
     }
 
     create(): void {
         if (this.registry.get('configInvalid') === true) { return; }
+        if (this.failedAssets.length > 0) {
+            this.showAssetError(this.failedAssets);
+            return;
+        }
         audioDirector.attach(this.game); // MOD-08：音频资源已加载，绑定 game（解锁经 UiLayer 手势）
         this.registerPlaceholderTextures();
         this.registerAnimations();
@@ -105,6 +115,21 @@ export class PreloaderScene extends Scene {
             this.scene.restart();
         });
         AppBoot.reject(new Error(`CONFIG_INVALID: ${errors.length} 项`));
+    }
+
+    /** EX-03：资源加载失败清单 + 重试按钮（连续 3 次提示刷新） */
+    private showAssetError(failed: string[]): void {
+        this.add.text(512, 200, '资源加载失败（EX-03）', { fontSize: '32px', color: '#ff5555' }).setOrigin(0.5);
+        const lines = failed.slice(0, 10).map((f) => `· ${f}`);
+        this.add.text(512, 260, lines.join('\n'), { fontSize: '16px', color: '#ffffff', align: 'center' }).setOrigin(0.5, 0);
+        const label = this.retryCount >= 3 ? '[ 重试 ]（多次失败请刷新页面）' : '[ 重试 ]';
+        const btn = this.add.text(512, 620, label, { fontSize: '24px', color: '#88ff88' }).setOrigin(0.5).setInteractive();
+        btn.on('pointerdown', () => {
+            this.retryCount += 1;
+            this.failedAssets = [];
+            this.scene.restart();
+        });
+        AppBoot.reject(new Error(`ASSET_MISSING: ${failed.length} 项`));
     }
 
     /** M2 程序化占位纹理（零许可风险）；P4 换 CC0 图集帧（DD-11 换帧不改代码） */

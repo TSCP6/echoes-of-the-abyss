@@ -33,6 +33,7 @@
   "devDependencies": {
     "@types/node": "^20.11.20",
     "@vitejs/plugin-vue": "^5.2.2",
+    "@vitest/coverage-v8": "^3.2.7",
     "@vue/tsconfig": "^0.7.0",
     "terser": "^5.31.0",
     "typescript": "~5.7.2",

@@ -34,8 +34,12 @@ export class SceneDirector {
         const from = this.activeScene();
         if (from === null) { return; }
         this.transitioning = true;
+        // overlay（结算/暂停）可能已 pause 源场景：恢复以推进淡出；
+        // 输入已禁用 + 场景 update 有 overlayOpen 闸，恢复不会推进玩法
+        if (from.scene.isPaused()) { from.scene.resume(); }
         from.cameras.main.fadeOut(FADE_MS, 0, 0, 0);
         from.input.enabled = false; // 切换期输入闸（FR-12 规则 6）
+        // 源场景已恢复（上行守卫），其 time 时钟推进淡出与切换定时
         from.time.delayedCall(FADE_MS, () => {
             from.scene.start(target, data);
             this.transitioning = false;

@@ -54,6 +54,8 @@ export class LevelScene extends Scene {
     private dashTimer = 0;
     private tutorial: TutorialDirector | null = null;
     private bossWoken = false;
+    /** create 完成前置位；preload 窗口期（同关重启）update 跳过管线（防旧 player/combat 空引用，EXD-4） */
+    private ready = false;
     private onPlayerDamaged = (p: { amount: number; sourceId: string; hp: number }): void => {
         void p;
         audioDirector.playSfx('hit_taken');
@@ -63,7 +65,9 @@ export class LevelScene extends Scene {
     private onOverlay = (p: { name: string; open: boolean }): void => {
         if (!sceneDirector.isGameplay(this)) { return; }
         this.overlayOpen = p.open;
-        if (p.open) { this.scene.pause(); } else { this.scene.resume(); }
+        // 切换期非活动场景不 pause/resume（消除 Phaser 警告）；resume 仅在已暂停时
+        if (p.open) { if (this.scene.isActive()) { this.scene.pause(); } }
+        else if (this.scene.isPaused()) { this.scene.resume(); }
     };
     private onEnemyKilled = (p: { enemyId: string; coins: number; position: { x: number; y: number } }): void => {
         this.kills += 1;
@@ -82,8 +86,8 @@ export class LevelScene extends Scene {
 
     init(data: { levelId?: string }): void {
         this.levelId = data.levelId ?? '1-1';
+        this.ready = false; // 重建期旧管线停摆（preload 窗口期 update 跳过）
     }
-
     create(): void {
         const loader = new LevelLoader(this);
         const result = loader.load(this.levelId);
@@ -221,6 +225,7 @@ export class LevelScene extends Scene {
         onEvent('ui:overlay', this.onOverlay);
         onEvent('enemy:killed', this.onEnemyKilled);
 
+        this.ready = true;
         this.cameras.main.fadeIn(400, 0, 0, 0);
         sceneDirector.setActiveGameplay(this);
         EventBus.emit('current-scene-ready', this);
@@ -325,9 +330,9 @@ export class LevelScene extends Scene {
     }
 
     update(_time: number, deltaMs: number): void {
-        const dt = deltaMs / 1000;
+        const dt = Math.min(deltaMs / 1000, 0.1); // 冻结/切回单帧巨型 dt 钳制（防物理爆冲，EX-05 精神）
         audioDirector.tick(dt); // MOD-08：合并窗口时钟 + 交叉淡化斜坡
-        if (this.overlayOpen) { return; }
+        if (this.overlayOpen || !this.ready) { return; }
 
         // 阶段 1：输入
         this.gateway.poll();

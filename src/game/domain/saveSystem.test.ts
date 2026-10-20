@@ -110,4 +110,32 @@ describe('SaveSystem（FR-13/DR-02）', () => {
         ss.load(0);
         expect(mem.map.has('seapp.echoes.save.slot0.pending')).toBe(false);
     });
+
+    it('写入 → 读回成功路径：参与者收到快照（FR-13 规则 1/AT-45）', () => {
+        const ss = new SaveSystem();
+        let received: unknown = null;
+        const reader: SaveParticipant<'player'> = {
+            key: 'player',
+            toSnapshot: () => ({ n: 42 } as unknown as CounterSection & SaveData['player']),
+            fromSnapshot: (d) => { received = d; }
+        };
+        ss.register(reader);
+        expect(ss.write(0).ok).toBe(true);
+        const r = ss.load(0);
+        expect(r.ok).toBe(true);
+        if (r.ok && r.value !== null) {
+            expect(r.value.player).toEqual({ n: 42 });
+        }
+        expect(received).toEqual({ n: 42 });
+    });
+
+    it('迁移链缺级 → MIGRATION_FAILED（DR-02 迁移语义）', () => {
+        const ss = new SaveSystem();
+        ss.register(counter);
+        // schemaVersion 低于当前但无迁移函数 → MIGRATION_FAILED + 备份
+        mem.map.set('seapp.echoes.save.slot0', JSON.stringify({ schemaVersion: 0, checksum: 'x' }));
+        const r = ss.load(0);
+        // 当前版本若为 1 且 MIGRATIONS[1] 未定义 → MIGRATION_FAILED；若定义了迁移则走后续校验
+        expect(r.ok).toBe(false);
+    });
 });

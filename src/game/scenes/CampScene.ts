@@ -17,7 +17,8 @@ export class CampScene extends Scene {
     private onOverlay = (p: { name: string; open: boolean }): void => {
         if (!sceneDirector.isGameplay(this)) { return; }
         this.overlayOpen = p.open;
-        if (p.open) { this.scene.pause(); } else { this.scene.resume(); }
+        if (p.open) { if (this.scene.isActive()) { this.scene.pause(); } }
+        else if (this.scene.isPaused()) { this.scene.resume(); }
     };
 
     constructor() { super('Camp'); }

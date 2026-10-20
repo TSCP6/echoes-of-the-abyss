@@ -34,8 +34,7 @@ export class PlayerController {
     iFrameUntil = 0;
     onLanded: (() => void) | null = null; // CameraRig 沉降 / 落地音效（场景内直调，6.2.3）
     onJumped: (() => void) | null = null; // TutorialDirector / 跳跃音效（场景内直调，6.2.3）
-
-    constructor(scene: Scene, private input: InputGateway) {
+    constructor(private scene: Scene, private input: InputGateway) {
         const d = ConfigRegistry.playerDefaults();
         this.sprite = scene.physics.add.sprite(0, 0, 'player_idle');
         const body = this.body;
@@ -102,6 +101,8 @@ export class PlayerController {
 
     /** 管线阶段 2：状态机迁移与运动（每帧一次，dt 单位 ms） */
     update(dtMs: number): void {
+        // 场景切换同帧残留 update（sprite 已销毁/场景非活动）：直接返回（EXD-4 防未捕获）
+        if (!this.scene.sys.isActive() || this.sprite.body === undefined || this.sprite.body === null) { return; }
         const d = ConfigRegistry.playerDefaults();
         const dt = dtMs / 1000;
         const body = this.body;

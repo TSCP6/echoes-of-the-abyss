@@ -31,6 +31,14 @@ onMounted(() => {
             devWin.__SEAPP_AUDIO__ = { director: mod.audioDirector };
         });
     }
+    // DEV：场景编排探针（transitioning 观测；生产 tree-shake）
+    if (import.meta.env.DEV) {
+        void import('./game/systems/sceneDirector').then((mod) => {
+            interface DevDirectorProbe { director: typeof mod.sceneDirector }
+            const devWin = window as unknown as { __SEAPP_DIRECTOR__?: DevDirectorProbe };
+            devWin.__SEAPP_DIRECTOR__ = { director: mod.sceneDirector };
+        });
+    }
     
     EventBus.on('current-scene-ready', (scene_instance: Phaser.Scene) => {
         
