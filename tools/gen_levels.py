@@ -145,11 +145,11 @@ def build_1_1() -> Level:
     lv.death_plane(45, 27, 4, 3)
     lv.death_plane(70, 27, 4, 3)
     # 教学跳跃：单向平台阶梯
-    lv.oneway_rect(14, 23, 17)
-    lv.oneway_rect(20, 20, 23)
+    lv.oneway_rect(14, 24, 17)
+    lv.oneway_rect(20, 22, 23)
     # 碎片 a 高台路线
-    lv.oneway_rect(28, 17, 31)
-    lv.shard("a", 29, 16)
+    lv.oneway_rect(26, 20, 31)
+    lv.shard("a", 25, 16)
     # 两格台阶（可跳过）
     lv.solid_rect(36, 24, 39, 25)
     lv.checkpoint(1, 42, 25)

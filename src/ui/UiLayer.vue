@@ -17,6 +17,7 @@ import LevelSelectView from './LevelSelectView.vue';
 import PauseOverlay from './PauseOverlay.vue';
 import ResultView from './ResultView.vue';
 import HelpView from './HelpView.vue';
+import InventoryPanel from './InventoryPanel.vue';
 import HudOverlay from './HudOverlay.vue';
 
 const uiState = ref<UiState>('none');
@@ -63,6 +64,9 @@ function backToMenu(): void {
 
 const onPauseRequest = (): void => {
     if (uiState.value === 'none' && sceneKey.value === 'Level') { open('paused'); }
+};
+const onInventoryRequest = (): void => {
+    if (uiState.value === 'none' && sceneKey.value === 'Level') { open('inventory'); }
 };
 const onLevelCleared = (p: EventPayloads['level:cleared']): void => {
     resultData.value = p;
@@ -111,6 +115,7 @@ if (import.meta.env.DEV) {
 onMounted(() => {
     mountedFlag = true;
     onEvent('game:requestPause', onPauseRequest);
+    onEvent('game:requestInventory', onInventoryRequest);
     onEvent('level:cleared', onLevelCleared);
     EventBus.on('current-scene-ready', (s: unknown) => {
         readyCount += 1;
@@ -129,6 +134,7 @@ onMounted(() => {
 
 onUnmounted(() => {
     offEvent('game:requestPause', onPauseRequest);
+    offEvent('game:requestInventory', onInventoryRequest);
     offEvent('level:cleared', onLevelCleared);
     window.removeEventListener('keydown', onKeydown);
 });
@@ -149,6 +155,7 @@ defineExpose({ open, close, enterLevel, backToMenu, goto, hasSave });
                 @abandon="backToMenu(); goto('levelSelect')" />
             <ResultView v-else-if="uiState === 'result'" :data="resultData"
                 @next="enterLevel" @retry="enterLevel" @levels="goto('levelSelect')" />
+            <InventoryPanel v-else-if="uiState === 'inventory'" @close="close" />
             <HelpView v-else-if="uiState === 'help'" @back="close" />
         </Transition>
     </div>

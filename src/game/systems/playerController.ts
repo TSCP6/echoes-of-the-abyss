@@ -1,9 +1,10 @@
 /**
- * MOD-01 PlayerController（Phaser 呈现层，管线阶段 2）—— FR-01 全部容错机制。
- * 状态机（4.3.1 实现级）：idle/run/jump/fall（M1）+ attack/hurt/dash/dead（P2+ 扩展点）。
+ * MOD-01 PlayerController（Phaser 呈现层，管线阶段 2）—— FR-01 全部容错机制 + FR-05 攻击硬直。
+ * 状态机（4.3.1 实现级）：idle/run/jump/fall/attack（M2）+ hurt/dash/dead（扩展点）。
  * 运动参数全部读自 ConfigRegistry（MotionModel，ARCH-8）：
  * 行走 210、加速 0.12s、减速 0.10s、空中 0.85、跳 480、截断 -180、土狼 100ms、缓冲 120ms。
- * 碰撞体 22×44 AABB（FR-01 规则 8）。发布 player:died（IF-E04）。
+ * 碰撞体 22×44 AABB（FR-01 规则 8）。攻击硬直 0.12 s（FR-05 规则 1，短剑基线）。
+ * 发布 player:died（IF-E04）。
  */
 import { Physics, type Scene } from 'phaser';
 import type { InputGateway } from './inputGateway';
@@ -17,6 +18,8 @@ export interface MotionState {
     grounded: boolean; facing: 1 | -1; state: PlayerAnimState;
 }
 
+const ATTACK_LOCK_MS = 120; // FR-05 规则 1：短剑硬直 0.12 s（武器级配置 P3 细化）
+
 export class PlayerController {
     readonly sprite: Physics.Arcade.Sprite;
     private state: PlayerAnimState = 'idle';
@@ -26,6 +29,7 @@ export class PlayerController {
     private grounded = false;
     private wasGrounded = false;
     private inputEnabled = true;
+    private attackLockMs = 0;
     /** P2 接入：i-frame 截止时间戳（游戏时钟 ms） */
     iFrameUntil = 0;
     onLanded: (() => void) | null = null; // CameraRig 沉降 / 落地音效（场景内直调，6.2.3）
@@ -62,7 +66,16 @@ export class PlayerController {
         this.body.setVelocity(0, 0);
         this.coyoteMs = 0;
         this.bufferMs = 0;
+        this.attackLockMs = 0;
         this.setState('idle');
+    }
+
+    /** FR-05 规则 1：进入攻击态（0.12 s 硬直）；dead/硬直中拒绝。返回是否成功发起 */
+    beginAttack(): boolean {
+        if (this.state === 'dead' || this.attackLockMs > 0) { return false; }
+        this.attackLockMs = ATTACK_LOCK_MS;
+        this.setState('attack');
+        return true;
     }
 
     /** FR-04/FR-11：死亡（HP≤0 或即死区）。lostCoins 由 EconomyService 结算（附录 A）。 */
@@ -79,7 +92,8 @@ export class PlayerController {
         this.state = next;
         const animMap: Partial<Record<PlayerAnimState, string>> = {
             idle: 'player-idle', run: 'player-run', jump: 'player-jump',
-            fall: 'player-fall', hurt: 'player-hit', dead: 'player-hit'
+            fall: 'player-fall', hurt: 'player-hit', dead: 'player-hit',
+            attack: 'player-idle' // M2 占位：挥击动画帧 P4 接 CC0 图集
         };
         const key = animMap[next];
         if (key !== undefined) { this.sprite.play(key, true); }
@@ -97,6 +111,16 @@ export class PlayerController {
         this.wasGrounded = this.grounded;
 
         if (this.state === 'dead') { return; }
+
+        // 攻击硬直：期间不响应移动/跳跃（FR-05 规则 1）
+        if (this.attackLockMs > 0) {
+            this.attackLockMs -= dtMs;
+            if (this.attackLockMs <= 0) {
+                this.attackLockMs = 0;
+                this.setState(this.grounded ? (body.velocity.x !== 0 ? 'run' : 'idle') : 'fall');
+            }
+            return;
+        }
 
         // 土狼 / 缓冲计时（帧内递减，暂停自动停止，EX-05）
         if (this.grounded) { this.coyoteMs = d.coyoteMs; } else { this.coyoteMs = Math.max(0, this.coyoteMs - dtMs); }

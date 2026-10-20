@@ -27,6 +27,7 @@ export interface EventPayloads {
     'tutorial:hint': { hintId: string; text: string } | { hintId: string; done: true };
     'load:progress': { percent: number };
     'game:requestPause': { reason: 'esc' | 'blur' };
+    'game:requestInventory': { open: true };
 }
 
 /** IF-E09 载荷 = Settings 全量（IF-M11） */
