@@ -4,6 +4,7 @@
  */
 import { Scene } from 'phaser';
 import { sceneDirector } from '../systems/sceneDirector';
+import { appLifecycle } from '../adapters/appLifecycle';
 
 export class BootScene extends Scene {
     constructor() { super('Boot'); }
@@ -14,6 +15,7 @@ export class BootScene extends Scene {
 
     create(): void {
         sceneDirector.attachGame(this.game);
+        appLifecycle.install(this.game); // MOD-40：EX-04/05/07 + EXD-4 全局兜底
         this.scene.start('Preloader');
     }
 }

@@ -23,6 +23,14 @@ onMounted(() => {
     if (import.meta.env.DEV) {
         void import('./game/domain/devProbe').then((mod) => mod.installDevProbe());
     }
+    // DEV：音频探针（AT-56~58 冒烟接缝；生产 tree-shake）
+    if (import.meta.env.DEV) {
+        void import('./game/systems/audioDirector').then((mod) => {
+            interface DevAudioProbe { director: typeof mod.audioDirector }
+            const devWin = window as unknown as { __SEAPP_AUDIO__?: DevAudioProbe };
+            devWin.__SEAPP_AUDIO__ = { director: mod.audioDirector };
+        });
+    }
     
     EventBus.on('current-scene-ready', (scene_instance: Phaser.Scene) => {
         

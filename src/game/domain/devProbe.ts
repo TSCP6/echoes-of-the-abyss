@@ -12,6 +12,7 @@ import { recordStore } from './recordStore';
 import { settingsStore } from './settingsStore';
 import { economyService } from './economyService';
 import { resourceSystem } from './resourceSystem';
+import { emitEvent, type EventPayloads } from '../events';
 
 export function installDevProbe(): void {
     interface DevDomainProbe {
@@ -24,6 +25,8 @@ export function installDevProbe(): void {
         settings: typeof settingsStore;
         economy: typeof economyService;
         resources: typeof resourceSystem;
+        /** AT 验证接缝：经类型化门面发射 DR-04 事件（仅 DEV） */
+        emit: <K extends keyof EventPayloads>(name: K, payload: EventPayloads[K]) => void;
     }
     const devWin = window as unknown as { __SEAPP_DOMAIN__?: DevDomainProbe }; // 调试钩子，形状由本对象字面量保证
     devWin.__SEAPP_DOMAIN__ = {
@@ -35,6 +38,7 @@ export function installDevProbe(): void {
         records: recordStore,
         settings: settingsStore,
         economy: economyService,
-        resources: resourceSystem
+        resources: resourceSystem,
+        emit: (name, payload) => { emitEvent(name, payload); }
     };
 }

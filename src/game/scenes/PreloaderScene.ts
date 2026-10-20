@@ -13,6 +13,7 @@ import { emitEvent } from '../events';
 import { bootstrapSave, syncSkpFromProgress } from '../domain/saveBootstrap';
 import { saveSystem } from '../domain/saveSystem';
 import type { SaveData } from '../domain/saveSchema';
+import { audioDirector } from '../systems/audioDirector';
 
 export class PreloaderScene extends Scene {
     private retryCount = 0;
@@ -40,20 +41,32 @@ export class PreloaderScene extends Scene {
 
         this.load.setPath('assets');
         this.load.image('terrain32', 'gen/terrain32.png');
-        this.load.spritesheet('player_idle', 'gen/player_idle.png', { frameWidth: 64, frameHeight: 64 });
-        this.load.spritesheet('player_run', 'gen/player_run.png', { frameWidth: 64, frameHeight: 64 });
-        this.load.spritesheet('player_jump', 'gen/player_jump.png', { frameWidth: 64, frameHeight: 64 });
-        this.load.spritesheet('player_fall', 'gen/player_fall.png', { frameWidth: 64, frameHeight: 64 });
-        this.load.spritesheet('player_hit', 'gen/player_hit.png', { frameWidth: 64, frameHeight: 64 });
-        this.load.spritesheet('checkpoint_flag', 'gen/checkpoint_flag.png', { frameWidth: 128, frameHeight: 128 });
-        this.load.spritesheet('goal_idle', 'gen/goal_idle.png', { frameWidth: 128, frameHeight: 128 });
-        this.load.spritesheet('fruit_apple', 'gen/fruit_apple.png', { frameWidth: 64, frameHeight: 64 });
-        this.load.spritesheet('fruit_collected', 'gen/fruit_collected.png', { frameWidth: 64, frameHeight: 64 });
-        this.load.image('bg_green', 'gen/bg_green.png');
+        // CC0 美术（Pixel Adventure 1 / SunnyLand Woods，docs/素材许可清单.md）；帧网格与占位一致（DD-11 换帧不改代码）
+        this.load.spritesheet('player_idle', 'art/player_idle.png', { frameWidth: 64, frameHeight: 64 });
+        this.load.spritesheet('player_run', 'art/player_run.png', { frameWidth: 64, frameHeight: 64 });
+        this.load.spritesheet('player_jump', 'art/player_jump.png', { frameWidth: 64, frameHeight: 64 });
+        this.load.spritesheet('player_fall', 'art/player_fall.png', { frameWidth: 64, frameHeight: 64 });
+        this.load.spritesheet('player_hit', 'art/player_hit.png', { frameWidth: 64, frameHeight: 64 });
+        this.load.spritesheet('checkpoint_flag', 'art/checkpoint_flag.png', { frameWidth: 128, frameHeight: 128 });
+        this.load.image('goal_idle', 'art/goal_idle.png');
+        this.load.spritesheet('fruit_apple', 'art/fruit_apple.png', { frameWidth: 64, frameHeight: 64 });
+        this.load.spritesheet('fruit_collected', 'art/fruit_collected.png', { frameWidth: 64, frameHeight: 64 });
+        this.load.image('bg_green', 'art/bg_green.png');
+        // DD-11 音频清单（双格式 ogg/m4a：Safari ≥17 不解 Vorbis，NFR-06）
+        const audioFiles = [
+            'sfx_jump', 'sfx_land', 'sfx_swing', 'sfx_hit_melee', 'sfx_shoot', 'sfx_hit_taken',
+            'sfx_coin', 'sfx_pickup_item', 'sfx_checkpoint', 'sfx_death', 'sfx_skill', 'sfx_dash',
+            'sfx_heal', 'sfx_ui_click', 'sfx_ui_open', 'sfx_ui_close', 'sfx_ui_error', 'sfx_buy',
+            'bgm_scene1', 'bgm_scene2', 'bgm_boss1_tense', 'bgm_boss2_tense', 'bgm_boss3_tense'
+        ];
+        for (const f of audioFiles) {
+            this.load.audio(f, [`audio/${f}.ogg`, `audio/${f}.m4a`]);
+        }
     }
 
     create(): void {
         if (this.registry.get('configInvalid') === true) { return; }
+        audioDirector.attach(this.game); // MOD-08：音频资源已加载，绑定 game（解锁经 UiLayer 手势）
         this.registerPlaceholderTextures();
         this.registerAnimations();
         // FLOW-R1：存档装配 → 读档（checksum/迁移/损坏处置）→ 各 store 恢复
@@ -113,6 +126,24 @@ export class PreloaderScene extends Scene {
         make('enemy_boss', 0x606080);
     }
 
+    /** 挥击 4 帧程序化纹理（64×64 网格，剑弧旋转；零许可风险） */
+    private registerSwingTexture(): void {
+        if (this.textures.exists('player_swing_0')) { return; }
+        for (let f = 0; f < 4; f++) {
+            const g = this.make.graphics();
+            g.fillStyle(0xf4f4f4, 1);
+            // 剑弧：随帧旋转的扇形近似（4 段矩形），-60° → 60°
+            const angle = -60 + f * 40;
+            for (let s = 0; s < 4; s++) {
+                const a = ((angle + s * 8) * Math.PI) / 180;
+                const r = 18 + s * 4;
+                g.fillRect(32 + Math.cos(a) * r - 2, 32 + Math.sin(a) * r - 2, 5, 5);
+            }
+            g.generateTexture(`player_swing_${f}`, 64, 64);
+            g.destroy();
+        }
+    }
+
     private registerAnimations(): void {
         const a = this.anims;
         if (!a.exists('player-idle')) {
@@ -129,6 +160,18 @@ export class PreloaderScene extends Scene {
         }
         if (!a.exists('player-hit')) {
             a.create({ key: 'player-hit', frames: a.generateFrameNumbers('player_hit', { start: 0, end: 6 }), frameRate: 12, repeat: 0 });
+        }
+        // FR-16 规则 3：死亡 6 帧（0.8 s 停顿由 LevelScene DEATH_PAUSE_MS 承担）
+        if (!a.exists('player-dead')) {
+            a.create({ key: 'player-dead', frames: a.generateFrameNumbers('player_hit', { start: 0, end: 5 }), frameRate: 8, repeat: 0 });
+        }
+        // FR-16 规则 3：挥击 4 帧（程序化剑弧，零许可风险）
+        this.registerSwingTexture();
+        if (!a.exists('player-swing')) {
+            a.create({
+                key: 'player-swing', frameRate: 24, repeat: 0,
+                frames: [{ key: 'player_swing_0' }, { key: 'player_swing_1' }, { key: 'player_swing_2' }, { key: 'player_swing_3' }]
+            });
         }
     }
 }

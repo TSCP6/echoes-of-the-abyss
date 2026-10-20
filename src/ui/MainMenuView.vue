@@ -1,6 +1,11 @@
 <script setup lang="ts">
 /** UI-01 主菜单（MOD-26）：六入口（FR-15 规则 1）；"继续游戏"无存档置灰（FR-13 规则 7）。 */
+import { computed } from 'vue';
 import { UI_TEXT } from './i18n';
+import { appLifecycle } from '../game/adapters/appLifecycle';
+
+// EX-04 / NFR-06：Canvas 回退时主菜单提示兼容模式（帧率目标 30 FPS）
+const compat = computed(() => appLifecycle.compatMode);
 
 defineProps<{ hasSave: boolean }>();
 const emit = defineEmits<{
@@ -12,6 +17,7 @@ const emit = defineEmits<{
     <div class="menu">
         <h1>{{ UI_TEXT.title }}</h1>
         <p class="sub">{{ UI_TEXT.subtitle }}</p>
+        <p v-if="compat" class="warn">当前以兼容模式运行，帧率目标 30 FPS（WebGL 不可用）</p>
         <nav class="col">
             <button class="btn" autofocus @click="emit('start')">{{ UI_TEXT.menu.start }}</button>
             <button class="btn" :disabled="!hasSave" @click="emit('continue')">
@@ -33,6 +39,7 @@ const emit = defineEmits<{
 }
 h1 { font-size: 56px; margin: 0; letter-spacing: 8px; }
 .sub { color: var(--muted); margin: 0 0 24px; }
+.warn { color: var(--warning); font-size: 14px; margin: 0 0 8px; }
 .col { display: flex; flex-direction: column; gap: 12px; width: 280px; }
 .btn {
     padding: 12px 0; font-size: 18px; cursor: pointer;

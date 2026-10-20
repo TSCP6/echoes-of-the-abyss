@@ -27,6 +27,8 @@ import { saveSystem } from '../domain/saveSystem';
 import { ConfigRegistry } from '../domain/configRegistry';
 import { EventBus } from '../EventBus';
 import { emitEvent, onEvent, offEvent } from '../events';
+import { audioDirector } from '../systems/audioDirector';
+import { TutorialDirector } from '../systems/tutorialDirector';
 
 const DEATH_PAUSE_MS = 800; // FR-16 规则 3
 const DASH_SPEED_PX_S = 900; // 回响冲刺 180px / 0.2s
@@ -50,6 +52,14 @@ export class LevelScene extends Scene {
     private overlayOpen = false;
     private hazards: ArenaHazard[] = [];
     private dashTimer = 0;
+    private tutorial: TutorialDirector | null = null;
+    private bossWoken = false;
+    private onPlayerDamaged = (p: { amount: number; sourceId: string; hp: number }): void => {
+        void p;
+        audioDirector.playSfx('hit_taken');
+        this.fx.hitFlash(this.player.sprite); // FR-16 规则 3：受击闪白 0.08 s
+        this.cameraRig.shake(4, 120); // FR-16 规则 3：4 px / 0.12 s（AT-57 震屏开关旁路）
+    };
     private onOverlay = (p: { name: string; open: boolean }): void => {
         if (!sceneDirector.isGameplay(this)) { return; }
         this.overlayOpen = p.open;
@@ -117,8 +127,7 @@ export class LevelScene extends Scene {
                 // FR-02 规则 5：Boss 战锁相机至场地；FR-14 规则 5 血条由每帧 setBossBar 驱动
                 const arena = new Geom.Rectangle(enemy.spawnPos.x - 400, enemy.spawnPos.y - 300, 800, 600);
                 this.cameraRig.lockTo(arena);
-                this.fx.damageNumber(enemy.sprite.x, enemy.sprite.y - 60, 0); // 占位特效（P4 粒子）
-                void phaseIndex;
+                audioDirector.setBossPhase(phaseIndex); // FR-16 规则 1：紧张变体
             },
             onBossSkill: (enemy, kind, params) => {
                 if (kind === 'summon') {
@@ -145,6 +154,13 @@ export class LevelScene extends Scene {
         };
         this.combat = new CombatResolver(this, this.player, this.enemies, this.projectiles, this.fx);
         this.combat.onPlayerDied = () => this.onPlayerDeath();
+        this.combat.onEnemyHit = () => audioDirector.playSfx('hit_melee'); // AT-56 命中音效
+        // 攻击发起音效（TutorialDirector 在其后链式追加完成判定，6.2.3）
+        this.combat.onAttackBegan = () => {
+            const eq = weaponService.getEquippedDefs();
+            const ranged = eq.main?.type === 'ranged' || eq.sub?.type === 'ranged';
+            audioDirector.playSfx(ranged ? 'shoot' : 'swing');
+        };
         for (const e of this.enemies.getEntities()) {
             this.physics.add.collider(e.sprite, collisionLayer);
         }
@@ -170,17 +186,32 @@ export class LevelScene extends Scene {
             onCheckpoint: (id) => {
                 this.activeCheckpoint = id;
                 this.hud.setContext(this.levelId, this.pickups.checkpointsActive);
+                audioDirector.playSfx('checkpoint');
+                this.fx.checkpointParticles(this.ctx.checkpoints.find((c) => c.id === id));
             },
             onShard: (key) => {
                 this.children.getByName(`shard_${key}`)?.destroy();
                 skillService.grantShardSkp(); // 1 枚 = 1 SKP（附录 A）
+                audioDirector.playSfx('pickup_item');
             },
-            onChest: () => { /* P4 音效 */ },
+            onChest: () => { audioDirector.playSfx('pickup_item'); },
             onGoal: () => this.onGoalReached(),
             onHint: (id, action) => {
-                emitEvent('tutorial:hint', { hintId: id, text: this.hintText(action) });
+                this.tutorial?.onHintEnter(id, action, this.hintText(action));
             }
         });
+        // MOD-09 教学（仅 1-1 新档）；钩子链在 Director 内保留音效钩子
+        this.tutorial = new TutorialDirector(this.levelId, this.gateway, this.player, this.combat, this.pickups);
+        // 玩家动作音效（6.2.3 场景内直调；链式保留 TutorialDirector 已挂钩子）
+        const prevJump = this.player.onJumped;
+        this.player.onJumped = () => { prevJump?.(); audioDirector.playSfx('jump'); };
+        this.player.onLanded = () => { this.cameraRig.onLanded(); audioDirector.playSfx('land'); };
+        const prevCoin = this.pickups.onCoinPicked;
+        this.pickups.onCoinPicked = () => { prevCoin?.(); audioDirector.playSfx('coin'); };
+        const prevChest = this.pickups.onChestOpened;
+        this.pickups.onChestOpened = () => { prevChest?.(); audioDirector.playSfx('buy'); };
+        audioDirector.playBgm('level');
+        onEvent('player:damaged', this.onPlayerDamaged);
 
         this.hud.setContext(this.levelId, 0);
         this.elapsedSec = 0;
@@ -214,6 +245,7 @@ export class LevelScene extends Scene {
         if (!decision.ok) { return; } // SP 不足/冷却：不消耗（FR-07 边界）
         const p = this.player.getMotionState();
         const ef = decision.value.effect;
+        audioDirector.playSfx(ef.heal !== undefined ? 'heal' : 'skill'); // AT-56 技能/治疗音效
         if (ef.damage !== undefined && ef.radius !== undefined) {
             this.combat.areaDamage(p.x, p.y, ef.radius, ef.damage);
         } else if (ef.projectileCount !== undefined) {
@@ -239,6 +271,7 @@ export class LevelScene extends Scene {
         if (this.dead) { return; }
         this.dead = true;
         recordStore.addDeath();
+        audioDirector.playSfx('death');
         this.player.die(this.activeCheckpoint, this.levelId);
         this.time.delayedCall(DEATH_PAUSE_MS, () => {
             this.respawn();
@@ -249,6 +282,7 @@ export class LevelScene extends Scene {
 
     private onGoalReached(): void {
         const shards = this.ctx.shards.filter((s) => progressService.isShardCollected(this.levelId, s.id)).length;
+        audioDirector.playSfx('clear');
         const res = progressService.completeLevel(this.levelId);
         // FR-19：最佳成绩（AT-64 新纪录判定）
         recordStore.submitResult(this.levelId, this.elapsedSec, shards);
@@ -270,6 +304,15 @@ export class LevelScene extends Scene {
         sceneDirector.gotoMenu();
     }
 
+    /** Boss 唤醒（进入场地）→ 紧张 BGM 变体（FR-16 规则 1，订阅 BossBrain 的呈现侧落实） */
+    private bossWakeCheck(): void {
+        if (this.bossWoken) { return; }
+        const boss = this.enemies.getBoss();
+        if (boss === null || boss.sleeping) { return; }
+        this.bossWoken = true;
+        audioDirector.setBossPhase(boss.phaseIndex);
+    }
+
     private respawn(): void {
         const cp = this.ctx.checkpoints.find((c) => c.id === this.activeCheckpoint) ?? this.ctx.checkpoints[0];
         resourceSystem.refill(); // FR-11 规则 7
@@ -283,6 +326,7 @@ export class LevelScene extends Scene {
 
     update(_time: number, deltaMs: number): void {
         const dt = deltaMs / 1000;
+        audioDirector.tick(dt); // MOD-08：合并窗口时钟 + 交叉淡化斜坡
         if (this.overlayOpen) { return; }
 
         // 阶段 1：输入
@@ -316,6 +360,8 @@ export class LevelScene extends Scene {
 
         // 阶段 2：玩家
         this.player.update(deltaMs);
+        this.tutorial?.update(dt); // MOD-09：move 完成判定 + 8 s 超时
+        this.bossWakeCheck();
         if (this.dashTimer > 0) { this.dashTimer -= dt; }
 
         // 阶段 3：弹丸
@@ -384,6 +430,7 @@ export class LevelScene extends Scene {
     shutdown(): void {
         offEvent('ui:overlay', this.onOverlay);
         offEvent('enemy:killed', this.onEnemyKilled);
+        offEvent('player:damaged', this.onPlayerDamaged);
         sceneDirector.setActiveGameplay(null);
         this.combat.destroy();
         this.projectiles.destroy();

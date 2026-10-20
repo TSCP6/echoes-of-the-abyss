@@ -38,6 +38,9 @@ export class PickupSystem {
     private openedChests = new Set<string>();
     private goalFired = false;
     private firedHints = new Set<string>();
+    /** TutorialDirector / 拾取音效钩子（场景内直调，6.2.3） */
+    onCoinPicked: (() => void) | null = null;
+    onChestOpened: (() => void) | null = null;
 
     constructor(
         private scene: Scene,
@@ -120,6 +123,7 @@ export class PickupSystem {
                     const r = economyService.addCoins(1);
                     if (r.ok && !r.value.rejected) {
                         this.floatText(coin.sprite.x, coin.sprite.y - 10, '+1');
+                        this.onCoinPicked?.();
                     } else {
                         this.floatText(coin.sprite.x, coin.sprite.y - 10, '金币已满');
                     }
@@ -155,6 +159,7 @@ export class PickupSystem {
                 this.openedChests.add(ch.id);
                 this.spawnCoinBurst({ x: ch.x, y: ch.y - 20 }, 12);
                 this.events.onChest(ch.id);
+                this.onChestOpened?.();
             }
         }
         // 终点（单次熔断，5.8 异常 2）

@@ -6,6 +6,7 @@
  */
 import { Geom, type Scene } from 'phaser';
 import type { PlayerController } from './playerController';
+import { settingsStore } from '../domain/settingsStore';
 
 const TAU_X = 0.12;
 const TAU_Y = 0.18;
@@ -21,8 +22,18 @@ export class CameraRig {
     private dipT = -1; // <0 = 无沉降
     private lockRect: Geom.Rectangle | null = null;
 
-    constructor(private scene: Scene, private player: PlayerController) {
-        player.onLanded = () => { this.dipT = 0; };
+    // onLanded 由 LevelScene 统一链式挂载（沉降+音效，6.2.3）
+    constructor(private scene: Scene, private player: PlayerController) {}
+
+    /** 落地沉降触发（FR-02 规则 4）；公开供 LevelScene 音效链同点调用 */
+    onLanded(): void { this.dipT = 0; }
+
+    /** FR-16 规则 3/4：屏幕震动（幅度上限 8 px、时长上限 0.3 s）；震屏关闭（FR-18）→ 无位移（AT-57） */
+    shake(px: number, ms: number): void {
+        if (!settingsStore.getSnapshot().screenShake) { return; }
+        const amp = Math.min(8, px);
+        const dur = Math.min(300, ms);
+        this.scene.cameras.main.shake(dur, amp / 1000); // Phaser intensity ≈ px/1000 经验换算
     }
 
     setMapSize(w: number, h: number): void {

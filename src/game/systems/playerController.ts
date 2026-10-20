@@ -33,6 +33,7 @@ export class PlayerController {
     /** P2 接入：i-frame 截止时间戳（游戏时钟 ms） */
     iFrameUntil = 0;
     onLanded: (() => void) | null = null; // CameraRig 沉降 / 落地音效（场景内直调，6.2.3）
+    onJumped: (() => void) | null = null; // TutorialDirector / 跳跃音效（场景内直调，6.2.3）
 
     constructor(scene: Scene, private input: InputGateway) {
         const d = ConfigRegistry.playerDefaults();
@@ -92,8 +93,8 @@ export class PlayerController {
         this.state = next;
         const animMap: Partial<Record<PlayerAnimState, string>> = {
             idle: 'player-idle', run: 'player-run', jump: 'player-jump',
-            fall: 'player-fall', hurt: 'player-hit', dead: 'player-hit',
-            attack: 'player-idle' // M2 占位：挥击动画帧 P4 接 CC0 图集
+            fall: 'player-fall', hurt: 'player-hit', dead: 'player-dead',
+            attack: 'player-swing' // FR-16 规则 3：挥击 4 帧（P4 程序化剑弧）
         };
         const key = animMap[next];
         if (key !== undefined) { this.sprite.play(key, true); }
@@ -151,6 +152,7 @@ export class PlayerController {
         const canJump = this.grounded || this.coyoteMs > 0;
         if (this.bufferMs > 0 && canJump) {
             body.setVelocityY(-d.jumpVelocity);
+            this.onJumped?.();
             this.bufferMs = 0;
             this.coyoteMs = 0;
             this.setState('jump');

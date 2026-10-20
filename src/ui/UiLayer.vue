@@ -14,6 +14,8 @@ import { progressService } from '../game/domain/progressService';
 import { saveSystem } from '../game/domain/saveSystem';
 import { sceneDirector } from '../game/systems/sceneDirector';
 import { emitEvent, onEvent, offEvent, type UiState, type EventPayloads } from '../game/events';
+import { audioDirector } from '../game/systems/audioDirector';
+import { audioAdapter } from '../game/adapters/audioAdapter';
 import MainMenuView from './MainMenuView.vue';
 import LevelSelectView from './LevelSelectView.vue';
 import PauseOverlay from './PauseOverlay.vue';
@@ -42,18 +44,21 @@ function open(next: UiState): void {
     if (uiState.value !== 'none') { history.push(uiState.value); }
     uiState.value = next;
     emitEvent('ui:overlay', { name: next, open: true });
+    audioDirector.playSfx('ui_open');
 }
 
 function close(): void {
     const prev = uiState.value;
     uiState.value = history.length > 0 ? history.pop() as UiState : 'none';
     emitEvent('ui:overlay', { name: prev, open: false });
+    audioDirector.playSfx('ui_close');
 }
 
 function goto(state: UiState): void {
     history.length = 0;
     uiState.value = state;
     emitEvent('ui:overlay', { name: state, open: true });
+    audioDirector.playSfx('ui_click');
 }
 
 /** 供子视图调用：进入关卡（关 overlay + 切场景） */
@@ -119,6 +124,9 @@ function sceneKeyOf(s: unknown): string {
 }
 const onSceneReady = (scene: unknown): void => {
     sceneKey.value = sceneKeyOf(scene);
+    // FR-16 规则 1：每场景 1 首 BGM（菜单 bgm_scene1；关卡/营地 bgm_scene2；Boss 变体由 LevelScene 切）
+    if (sceneKey.value === 'Menu') { audioDirector.playBgm('menu'); }
+    if (sceneKey.value === 'Camp') { audioDirector.playBgm('level'); }
     if (sceneKey.value === 'Menu' && booted.value && uiState.value === 'none') {
         uiState.value = 'mainMenu';
     }
@@ -162,6 +170,15 @@ onMounted(() => {
         lastKey = sceneKeyOf(s);
         onSceneReady(s);
     });
+    // FLOW-S1 步骤 1 / NFR-10：首次用户手势内解锁 AudioContext（EX-08 拒绝则静音运行）
+    const unlockOnce = (): void => {
+        const game = sceneDirector.gameRef;
+        if (game !== null) { audioAdapter.unlock(game); }
+        window.removeEventListener('pointerdown', unlockOnce);
+        window.removeEventListener('keydown', unlockOnce);
+    };
+    window.addEventListener('pointerdown', unlockOnce);
+    window.addEventListener('keydown', unlockOnce);
     window.addEventListener('keydown', onKeydown);
     AppBoot.ready.then((r) => {
         hasSave.value = r.save !== null;

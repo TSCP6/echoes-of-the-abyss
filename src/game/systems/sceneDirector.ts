@@ -19,6 +19,9 @@ export class SceneDirector {
     isGameplay(scene: Scene): boolean { return this.activeGameplay === scene; }
     attachGame(game: Game): void { this.game = game; }
 
+    /** AudioAdapter 解锁等适配层需要 game 引用（FLOW-S1 步骤 1） */
+    get gameRef(): Game | null { return this.game; }
+
     get isTransitioning(): boolean { return this.transitioning; }
 
     private activeScene(): Scene | null {

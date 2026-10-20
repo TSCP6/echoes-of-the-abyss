@@ -4,6 +4,7 @@
 import { settingsStore } from '../game/domain/settingsStore';
 import { useDomainStore } from './useDomainStore';
 import { onEvent, offEvent } from '../game/events';
+import { fullscreenAdapter } from '../game/adapters/fullscreenAdapter';
 
 const emit = defineEmits<{ close: [] }>();
 
@@ -27,6 +28,14 @@ function remap(action: 'moveLeft' | 'moveRight' | 'jump' | 'attackMain' | 'inter
     const r = settingsStore.remap(action, key.toUpperCase());
     remapMsg.value = r.ok ? '' : r.message;
 }
+
+/** FR-18 全屏：用户手势内调用 FullscreenAdapter；拒绝 → 提示 + 状态回滚（IF-X03） */
+function toggleFullscreen(): void {
+    fullscreenAdapter.toggle();
+}
+fullscreenAdapter.onRejected((r) => {
+    remapMsg.value = r.message; // 复用提示行："请按 F11 手动全屏"
+});
 </script>
 
 <template>
@@ -42,8 +51,8 @@ function remap(action: 'moveLeft' | 'moveRight' | 'jump' | 'attackMain' | 'inter
             <label class="row">屏幕震动
                 <input type="checkbox" :checked="s.screenShake" @change="settingsStore.setScreenShake(($event.target as HTMLInputElement).checked)">
             </label>
-            <label class="row">全屏（P4 接 FullscreenAdapter）
-                <input type="checkbox" :checked="s.fullscreen" disabled>
+            <label class="row">全屏
+                <input type="checkbox" :checked="s.fullscreen" @change="toggleFullscreen">
             </label>
             <div class="remap">
                 <h3>按键重映射</h3>

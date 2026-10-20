@@ -22,6 +22,14 @@ export class WorldFxLayer {
             const text = scene.add.text(0, 0, '', { fontSize: '16px', color: '#ffffff' }).setDepth(40).setVisible(false);
             this.pool.push({ text, inUse: false, bornAt: 0 });
         }
+        // 检查点粒子纹理（6×6 白点，零许可风险；FR-16 规则 3 的 0.6 s 粒子源）
+        if (!scene.textures.exists('fx_particle')) {
+            const g = scene.make.graphics();
+            g.fillStyle(0xffe066, 1);
+            g.fillRect(0, 0, 6, 6);
+            g.generateTexture('fx_particle', 6, 6);
+            g.destroy();
+        }
     }
 
     tick(dt: number): void { this.clock += dt; }
@@ -65,6 +73,20 @@ export class WorldFxLayer {
             targets: sprite, scale: sprite.scale * 1.4, alpha: 0, duration: 250,
             onComplete: () => sprite.setVisible(false)
         });
+    }
+
+    /** 检查点激活粒子 0.6 s（FR-16 规则 3） */
+    checkpointParticles(cp: { x: number; y: number } | undefined): void {
+        if (cp === undefined) { return; }
+        const emitter = this.scene.add.particles(cp.x, cp.y - 20, 'fx_particle', {
+            speed: { min: 40, max: 120 },
+            angle: { min: 250, max: 290 },
+            lifespan: 600,
+            quantity: 12,
+            emitting: false
+        });
+        emitter.explode(12);
+        this.scene.time.delayedCall(700, () => emitter.destroy());
     }
 
     destroy(): void {

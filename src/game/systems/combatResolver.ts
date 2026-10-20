@@ -45,6 +45,10 @@ export class CombatResolver {
     /** LevelScene 注入：当前主手武器 id（等级系数来源）与玩家死亡编排（FLOW-S3） */
     activeWeaponId = 'wpn_shortsword';
     onPlayerDied: (() => void) | null = null;
+    /** TutorialDirector / 挥击音效：攻击发起（场景内直调，6.2.3） */
+    onAttackBegan: (() => void) | null = null;
+    /** 命中敌人音效/教学钩子（场景内直调，6.2.3） */
+    onEnemyHit: (() => void) | null = null;
 
     /** 测试接缝：注入确定性随机源（TT-01） */
     setRng(rng: () => number): void { this.rng = rng; }
@@ -59,6 +63,7 @@ export class CombatResolver {
             def.hitboxSize.h
         );
         this.swings.push({ rect, life: MELEE_LIFETIME_SEC, hitSet: new Set(), def, facing: p.facing });
+        this.onAttackBegan?.();
     }
 
     /** FR-04 规则 2：远程弹丸（弹药校验由调用方 WeaponService.consumeAmmo 完成） */
@@ -70,6 +75,7 @@ export class CombatResolver {
             range: def.range, damage: def.baseDamage,
             side: 'player', sourceId: def.id
         });
+        this.onAttackBegan?.();
     }
 
     /** 范围伤害（旋风斩等技能执行器调用，FR-07 规则 4） */
@@ -171,6 +177,7 @@ export class CombatResolver {
         const died = enemy.applyHit(result.amount, fromX);
         this.fx.damageNumber(enemy.sprite.x, enemy.sprite.y - 30, result.amount);
         this.fx.hitFlash(enemy.sprite);
+        this.onEnemyHit?.(); // AT-56 命中音效钩子
         if (died) {
             const coins = enemy.def.coinsDrop[0] + Math.floor(this.rng() * (enemy.def.coinsDrop[1] - enemy.def.coinsDrop[0] + 1));
             emitEvent('enemy:killed', { enemyId: enemy.def.id, coins, position: { x: enemy.sprite.x, y: enemy.sprite.y } });

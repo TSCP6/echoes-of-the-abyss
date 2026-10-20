@@ -7,6 +7,7 @@ import { weaponService } from '../game/domain/weaponService';
 import { ConfigRegistry } from '../game/domain/configRegistry';
 import { useDomainStore } from './useDomainStore';
 import { onEvent, offEvent } from '../game/events';
+import { audioDirector } from '../game/systems/audioDirector';
 
 const props = defineProps<{ sceneId: 1 | 2 | 3 }>();
 const emit = defineEmits<{ close: [] }>();
@@ -29,11 +30,12 @@ function itemName(refId: string): string {
 }
 
 function buy(goodsId: string): void {
-    shopService.buy(goodsId); // 失败码由置灰预防（UI-C5）
+    const r = shopService.buy(goodsId); // 失败码由置灰预防（UI-C5）
+    audioDirector.playSfx(r.ok ? 'buy' : 'ui_error'); // AT-56 购买音效 / 失败提示音
 }
-
 function upgrade(itemId: string): void {
-    shopService.upgradeWeapon(itemId);
+    const r = shopService.upgradeWeapon(itemId);
+    audioDirector.playSfx(r.ok ? 'buy' : 'ui_error');
 }
 </script>
 
