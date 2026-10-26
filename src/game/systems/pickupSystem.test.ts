@@ -19,16 +19,17 @@ function fixture(onGoal: () => boolean) {
     const scene = { physics: { add: {
         group: () => ({ add() {} }), collider() {},
         sprite: () => {
-            const sprite = { setDepth() { return this; }, setScale() { return this; }, setVisible() { return this; },
-                body: { setCollideWorldBounds() {}, setSize() {} } };
+            const sprite = { setDepth() { return this; }, setScale() { return this; }, setVisible() { return this; }, setPosition() { return this; },
+                body: { setCollideWorldBounds() {}, setSize() {}, setEnable() {}, setVelocity() {} } };
             return sprite;
         }
     } } } as unknown as Scene;
     const player = { sprite: { x: 5, y: 5 } } as PlayerController;
     const ctx = { levelId: '1-4', coinClusters: [], checkpoints: [], shards: [], chests: [], hazards: [], hints: [],
         goal: new Geom.Rectangle(0, 0, 20, 20) } as unknown as LevelContext;
-    const pickups = new PickupSystem(scene, player, ctx, { onGoal, onCheckpoint() {}, onShard() {}, onChest() {}, onHint() {} });
-    return { pickups, player };
+    let chestOpens = 0;
+    const pickups = new PickupSystem(scene, player, ctx, { onGoal, onCheckpoint() {}, onShard() {}, onChest() { chestOpens++; }, onHint() {} });
+    return { pickups, player, ctx, chestOpens: () => chestOpens };
 }
 
 describe('PickupSystem 终点确认', () => {
@@ -57,5 +58,28 @@ describe('PickupSystem 终点确认', () => {
         pickups.update(1 / 60);
         pickups.update(1 / 60);
         expect(clears).toBe(1);
+    });
+});
+
+describe('宝箱交互', () => {
+    it('靠近不自动打开，按下交互键后只打开一次', () => {
+        const f = fixture(() => false);
+        f.ctx.chests.push({ id: 'chest_1', x: 5, y: 5 });
+        f.pickups.update(1 / 60);
+        expect(f.chestOpens()).toBe(0);
+        f.pickups.update(1 / 60, true);
+        f.pickups.update(1 / 60, true);
+        expect(f.chestOpens()).toBe(1);
+    });
+
+    it('远处按键不打开宝箱，靠近后须再次按键', () => {
+        const f = fixture(() => false);
+        f.ctx.chests.push({ id: 'chest_1', x: 500, y: 5 });
+        f.pickups.update(1 / 60, true);
+        f.player.sprite.x = 500;
+        f.pickups.update(1 / 60);
+        expect(f.chestOpens()).toBe(0);
+        f.pickups.update(1 / 60, true);
+        expect(f.chestOpens()).toBe(1);
     });
 });

@@ -466,7 +466,7 @@ export class LevelScene extends Scene {
         this.mark();
 
         // 阶段 7：拾取
-        this.pickups.update(dt);
+        if (!this.dead) { this.pickups.update(dt, this.gateway.justPressed('interact')); }
         this.mark();
 
         // 阶段 8：资源/冷却/切换锁/FX

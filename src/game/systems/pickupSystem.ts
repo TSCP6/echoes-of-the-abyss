@@ -94,7 +94,7 @@ export class PickupSystem {
     }
 
     /** 管线阶段 7（dt 单位 s） */
-    update(dt: number): void {
+    update(dt: number, interactPressed = false): void {
         const px = this.player.sprite.x;
         const py = this.player.sprite.y;
 
@@ -155,6 +155,7 @@ export class PickupSystem {
         }
         // 宝箱（E 交互，本次尝试内保持开启）
         for (const ch of this.ctx.chests) {
+            if (!interactPressed) { break; }
             if (this.openedChests.has(ch.id)) { continue; }
             if (Math.abs(px - ch.x) < 44 && Math.abs(py - ch.y) < 56) {
                 this.openedChests.add(ch.id);
