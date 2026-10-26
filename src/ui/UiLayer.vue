@@ -133,8 +133,28 @@ const onSceneReady = (scene: unknown): void => {
         uiState.value = 'mainMenu';
     }
 };
+const consumedKeys = new Set<string>();
+const onKeyup = (e: KeyboardEvent): void => {
+    if (!consumedKeys.delete(e.code || e.key)) { return; }
+    e.preventDefault();
+    e.stopImmediatePropagation();
+};
+const onBlur = (): void => { consumedKeys.clear(); };
 const onKeydown = (e: KeyboardEvent): void => {
-    if (e.key === 'Escape' && uiState.value !== 'none' && uiState.value !== 'mainMenu') {
+    if (consumedKeys.has(e.code || e.key)) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return;
+    }
+    if (e.repeat) { return; }
+    const back = e.key === 'Escape'
+        || (e.key === 'Tab' && uiState.value === 'inventory')
+        || (e.key.toLowerCase() === 'y' && uiState.value === 'skillTree');
+    if (back && uiState.value !== 'none' && uiState.value !== 'mainMenu') {
+        // DOM 已消费的关闭键不再交给恢复后的 Phaser，直到物理 keyup。
+        consumedKeys.add(e.code || e.key);
+        e.preventDefault();
+        e.stopImmediatePropagation();
         close();
     }
 };
@@ -181,7 +201,9 @@ onMounted(() => {
     };
     window.addEventListener('pointerdown', unlockOnce);
     window.addEventListener('keydown', unlockOnce);
-    window.addEventListener('keydown', onKeydown);
+    window.addEventListener('keydown', onKeydown, true);
+    window.addEventListener('keyup', onKeyup, true);
+    window.addEventListener('blur', onBlur);
     AppBoot.ready.then((r) => {
         hasSave.value = r.save !== null;
         booted.value = true;
@@ -198,7 +220,9 @@ onUnmounted(() => {
     offEvent('game:requestLevelSelect', onLevelSelectRequest);
     offEvent('level:cleared', onLevelCleared);
     offEvent('game:requestSkillTree', onSkillTreeRequest);
-    window.removeEventListener('keydown', onKeydown);
+    window.removeEventListener('keydown', onKeydown, true);
+    window.removeEventListener('keyup', onKeyup, true);
+    window.removeEventListener('blur', onBlur);
 });
 
 defineExpose({ open, close, enterLevel, enterCamp, backToMenu, goto, hasSave });
