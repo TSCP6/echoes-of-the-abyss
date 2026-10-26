@@ -328,7 +328,12 @@ export class LevelScene extends Scene {
         });
     }
 
-    private onGoalReached(): void {
+    private onGoalReached(): boolean {
+        if (this.dead) { return false; }
+        // 要求本关配置的 Boss 已被击败，不能把“未找到存活 Boss”当作获胜。
+        if (this.ctx.bossId !== null && !this.enemies.getEntities().some((e) => e.def.id === this.ctx.bossId && e.dead)) {
+            return false;
+        }
         const shards = this.ctx.shards.filter((s) => progressService.isShardCollected(this.levelId, s.id)).length;
         audioDirector.playSfx('clear');
         const res = progressService.completeLevel(this.levelId);
@@ -350,6 +355,7 @@ export class LevelScene extends Scene {
         saveSystem.markDirty();
         saveSystem.queueWrite();
         sceneDirector.gotoMenu();
+        return true;
     }
 
     /** Boss 唤醒（进入场地）→ 紧张 BGM 变体（FR-16 规则 1，订阅 BossBrain 的呈现侧落实） */

@@ -27,7 +27,8 @@ export interface PickupEvents {
     onCheckpoint: (id: string) => void;
     onShard: (key: string) => void;
     onChest: (id: string) => void;
-    onGoal: () => void;
+    /** 返回 true 才接受本次通关；Boss 存活等条件未满足时不熔断。 */
+    onGoal: () => boolean;
     onHint: (id: string, action: string) => void;
 }
 
@@ -164,8 +165,7 @@ export class PickupSystem {
         }
         // 终点（单次熔断，5.8 异常 2）
         if (!this.goalFired && this.ctx.goal.contains(px, py)) {
-            this.goalFired = true;
-            this.events.onGoal();
+            this.goalFired = this.events.onGoal();
         }
         // 教学提示触发区（FR-17：进入即提示，整局一次）
         for (const hint of this.ctx.hints) {
