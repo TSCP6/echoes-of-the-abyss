@@ -96,6 +96,7 @@ export class PreloaderScene extends Scene {
                 weaponService.initNewGame();
             } else {
                 syncSkpFromProgress();
+                inventoryStore.restoreMissingInitialWeapons(weaponService.getOwned().map((w) => w.itemId));
             }
         } else {
             // EX-02：损坏已备份并新建（handleCorrupt 内完成）；新档基线

@@ -57,6 +57,9 @@ function validateWeapons(itemIdSet: Set<string>): void {
         if (!hasPrefix(w.id, 'wpn_')) { push('weapons', w.id, 'id', 'wpn_ 前缀', w.id); }
         if (seen.has(w.id)) { push('weapons', w.id, 'id', 'id 表内唯一', w.id); }
         seen.add(w.id);
+        if (ITEMS.find((it) => it.id === w.id)?.category !== 'weapon') {
+            push('weapons', w.id, 'itemId', '须有同 id 的 weapon 类 ItemDef（V3，保障装备存档往返）', w.id);
+        }
         checkRange('weapons', w.id, 'baseDamage', w.baseDamage, 5, 60);
         checkRange('weapons', w.id, 'attackSpeed', w.attackSpeed, 0.5, 6.0);
         if (w.type === 'melee') {

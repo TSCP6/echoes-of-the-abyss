@@ -8,6 +8,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { SaveSystem, type SaveParticipant } from './saveSystem';
 import { validateAll, markValidated } from './configRegistry';
 import type { SaveData } from './saveSchema';
+import { InventoryStore } from './inventoryStore';
 
 class MemStorage implements Storage {
     map = new Map<string, string>();
@@ -137,5 +138,25 @@ describe('SaveSystem（FR-13/DR-02）', () => {
         const r = ss.load(0);
         // 当前版本若为 1 且 MIGRATIONS[1] 未定义 → MIGRATION_FAILED；若定义了迁移则走后续校验
         expect(r.ok).toBe(false);
+    });
+
+    it('旧档装备修复经脏标记排队写回，重新加载后不再修复或写回', async () => {
+        const inv = new InventoryStore();
+        const ss = new SaveSystem();
+        ss.register({ key: 'inventory', toSnapshot: () => inv.toSnapshot(), fromSnapshot: (d) => inv.fromSnapshot(d) });
+        expect(ss.write().ok).toBe(true);
+        inv.onDirty(() => { ss.markDirty(); ss.queueWrite(); });
+
+        inv.restoreMissingInitialWeapons(['wpn_shortsword', 'wpn_crossbow']);
+        await Promise.resolve();
+
+        const restored = new InventoryStore();
+        const reader = new SaveSystem();
+        reader.register({ key: 'inventory', toSnapshot: () => restored.toSnapshot(), fromSnapshot: (d) => restored.fromSnapshot(d) });
+        expect(reader.load().ok).toBe(true);
+        expect(restored.getSnapshot().equipped).toEqual({ main: 'wpn_shortsword', sub: 'wpn_crossbow' });
+        // 重复启动不应触发脏标记；真实写回已由上面的重新加载验证。
+        restored.onDirty(() => { throw new Error('没有修复时不应再次标脏'); });
+        expect(restored.restoreMissingInitialWeapons(['wpn_shortsword', 'wpn_crossbow'])).toBe(false);
     });
 });

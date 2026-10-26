@@ -261,9 +261,25 @@ export class InventoryStore {
         const mainId = d.equipped?.main ?? null;
         const subId = d.equipped?.sub ?? null;
         this.equipped = {
-            main: mainId !== null && items[mainId] !== undefined ? mainId : null,
-            sub: subId !== null && items[subId] !== undefined ? subId : null
+            main: mainId !== null && items[mainId]?.category === 'weapon' ? mainId : null,
+            sub: subId !== null && items[subId]?.category === 'weapon' ? subId : null
         };
+    }
+
+    /** 旧版曾把初始装备写成 null；仅凭持有记录补回完全丢失的武器，不覆盖换装或复制背包物品。 */
+    restoreMissingInitialWeapons(ownedWeaponIds: ReadonlyArray<string>): boolean {
+        const owned = new Set(ownedWeaponIds);
+        const initial = ConfigRegistry.initialEquip();
+        let restored = false;
+        for (const hand of ['main', 'sub'] as const) {
+            const id = initial[hand];
+            if (this.equipped[hand] === null && owned.has(id) && !this.ownsWeapon(id)) {
+                this.equipped[hand] = id;
+                restored = true;
+            }
+        }
+        if (restored) { this.changed(); }
+        return restored;
     }
 
     /** 新档初始装备（Preloader/启动流程调用） */

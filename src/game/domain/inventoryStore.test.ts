@@ -102,4 +102,71 @@ describe('InventoryStore（FR-08）', () => {
         expect(inv.countItem('itm_arrow')).toBe(9);
         expect(inv.consumeItem('itm_arrow', 10)).toBe(false);
     });
+
+    it('新档经 JSON 存档往返后保留短剑、轻弩与初始物品', () => {
+        inv.initNewGame();
+        const restored = new InventoryStore();
+        restored.fromSnapshot(JSON.parse(JSON.stringify(inv.toSnapshot())));
+        expect(restored.getSnapshot().equipped).toEqual({ main: 'wpn_shortsword', sub: 'wpn_crossbow' });
+        expect(restored.countItem('itm_potion_hp_s')).toBe(2);
+        expect(restored.countItem('itm_arrow')).toBe(20);
+    });
+
+    it.each([
+        { hand: 'main', initial: 'wpn_shortsword', replacement: 'wpn_daggers', name: '遗迹短剑' },
+        { hand: 'sub', initial: 'wpn_crossbow', replacement: 'wpn_dartgun', name: '轻弩' }
+    ] as const)('换下的 $initial 可保存、读回并重新装备', ({ hand, initial, replacement, name }) => {
+        inv.initNewGame();
+        inv.addItem(replacement);
+        inv.equip(2, hand);
+        const restored = new InventoryStore();
+        restored.fromSnapshot(JSON.parse(JSON.stringify(inv.toSnapshot())));
+        expect(restored.getSnapshot().equipped[hand]).toBe(replacement);
+        expect(restored.countItem(initial)).toBe(1);
+        const slot = restored.getSnapshot().slots.findIndex((s) => s?.itemId === initial);
+        expect(restored.getTooltip(slot)?.name).toBe(name);
+        expect(restored.equip(slot, hand).ok).toBe(true);
+        expect(restored.getSnapshot().equipped[hand]).toBe(initial);
+        expect(restored.countItem(replacement)).toBe(1);
+    });
+
+    it('读档拒绝将药水或未知 id 当作装备武器', () => {
+        inv.fromSnapshot({ capacity: 20, slots: [], equipped: { main: 'itm_potion_hp_s', sub: 'wpn_unknown' } });
+        expect(inv.getSnapshot().equipped).toEqual({ main: null, sub: null });
+    });
+
+    it('仅凭已有等级记录恢复旧档丢失的初始装备，重复修复不重复发放', () => {
+        inv.fromSnapshot({ capacity: 20, slots: [], equipped: { main: null, sub: null } });
+        expect(inv.restoreMissingInitialWeapons(['wpn_shortsword', 'wpn_crossbow'])).toBe(true);
+        expect(inv.getSnapshot().equipped).toEqual({ main: 'wpn_shortsword', sub: 'wpn_crossbow' });
+        expect(inv.restoreMissingInitialWeapons(['wpn_shortsword', 'wpn_crossbow'])).toBe(false);
+        expect(inv.countItem('wpn_shortsword')).toBe(0);
+        expect(inv.countItem('wpn_crossbow')).toBe(0);
+    });
+
+    it('修复旧档不覆盖已有装备，也不复制背包中的初始武器', () => {
+        inv.fromSnapshot({
+            capacity: 20,
+            slots: [{ slot: 0, itemId: 'wpn_crossbow', count: 1 }],
+            equipped: { main: 'wpn_daggers', sub: null }
+        });
+        expect(inv.restoreMissingInitialWeapons(['wpn_shortsword', 'wpn_crossbow'])).toBe(false);
+        expect(inv.getSnapshot().equipped).toEqual({ main: 'wpn_daggers', sub: null });
+        expect(inv.countItem('wpn_crossbow')).toBe(1);
+    });
+
+    it('旧档无武器持有记录时不凭空发放装备', () => {
+        inv.fromSnapshot({ capacity: 20, slots: [], equipped: { main: null, sub: null } });
+        expect(inv.restoreMissingInitialWeapons([])).toBe(false);
+        expect(inv.getSnapshot().equipped).toEqual({ main: null, sub: null });
+    });
+
+    it.each([
+        { main: null, sub: 'wpn_shortsword' },
+        { main: 'wpn_crossbow', sub: null }
+    ])('初始武器已在另一只手时不重复发放：$main / $sub', (equipped) => {
+        inv.fromSnapshot({ capacity: 20, slots: [], equipped });
+        expect(inv.restoreMissingInitialWeapons(['wpn_shortsword', 'wpn_crossbow'])).toBe(false);
+        expect(inv.getSnapshot().equipped).toEqual(equipped);
+    });
 });

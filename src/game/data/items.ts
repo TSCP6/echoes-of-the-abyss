@@ -51,6 +51,16 @@ export const ITEMS: ItemDef[] = [
     },
     // ---- 武器物品（背包槽位表示，category=weapon，stackMax=1）----
     {
+        id: 'wpn_shortsword', name: '遗迹短剑', category: 'weapon', stackMax: 1,
+        effect: {}, throwable: false, price: 5,
+        icon: 'icon_shortsword', description: '初始携带的近战短剑。'
+    },
+    {
+        id: 'wpn_crossbow', name: '轻弩', category: 'weapon', stackMax: 1,
+        effect: {}, throwable: false, price: 5,
+        icon: 'icon_crossbow', description: '初始携带的远程武器，使用箭矢。'
+    },
+    {
         id: 'wpn_daggers', name: '双匕首', category: 'weapon', stackMax: 1,
         effect: {}, throwable: false, price: 120,
         icon: 'icon_daggers', description: '迅捷的近战双刃。'
