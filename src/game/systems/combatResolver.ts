@@ -29,6 +29,7 @@ interface MeleeSwing {
     hitSet: Set<EnemyEntity>;
     def: WeaponDef;
     facing: 1 | -1;
+    weaponLevelFactor: number;
 }
 
 export class CombatResolver {
@@ -54,7 +55,7 @@ export class CombatResolver {
     setRng(rng: () => number): void { this.rng = rng; }
 
     /** FR-04 规则 1：近战挥击（hitbox 0.10 s + hitSet 去重） */
-    beginMelee(def: WeaponDef): void {
+    beginMelee(def: WeaponDef, hand: 'main' | 'sub' = 'main'): void {
         const p = this.player.getMotionState();
         const rect = new Geom.Rectangle(
             p.x + (p.facing === 1 ? 11 : -11 - def.hitboxSize.w),
@@ -62,18 +63,19 @@ export class CombatResolver {
             def.hitboxSize.w,
             def.hitboxSize.h
         );
-        this.swings.push({ rect, life: MELEE_LIFETIME_SEC, hitSet: new Set(), def, facing: p.facing });
+        this.swings.push({ rect, life: MELEE_LIFETIME_SEC, hitSet: new Set(), def, facing: p.facing,
+            weaponLevelFactor: weaponService.getLevelFactor(def.id, hand) });
         this.onAttackBegan?.();
     }
 
     /** FR-04 规则 2：远程弹丸（弹药校验由调用方 WeaponService.consumeAmmo 完成） */
-    spawnProjectile(def: WeaponDef, angleDeg: number): void {
+    spawnProjectile(def: WeaponDef, angleDeg: number, hand: 'main' | 'sub' = 'main'): void {
         const p = this.player.getMotionState();
         this.projectiles.spawn({
             x: p.x + p.facing * 20, y: p.y - 6,
             angleDeg: (p.facing === 1 ? 0 : 180) + angleDeg, speed: def.projectileSpeed ?? 520,
             range: def.range, damage: def.baseDamage,
-            side: 'player', sourceId: def.id
+            side: 'player', sourceId: def.id, weaponLevelFactor: weaponService.getLevelFactor(def.id, hand)
         });
         this.onAttackBegan?.();
     }
@@ -84,7 +86,8 @@ export class CombatResolver {
             if (enemy.dead) { continue; }
             const dist = Math.hypot(enemy.sprite.x - x, enemy.sprite.y - y);
             if (dist <= radius) {
-                this.hitEnemy(enemy, damage, x);
+                const id = weaponService.getEquippedDefs().main?.id ?? this.activeWeaponId;
+                this.hitEnemy(enemy, damage, x, weaponService.getLevelFactor(id, 'main'));
             }
         }
     }
@@ -96,40 +99,6 @@ export class CombatResolver {
 
     /** 管线阶段 5（dt 秒） */
     update(dt: number): void {
-        // 挥击生命周期
-        for (const swing of [...this.swings]) {
-            swing.life -= dt;
-            if (swing.life <= 0) {
-                this.swings.splice(this.swings.indexOf(swing), 1);
-                continue;
-            }
-            // 命中检测（AT-15：同挥击同目标 1 次）
-            for (const enemy of this.enemies.getEntities()) {
-                if (enemy.dead || swing.hitSet.has(enemy)) { continue; }
-                const hb = enemy.getHurtbox();
-                if (Geom.Rectangle.Overlaps(swing.rect, new Geom.Rectangle(hb.x, hb.y, hb.w, hb.h))) {
-                    swing.hitSet.add(enemy);
-                    this.hitEnemy(enemy, swing.def.baseDamage, this.player.sprite.x);
-                }
-            }
-        }
-
-        // 弹丸 vs 敌人
-        for (const proj of this.projectiles.getActive()) {
-            if (proj.spec === null || proj.spec.side !== 'player') { continue; }
-            const pb = proj.sprite.body as Physics.Arcade.Body;
-            const prect = new Geom.Rectangle(pb.x, pb.y, pb.width, pb.height);
-            for (const enemy of this.enemies.getEntities()) {
-                if (enemy.dead) { continue; }
-                const hb = enemy.getHurtbox();
-                if (Geom.Rectangle.Overlaps(prect, new Geom.Rectangle(hb.x, hb.y, hb.w, hb.h))) {
-                    this.hitEnemy(enemy, proj.spec.damage, proj.sprite.x);
-                    this.projectiles.release(proj);
-                    break;
-                }
-            }
-        }
-
         // 敌弹 vs 玩家（Boss 扇形弹等）
         if (!this.playerIsInvincible() && this.player.getMotionState().state !== 'dead') {
             for (const proj of this.projectiles.getActive()) {
@@ -159,14 +128,54 @@ export class CombatResolver {
                 }
             }
         }
+
+        // K7：本帧死亡优先，死亡等待期间也不再结算残留攻击。
+        if (this.player.getMotionState().state === 'dead' || resourceSystem.getSnapshot().hp <= 0) {
+            this.swings.length = 0;
+            return;
+        }
+
+        // 挥击生命周期
+        for (const swing of [...this.swings]) {
+            swing.life -= dt;
+            if (swing.life <= 0) {
+                this.swings.splice(this.swings.indexOf(swing), 1);
+                continue;
+            }
+            // 命中检测（AT-15：同挥击同目标 1 次）
+            for (const enemy of this.enemies.getEntities()) {
+                if (enemy.dead || swing.hitSet.has(enemy)) { continue; }
+                const hb = enemy.getHurtbox();
+                if (Geom.Rectangle.Overlaps(swing.rect, new Geom.Rectangle(hb.x, hb.y, hb.w, hb.h))) {
+                    swing.hitSet.add(enemy);
+                    this.hitEnemy(enemy, swing.def.baseDamage, this.player.sprite.x, swing.weaponLevelFactor);
+                }
+            }
+        }
+
+        // 弹丸 vs 敌人
+        for (const proj of this.projectiles.getActive()) {
+            if (proj.spec === null || proj.spec.side !== 'player') { continue; }
+            const pb = proj.sprite.body as Physics.Arcade.Body;
+            const prect = new Geom.Rectangle(pb.x, pb.y, pb.width, pb.height);
+            for (const enemy of this.enemies.getEntities()) {
+                if (enemy.dead) { continue; }
+                const hb = enemy.getHurtbox();
+                if (Geom.Rectangle.Overlaps(prect, new Geom.Rectangle(hb.x, hb.y, hb.w, hb.h))) {
+                    this.hitEnemy(enemy, proj.spec.damage, proj.sprite.x, proj.spec.weaponLevelFactor ?? 1);
+                    this.projectiles.release(proj);
+                    break;
+                }
+            }
+        }
+
     }
 
     private playerIsInvincible(): boolean {
         return this.player.iFrameUntil > this.scene.time.now;
     }
 
-    private hitEnemy(enemy: EnemyEntity, baseDamage: number, fromX: number): void {
-        const weaponLevelFactor = weaponService.getLevelFactor(this.activeWeaponId);
+    private hitEnemy(enemy: EnemyEntity, baseDamage: number, fromX: number, weaponLevelFactor: number): void {
         // AT-11：Boss 阶段切换无敌期间攻击不造成伤害
         if (enemy.isInvincible(this.scene.time.now)) { return; }
         const result = calcDamage({

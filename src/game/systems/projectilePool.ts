@@ -17,6 +17,8 @@ export interface ProjectileSpec {
     damage: number;
     side: 'player' | 'enemy';
     sourceId: string;
+    /** 玩家发射时记录武器实例等级，命中时不串用后来活动的武器。 */
+    weaponLevelFactor?: number;
 }
 
 export interface Projectile {

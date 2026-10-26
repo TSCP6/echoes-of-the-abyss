@@ -402,7 +402,7 @@ export class LevelScene extends Scene {
                 const def = weaponService.getEquippedDefs().sub;
                 if (def !== null && def.type === 'ranged' && this.player.beginAttack()) {
                     this.combat.activeWeaponId = def.id;
-                    if (weaponService.consumeAmmo(def.id).ok) { this.combat.spawnProjectile(def, 0); }
+                    if (weaponService.consumeAmmo(def.id).ok) { this.combat.spawnProjectile(def, 0, 'sub'); }
                 }
             }
         }
