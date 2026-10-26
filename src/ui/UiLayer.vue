@@ -237,6 +237,36 @@ defineExpose({ open, close, enterLevel, enterCamp, backToMenu, goto, hasSave });
     font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
 }
 .ui-layer :deep(*) { pointer-events: auto; }
+/* 内容超过小窗口时从顶部滚动，避免居中布局把标题或返回按钮裁到屏幕外。 */
+.ui-layer > :deep(:not(.hud):not(.hint)) {
+    box-sizing: border-box;
+    padding: 16px;
+    overflow: auto;
+    overscroll-behavior: contain;
+    align-items: safe center;
+    justify-content: safe center;
+}
+.ui-layer > :deep(.menu) { justify-content: flex-start; }
+.ui-layer > :deep(.select) { justify-content: flex-start; }
+.ui-layer > :deep(.select > *) { flex-shrink: 0; }
+.ui-layer :deep(.panel) {
+    box-sizing: border-box;
+    max-width: 100%;
+    flex-shrink: 0;
+    margin: auto;
+}
+@media (max-width: 640px) {
+    .ui-layer :deep(.panel) { padding: 16px; }
+    .ui-layer :deep(.tree .cols) { flex-wrap: wrap; gap: 16px; }
+    .ui-layer :deep(.select .scene-row) { width: min(324px, 100%); }
+    .ui-layer :deep(.select .nodes) { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    .ui-layer :deep(.select .node) { box-sizing: border-box; width: 100%; min-width: 0; height: 64px; }
+    .ui-layer :deep(.shop .row) { flex-wrap: wrap; }
+    .ui-layer :deep(.help td) { padding: 5px 8px; }
+    .ui-layer :deep(.inv .grid) { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+    .ui-layer :deep(.inv .cell) { width: clamp(38px, 10vw, 56px); height: clamp(38px, 10vw, 56px); }
+    .ui-layer :deep(.pause .col) { width: min(240px, 100%); }
+}
 .overlay {
     position: absolute;
     inset: 0;

@@ -36,7 +36,8 @@ onUnmounted(() => {
 
 <style scoped>
 .hint {
-    position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%);
+    position: absolute; left: 50%; bottom: 128px; transform: translateX(-50%);
+    box-sizing: border-box; width: max-content; max-width: calc(100% - 24px);
     background: rgba(26, 28, 44, 0.9); border: 2px solid var(--accent); border-radius: 8px;
     padding: 10px 26px; color: var(--fg); font-size: 17px;
     pointer-events: none;

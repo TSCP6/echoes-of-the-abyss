@@ -14,6 +14,7 @@ import { bootstrapSave, syncSkpFromProgress } from '../domain/saveBootstrap';
 import { saveSystem } from '../domain/saveSystem';
 import type { SaveData } from '../domain/saveSchema';
 import { audioDirector } from '../systems/audioDirector';
+import { bindViewportLayout, centerDesignCamera } from '../systems/viewportLayout';
 
 export class PreloaderScene extends Scene {
     private retryCount = 0;
@@ -22,7 +23,11 @@ export class PreloaderScene extends Scene {
     constructor() { super('Preloader'); }
 
     init(): void {
-        this.add.image(512, 384, 'background');
+        centerDesignCamera(this);
+        const bg = this.add.image(0, 0, 'background').setScrollFactor(0);
+        bindViewportLayout(this, (width, height) => {
+            bg.setPosition(width / 2, height / 2).setScale(Math.max(width / bg.width, height / bg.height));
+        });
         this.add.rectangle(512, 384, 468, 32).setStrokeStyle(1, 0xffffff);
         const bar = this.add.rectangle(512 - 230, 384, 4, 28, 0xffffff);
         this.load.on('progress', (progress: number) => {

@@ -5,17 +5,17 @@ import { LevelScene } from './scenes/LevelScene';
 import { CampScene } from './scenes/CampScene';
 import { AUTO, Game, Scale } from 'phaser';
 import { PLAYER_DEFAULTS } from './data/playerDefaults';
+import { DESIGN_WIDTH, DESIGN_HEIGHT } from './systems/viewportLayout';
 
-// GameConfig：1024×768 逻辑分辨率（SRS 2.2 基线）+ Scale.FIT 等比缩放（NFR-06 / EX-06）
-// Arcade Physics 重力 1300（SRS 附录 A，与 MotionModel 同源）
+// 以 1024×768 为最小逻辑视野，等比缩放并扩展视口以铺满浏览器（EX-06）。
 const config: Phaser.Types.Core.GameConfig = {
     type: AUTO,
-    width: 1024,
-    height: 768,
+    width: DESIGN_WIDTH,
+    height: DESIGN_HEIGHT,
     parent: 'game-container',
     backgroundColor: '#1a1c2c',
     scale: {
-        mode: Scale.FIT,
+        mode: Scale.EXPAND,
         autoCenter: Scale.CENTER_BOTH
     },
     physics: {

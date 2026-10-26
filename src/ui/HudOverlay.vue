@@ -42,7 +42,7 @@ const onUpdate = (p: EventPayloads['hud:update']): void => {
 // 高频通道：条形逐帧（FR-14 规则 8）
 const loop = (): void => {
     const pf = hudViewModel.getPerFrame();
-    // EX-06/FR-14：HUD 锚定画布矩形（Scale.FIT 黑边内），每帧重算锚点
+    // EX-06/FR-14：HUD 跟随自适应画布矩形，每帧重算锚点
     const canvas = document.querySelector('canvas');
     if (canvas !== null && hudRoot.value !== null) {
         const r = canvas.getBoundingClientRect();
@@ -141,7 +141,7 @@ onUnmounted(() => {
     overflow: hidden;
 }
 .bar.sp { height: 14px; }
-.bar.boss { width: 600px; height: 16px; }
+.bar.boss { width: 100%; height: 16px; box-sizing: border-box; }
 .fill {
     position: absolute; inset: 0; transform-origin: left center;
     background: var(--hp); will-change: transform;
@@ -160,6 +160,7 @@ onUnmounted(() => {
 .muted { color: var(--muted); font-size: 14px; }
 .bossbar {
     position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    width: min(600px, calc(100% - 24px));
     display: flex; flex-direction: column; align-items: center; gap: 3px;
 }
 .bossname { font-size: 14px; color: var(--error); text-shadow: 0 1px 2px #000; }
@@ -180,4 +181,7 @@ onUnmounted(() => {
 .icon { font-size: 20px; color: var(--accent); }
 .cdmask { position: absolute; inset: 0; border-radius: 6px; }
 .cd { position: absolute; bottom: 2px; right: 4px; font-size: 14px; color: var(--warning); }
+@media (max-width: 1040px) {
+    .bossbar { top: 120px; }
+}
 </style>

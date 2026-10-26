@@ -30,6 +30,7 @@ import { emitEvent, onEvent, offEvent } from '../events';
 import { audioDirector } from '../systems/audioDirector';
 import { warnThrottled } from '../domain/warn';
 import { TutorialDirector } from '../systems/tutorialDirector';
+import { createViewportBackground } from '../systems/viewportLayout';
 
 const DEATH_PAUSE_MS = 800; // FR-16 规则 3
 const DASH_SPEED_PX_S = 900; // 回响冲刺 180px / 0.2s
@@ -136,9 +137,7 @@ export class LevelScene extends Scene {
         this.ctx = result.value;
         progressService.setCurrentLevel(this.levelId);
 
-        const bg = this.add.tileSprite(512, 384, 1024, 768, 'bg_green');
-        bg.setScrollFactor(0.2);
-        bg.setDepth(-20);
+        createViewportBackground(this, 0.2);
 
         this.gateway = new InputGateway(this);
         this.player = new PlayerController(this, this.gateway);

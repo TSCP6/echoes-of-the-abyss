@@ -9,6 +9,7 @@ import { EventBus } from '../EventBus';
 import { sceneDirector } from '../systems/sceneDirector';
 import { InputGateway } from '../systems/inputGateway';
 import { emitEvent, onEvent, offEvent } from '../events';
+import { bindViewportLayout, centerDesignCamera, createViewportBackground, DESIGN_WIDTH, DESIGN_HEIGHT } from '../systems/viewportLayout';
 
 export class CampScene extends Scene {
     private sceneId: 1 | 2 | 3 = 1;
@@ -29,10 +30,13 @@ export class CampScene extends Scene {
     }
 
     create(): void {
-        const bg = this.add.tileSprite(512, 384, 1024, 768, 'bg_green');
-        bg.setScrollFactor(0);
-        bg.setDepth(-20);
-        this.add.rectangle(512, 700, 1024, 140, 0x3a5a3a).setDepth(-10); // 营地地面
+        centerDesignCamera(this);
+        createViewportBackground(this);
+        const ground = this.add.rectangle(DESIGN_WIDTH / 2, 630, DESIGN_WIDTH, 138, 0x3a5a3a)
+            .setOrigin(0.5, 0).setDepth(-10);
+        bindViewportLayout(this, (width, height) => {
+            ground.setSize(width, DESIGN_HEIGHT / 2 + height / 2 - ground.y);
+        });
 
         // 商人 NPC（占位纹理）+ 交互提示（E 键，FR-10 输入）
         const merchant = this.add.sprite(420, 640, 'enemy_patrol').setDepth(5);

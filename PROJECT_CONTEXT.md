@@ -3,12 +3,13 @@
 > 更新时点：提交 `f0c576a` 之后（M4 收尾 + 手感方案 C 完成）。
 > 面向：后续会话/接手者。基线文档：`docs/需求分析文档.md`(SRS v1.0)、`docs/设计文档.md`(SDD v1.0)、
 > `docs/M4验收记录.md`（AT-52~75 实测）、`docs/素材许可清单.md`（CC0 登记）。
+> 2026-10-26 画幅调整：采用 `Scale.EXPAND` 等比铺满窗口；共享布局见 `systems/viewportLayout.ts`。
 
 ## 1. 项目概述
 
 - 产品：桌面浏览器单人 2D 横版平台跳跃动作游戏，12 关 + 3 Boss，纯前端无服务端。
 - 技术栈：Phaser 4.0.0 + Vue 3.5 + TypeScript 5.7（strict）+ Vite 6；Vitest 单测； Arcade Physics。
-- 逻辑分辨率 1024×768，`Scale.FIT`；瓦片 32px；地图为 Tiled 兼容 CSV JSON（`public/assets/levels/*.json`）。
+- 1024×768 为最小逻辑视野，`Scale.EXPAND` 等比铺满浏览器，宽屏扩展水平视野、窄长窗口扩展垂直视野；瓦片 32px；地图为 Tiled 兼容 CSV JSON（`public/assets/levels/*.json`）。
 - 里程碑：M1~M4 全部完成并提交；M4 自动化验收项全过，剩 4 组人工项（见 §6）。
 
 ## 2. 仓库结构与职责

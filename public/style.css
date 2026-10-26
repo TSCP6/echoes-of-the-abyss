@@ -1,3 +1,9 @@
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
 body {
     margin: 0;
     padding: 0;
@@ -7,16 +13,24 @@ body {
 }
 
 #app {
+    position: relative;
     width: 100%;
     height: 100vh;
+    height: 100dvh;
     overflow: hidden;
     display: flex;
     justify-content: center;
     align-items: center;
 }
 
-/* Scale.FIT 需要父容器有界（NFR-06 / EX-06） */
+/* Phaser 以浏览器可用区域作为缩放边界。 */
 #game-container {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
+}
+
+#game-container canvas {
+    display: block;
 }

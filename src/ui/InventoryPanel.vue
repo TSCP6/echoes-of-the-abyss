@@ -106,7 +106,7 @@ h2 { margin: 0 0 14px; font-size: 22px; }
     background: none; border: none; color: var(--error); cursor: pointer; font-size: 14px;
 }
 .tip {
-    position: absolute; left: 100%; top: 12px; margin-left: 12px; width: 200px;
+    margin-top: 12px; max-width: 100%; box-sizing: border-box;
     background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
     padding: 10px; text-align: left; font-size: 14px;
 }

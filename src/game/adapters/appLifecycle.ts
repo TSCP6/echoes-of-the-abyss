@@ -3,7 +3,7 @@
  * - EX-05：visibilitychange hidden → 暂停游戏循环与 BGM（game.loop.sleep + AudioAdapter.onVisibility），visible 恢复；
  * - EX-07：visibilitychange/blur → InputGateway 清零（blur 已由 InputGateway 自挂 game.events，此处补 visibility）；
  * - EX-04：webglcontextlost → 尝试 restore；失败 → 安全退出主菜单 + DOM 提示；Canvas 回退 → compatMode 标志（主菜单提示）；
- * - EX-06：resize 由 ScaleManager FIT 处理（DOM HUD 为绝对定位锚点，天然等比）；
+ * - EX-06：resize 由 ScaleManager EXPAND + viewportLayout 处理，DOM HUD 同步锚定画布；
  * - EXD-4：window error / unhandledrejection / Vue errorHandler → console 记录 + 游戏健康则 gotoMenu + DOM 横幅；同错 1 分钟去重。
  */
 import { sceneDirector } from '../systems/sceneDirector';
