@@ -71,7 +71,7 @@ export class CombatResolver {
         const p = this.player.getMotionState();
         this.projectiles.spawn({
             x: p.x + p.facing * 20, y: p.y - 6,
-            angleDeg, speed: def.projectileSpeed ?? 520,
+            angleDeg: (p.facing === 1 ? 0 : 180) + angleDeg, speed: def.projectileSpeed ?? 520,
             range: def.range, damage: def.baseDamage,
             side: 'player', sourceId: def.id
         });
