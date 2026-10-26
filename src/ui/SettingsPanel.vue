@@ -5,6 +5,8 @@ import { settingsStore } from '../game/domain/settingsStore';
 import { useDomainStore } from './useDomainStore';
 import { onEvent, offEvent } from '../game/events';
 import { fullscreenAdapter } from '../game/adapters/fullscreenAdapter';
+import { ref } from 'vue';
+import { effectiveKeys, REMAPPABLE_ACTIONS, type RemappableAction } from '../game/domain/keymap';
 
 const emit = defineEmits<{ close: [] }>();
 
@@ -16,17 +18,20 @@ const s = useDomainStore(
     }
 );
 
-const remapMsg = { value: '' };
+const remapMsg = ref('');
+const actionLabels: Record<RemappableAction, string> = {
+    moveLeft: '向左移动', moveRight: '向右移动', jump: '跳跃', attackMain: '主手攻击', interact: '交互'
+};
 
 function setVol(ch: 'master' | 'music' | 'sfx', v: number): void {
     settingsStore.setVolume(ch, Math.round(v / 5) * 5);
 }
 
-function remap(action: 'moveLeft' | 'moveRight' | 'jump' | 'attackMain' | 'interact'): void {
-    const key = window.prompt(`按下新按键以重映射「${action}」`);
-    if (key === null || key === '') { return; }
-    const r = settingsStore.remap(action, key.toUpperCase());
-    remapMsg.value = r.ok ? '' : r.message;
+function remap(action: RemappableAction): void {
+    const key = window.prompt(`输入「${actionLabels[action]}」的新键名（字母、数字、Space、ArrowLeft 等；取消则保留）`, effectiveKeys(action, s.value.keymap)[0]);
+    if (key === null) { return; }
+    const r = settingsStore.remap(action, key);
+    remapMsg.value = r.ok ? `已将${actionLabels[action]}设为 ${effectiveKeys(action, settingsStore.getSnapshot().keymap).join(' / ')}` : r.message;
 }
 
 /** FR-18 全屏：用户手势内调用 FullscreenAdapter；拒绝 → 提示 + 状态回滚（IF-X03） */
@@ -56,9 +61,9 @@ fullscreenAdapter.onRejected((r) => {
             </label>
             <div class="remap">
                 <h3>按键重映射</h3>
-                <button v-for="a in ['moveLeft', 'moveRight', 'jump', 'attackMain', 'interact'] as const"
-                    :key="a" class="btn small" @click="remap(a)">{{ a }}</button>
-                <p v-if="remapMsg.value" class="warn">{{ remapMsg.value }}</p>
+                <button v-for="a in REMAPPABLE_ACTIONS"
+                    :key="a" class="btn small" @click="remap(a)">{{ actionLabels[a] }}：{{ effectiveKeys(a, s.keymap).join(' / ') }}</button>
+                <p v-if="remapMsg" class="warn" role="status">{{ remapMsg }}</p>
             </div>
             <button class="btn close" @click="emit('close')">返回</button>
         </div>

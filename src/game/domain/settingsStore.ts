@@ -7,6 +7,7 @@
 import { ok, fail, type Result } from './result';
 import type { SaveSettingsSection, KeymapData } from './saveSchema';
 import { emitEvent } from '../events';
+import { keyConflict, normalizeKey, sanitizeKeymap } from './keymap';
 
 export interface Settings {
     masterVolume: number;
@@ -57,12 +58,12 @@ export class SettingsStore {
     }
 
     /** FR-18 规则 2：冲突提示并拒绝 */
-    remap(action: keyof NonNullable<KeymapData>, key: string): Result<void, 'KEY_CONFLICT'> {
+    remap(action: keyof NonNullable<KeymapData>, rawKey: string): Result<void, 'KEY_CONFLICT' | 'INVALID_VALUE'> {
+        const key = normalizeKey(rawKey);
+        if (key === null) { return fail('INVALID_VALUE', '不支持此按键，请使用字母、数字、空格、方向键或功能键'); }
         const map: KeymapData = { ...(this.s.keymap ?? {}) };
-        for (const [other, k] of Object.entries(map)) {
-            if (k === key && other !== action) {
-                return fail('KEY_CONFLICT', `按键 ${key} 已被 ${other} 占用`);
-            }
+        if (keyConflict(action, key, map)) {
+            return fail('KEY_CONFLICT', `按键 ${key} 已被其他动作或固定快捷键占用`);
         }
         map[action] = key;
         this.s.keymap = map;
@@ -81,8 +82,10 @@ export class SettingsStore {
             sfxVolume: clamp(d.sfxVolume, 90),
             screenShake: d.screenShake !== false,
             fullscreen: false, // 全屏不跨会话恢复（浏览器策略）
-            keymap: d.keymap ?? null
+            keymap: sanitizeKeymap(d.keymap ?? null)
         };
+        // 读档也可能发生在网关已存在时；通知同步但不标记存档脏数据。
+        emitEvent('settings:changed', this.getSnapshot());
     }
 }
 

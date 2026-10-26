@@ -5,32 +5,15 @@
  * poll() 每帧调用一次，快照 isDown/justPressed/justReleased（JustDown 读后即复位，故必须单点调用）。
  */
 import { Input, Scenes, type Scene } from 'phaser';
-
-export type GameAction =
-    | 'moveLeft' | 'moveRight' | 'jump'
-    | 'attackMain' | 'attackSub'
-    | 'skill1' | 'skill2' | 'skill3' | 'skill4'
-    | 'interact' | 'inventory' | 'skillTree' | 'pause' | 'fullscreen';
-
-const KEY = Input.Keyboard.KeyCodes;
+import { settingsStore } from '../domain/settingsStore';
+import { onEvent, offEvent, type SettingsChangedPayload } from '../events';
+import { DEFAULT_BINDINGS, effectiveKeys, keyCode, REMAPPABLE_ACTIONS, type GameAction } from '../domain/keymap';
+export type { GameAction } from '../domain/keymap';
 
 /** 默认映射（SRS 3.1）：值为主键 + 备选键 */
-export const DEFAULT_KEYMAP: Record<GameAction, number[]> = {
-    moveLeft: [KEY.A, KEY.LEFT],
-    moveRight: [KEY.D, KEY.RIGHT],
-    jump: [KEY.SPACE],
-    attackMain: [KEY.J],
-    attackSub: [KEY.K],
-    skill1: [KEY.ONE],
-    skill2: [KEY.TWO],
-    skill3: [KEY.THREE],
-    skill4: [KEY.FOUR],
-    interact: [KEY.E],
-    inventory: [KEY.TAB],
-    skillTree: [KEY.Y],
-    pause: [KEY.ESC],
-    fullscreen: [KEY.F]
-};
+export const DEFAULT_KEYMAP = Object.fromEntries(
+    Object.entries(DEFAULT_BINDINGS).map(([action, keys]) => [action, keys.map(keyCode)])
+) as Record<GameAction, number[]>;
 
 /** 鼠标参与的动作（左键主攻击 / 右键副攻击） */
 const MOUSE_ACTION: Partial<Record<GameAction, 'left' | 'right'>> = {
@@ -48,7 +31,18 @@ export class InputGateway {
     private destroyed = false;
     private onBlur = (): void => this.clearAll();
     private onShutdown = (): void => this.destroy();
+    private onSettingsChanged = (s: SettingsChangedPayload): void => {
+        for (const action of REMAPPABLE_ACTIONS) {
+            const codes = s.keymap?.[action] === undefined
+                ? this.baseKeymap[action] : effectiveKeys(action, s.keymap).map(keyCode);
+            if (codes.join(',') !== (this.keys.get(action) ?? []).map(k => k.keyCode).join(',')) {
+                this.setKeymap(action, codes);
+            }
+        }
+    };
+    private baseKeymap: Record<GameAction, number[]>;
     constructor(private scene: Scene, keymap: Record<GameAction, number[]> = DEFAULT_KEYMAP) {
+        this.baseKeymap = keymap;
         const kb = scene.input.keyboard;
         if (kb === null) { throw new Error('[InputGateway] 键盘插件不可用'); }
         // 捕获 Tab/Space/Esc 等默认行为（防焦点跳转/页面滚动，FR-15 键盘导航前提）
@@ -60,14 +54,18 @@ export class InputGateway {
         // EX-07：失焦清零
         scene.game.events.on('blur', this.onBlur);
         scene.events.once(Scenes.Events.SHUTDOWN, this.onShutdown);
+        this.onSettingsChanged(settingsStore.getSnapshot());
+        onEvent('settings:changed', this.onSettingsChanged);
     }
 
     /** FR-18 重映射接缝（P4）：替换某动作的物理键 */
     setKeymap(action: GameAction, codes: number[]): void {
         const kb = this.scene.input.keyboard;
-        if (kb === null) { return; }
-        for (const old of this.keys.get(action) ?? []) { kb.removeKey(old); }
+        if (kb === null || this.destroyed) { return; }
+        // Phaser addKey 返回插件共享对象。仅换引用，不能移除或 reset 旧键。
+        kb.addCapture(codes);
         this.keys.set(action, codes.map((code) => kb.addKey(code)));
+        this.state.set(action, { down: false, justPressed: false, justReleased: false });
     }
 
     setInputEnabled(b: boolean): void {
@@ -128,6 +126,7 @@ export class InputGateway {
     destroy(): void {
         if (this.destroyed) { return; }
         this.destroyed = true;
+        offEvent('settings:changed', this.onSettingsChanged);
         this.scene.game.events.off('blur', this.onBlur);
         this.scene.events.off(Scenes.Events.SHUTDOWN, this.onShutdown);
         this.clearAll();
