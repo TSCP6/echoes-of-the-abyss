@@ -66,6 +66,10 @@ export class CampScene extends Scene {
     update(): void {
         if (this.overlayOpen) { return; }
         this.gateway.poll();
+        if (this.gateway.justPressed('pause')) {
+            emitEvent('game:requestPause', { reason: 'esc' });
+            return;
+        }
         if (this.gateway.justPressed('interact')) {
             emitEvent('game:requestShop', { sceneId: this.sceneId });
         }
