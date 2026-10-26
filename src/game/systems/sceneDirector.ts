@@ -31,8 +31,14 @@ export class SceneDirector {
 
     private activeScene(): Scene | null {
         if (this.game === null) { return null; }
-        const scenes = this.game.scene.getScenes(true);
-        return scenes.length > 0 ? scenes[0] : null;
+        const scenes = this.game.scene.getScenes(false);
+        // 已有 active 场景时以它为准，避免残留的旧 paused 玩法令牌抢占切换。
+        const active = scenes.find((s) => s.scene.isActive());
+        if (active !== undefined) { return active; }
+        // Vue overlay 会 pause 当前承载场景；仅接受仍在管理器内且确实 paused 的令牌。
+        if (this.activeGameplay !== null && scenes.includes(this.activeGameplay)
+            && this.activeGameplay.scene.isPaused()) { return this.activeGameplay; }
+        return scenes.find((s) => s.scene.isPaused()) ?? null;
     }
 
     private isTargetActive(target: string): boolean {
@@ -48,13 +54,16 @@ export class SceneDirector {
             return;
         }
         this.transitioning = true;
+        from.input.enabled = false; // 切换期输入闸（FR-12 规则 6），恢复前先关闭
         // overlay（结算/暂停）可能已 pause 源场景：恢复以推进淡出；
         // 输入已禁用 + 场景 update 有 overlayOpen/ready 闸，恢复不会推进玩法
         if (from.scene.isPaused()) { from.scene.resume(); }
         from.cameras.main.fadeOut(FADE_MS, 0, 0, 0);
-        from.input.enabled = false; // 切换期输入闸（FR-12 规则 6）
         // DOM 定时：源场景 pause/shutdown 不影响切换推进
         window.setTimeout(() => {
+            // 在 start 前撤销旧令牌：不依赖异常退出时的 shutdown 清理，
+            // 也不覆盖目标 create（包括同场景重试）登记的新令牌。
+            if (target === 'Menu' || this.activeGameplay === from) { this.activeGameplay = null; }
             from.scene.start(target, data);
             this.awaitTarget(target);
         }, FADE_MS);
