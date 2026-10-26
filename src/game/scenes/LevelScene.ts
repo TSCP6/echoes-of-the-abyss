@@ -5,7 +5,7 @@
  * 终点：level:cleared → RecordStore.submitResult + ProgressService 首通 SKP + 存档写入点（FR-13 规则 2）。
  * Boss：阶段切换锁相机（FR-02 规则 5）+ HUD 血条（FR-14 规则 5）；召唤/危险区技能经 EnemyEvents。
  */
-import { Geom, Scene, Tilemaps } from 'phaser';
+import { Geom, Scene, Scenes, Tilemaps } from 'phaser';
 import { LevelLoader, type LevelContext } from '../systems/levelLoader';
 import { PlayerController } from '../systems/playerController';
 import { CameraRig } from '../systems/cameraRig';
@@ -125,8 +125,15 @@ export class LevelScene extends Scene {
     init(data: { levelId?: string }): void {
         this.levelId = data.levelId ?? '1-1';
         this.ready = false; // 重建期旧管线停摆（preload 窗口期 update 跳过）
+        this.overlayOpen = false;
+        this.activeCheckpoint = 'cp_1';
+        this.bossWoken = false;
+        this.dashTimer = 0;
+        this.ex11Count = 0;
+        this.stageMarks.length = 0;
     }
     create(): void {
+        this.events.once(Scenes.Events.SHUTDOWN, this.shutdown, this);
         const loader = new LevelLoader(this);
         const result = loader.load(this.levelId);
         if (!result.ok) {
@@ -486,14 +493,18 @@ export class LevelScene extends Scene {
     }
 
     shutdown(): void {
+        this.ready = false;
         offEvent('ui:overlay', this.onOverlay);
         offEvent('enemy:killed', this.onEnemyKilled);
         offEvent('player:damaged', this.onPlayerDamaged);
-        sceneDirector.setActiveGameplay(null);
-        this.combat.destroy();
-        this.projectiles.destroy();
-        this.enemies.destroy();
-        this.fx.destroy();
-        this.pickups.destroy();
+        if (sceneDirector.isGameplay(this)) { sceneDirector.setActiveGameplay(null); }
+        // 首次建关失败时，部分系统可能尚未创建。
+        this.combat?.destroy();
+        this.projectiles?.destroy();
+        this.enemies?.destroy();
+        this.fx?.destroy();
+        this.pickups?.destroy();
+        this.tutorial = null;
+        this.hazards = [];
     }
 }

@@ -4,7 +4,7 @@
  * 由 UiLayer 在切场景前触发 saveSystem.queueWrite）。
  * sceneId 经 scene.start('Camp', { sceneId }) 传入。
  */
-import { Scene } from 'phaser';
+import { Scene, Scenes } from 'phaser';
 import { EventBus } from '../EventBus';
 import { sceneDirector } from '../systems/sceneDirector';
 import { InputGateway } from '../systems/inputGateway';
@@ -27,9 +27,11 @@ export class CampScene extends Scene {
     init(data: { sceneId?: number }): void {
         const sid = data.sceneId ?? 1;
         this.sceneId = sid === 2 ? 2 : sid === 3 ? 3 : 1;
+        this.overlayOpen = false;
     }
 
     create(): void {
+        this.events.once(Scenes.Events.SHUTDOWN, this.shutdown, this);
         centerDesignCamera(this);
         createViewportBackground(this);
         const ground = this.add.rectangle(DESIGN_WIDTH / 2, 630, DESIGN_WIDTH, 138, 0x3a5a3a)
@@ -71,6 +73,6 @@ export class CampScene extends Scene {
 
     shutdown(): void {
         offEvent('ui:overlay', this.onOverlay);
-        sceneDirector.setActiveGameplay(null);
+        if (sceneDirector.isGameplay(this)) { sceneDirector.setActiveGameplay(null); }
     }
 }
