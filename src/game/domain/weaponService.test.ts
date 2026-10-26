@@ -22,6 +22,24 @@ describe('WeaponService（FR-05/FR-10）', () => {
         ws.initNewGame();
     });
 
+    it('明确升级副手时不创建错误的主手实例，等级系数按指定手读取', () => {
+        economyService.addCoins(100);
+        economyService.addMaterial('itm_relic_shard', 2);
+        expect(ws.levelUp('wpn_crossbow', 'sub').ok).toBe(true);
+        expect(ws.getLevel('wpn_crossbow', 'sub')).toBe(2);
+        expect(ws.toSnapshot()['wpn_crossbow#main']).toBeUndefined();
+        expect(ws.getLevelFactor('wpn_crossbow', 'sub')).toBeCloseTo(1.15);
+        expect(ws.getOwned().find(w => w.itemId === 'wpn_crossbow')).toMatchObject({ hand: 'sub', level: 2 });
+    });
+
+    it('同种武器主副手等级独立，不受当前活动手影响', () => {
+        ws.fromSnapshot({ 'wpn_crossbow#main': { level: 2 }, 'wpn_crossbow#sub': { level: 4 } });
+        expect(ws.getLevelFactor('wpn_crossbow', 'main')).toBeCloseTo(1.15);
+        expect(ws.getLevelFactor('wpn_crossbow', 'sub')).toBeCloseTo(1.45);
+        ws.toggleHand();
+        expect(ws.getLevelFactor('wpn_crossbow', 'main')).toBeCloseTo(1.15);
+    });
+
     it('等级系数：1 级 = 1.0，2 级 = 1.15（AT-17 前置）', () => {
         expect(ws.getLevelFactor('wpn_shortsword')).toBe(1);
         economyService.addCoins(100);

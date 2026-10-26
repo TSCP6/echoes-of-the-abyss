@@ -66,8 +66,8 @@ export class ShopService {
         return ok(undefined);
     }
 
-    upgradeWeapon(itemId: string): Result<void, 'MAX_LEVEL' | 'COINS_INSUFFICIENT' | 'MATERIAL_INSUFFICIENT'> {
-        const r = weaponService.levelUp(itemId);
+    upgradeWeapon(itemId: string, hand?: 'main' | 'sub'): Result<void, 'MAX_LEVEL' | 'COINS_INSUFFICIENT' | 'MATERIAL_INSUFFICIENT'> {
+        const r = weaponService.levelUp(itemId, hand);
         return r.ok ? ok(undefined) : fail(r.code, r.message);
     }
 }

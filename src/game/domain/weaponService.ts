@@ -11,7 +11,7 @@ import { ConfigRegistry } from './configRegistry';
 import { economyService } from './economyService';
 import { inventoryStore } from './inventoryStore';
 
-export interface WeaponState { itemId: string; level: number }
+export interface WeaponState { itemId: string; level: number; hand: 'main' | 'sub' }
 
 const SWITCH_LOCK_SEC = 0.20;
 
@@ -37,15 +37,15 @@ export class WeaponService {
     getOwned(): ReadonlyArray<WeaponState> {
         const out: WeaponState[] = [];
         for (const [k, level] of this.levels) {
-            out.push({ itemId: k.split('#')[0], level });
+            out.push({ itemId: k.split('#')[0], level, hand: k.endsWith('#sub') ? 'sub' : 'main' });
         }
         return out;
     }
 
     getActiveHand(): 'main' | 'sub' { return this.activeHand; }
 
-    getLevelFactor(itemId: string): number {
-        const level = this.levels.get(this.key(itemId, this.activeHand)) ?? 1;
+    getLevelFactor(itemId: string, hand: 'main' | 'sub' = this.activeHand): number {
+        const level = this.levels.get(this.key(itemId, hand)) ?? 1;
         return 1 + 0.15 * (level - 1);
     }
 
@@ -54,8 +54,8 @@ export class WeaponService {
     }
 
     /** FR-10 规则 3：升级（成本 = round(60×n^1.5) 金币 + n 残片，缺一即失败 AT-36） */
-    levelUp(itemId: string): Result<WeaponState, 'MAX_LEVEL' | 'COINS_INSUFFICIENT' | 'MATERIAL_INSUFFICIENT'> {
-        const k = this.key(itemId, this.activeHand);
+    levelUp(itemId: string, hand: 'main' | 'sub' = this.activeHand): Result<WeaponState, 'MAX_LEVEL' | 'COINS_INSUFFICIENT' | 'MATERIAL_INSUFFICIENT'> {
+        const k = this.key(itemId, hand);
         const level = this.levels.get(k) ?? 1;
         if (level >= 5) { return fail('MAX_LEVEL', '已满级'); }
         const cost = economyService.upgradeCost(level);
@@ -64,7 +64,7 @@ export class WeaponService {
             return fail(spend.code === 'COINS_INSUFFICIENT' ? 'COINS_INSUFFICIENT' : 'MATERIAL_INSUFFICIENT', spend.message);
         }
         this.levels.set(k, level + 1);
-        return ok({ itemId, level: level + 1 });
+        return ok({ itemId, level: level + 1, hand });
     }
 
     /** FR-05 规则 5：切换 0.20 s 攻击锁 */

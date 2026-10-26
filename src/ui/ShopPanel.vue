@@ -12,17 +12,20 @@ import { audioDirector } from '../game/systems/audioDirector';
 const props = defineProps<{ sceneId: 1 | 2 | 3 }>();
 const emit = defineEmits<{ close: [] }>();
 
-// 金币变化驱动列表刷新（购买/升级后余额变）
-const coins = useDomainStore(
-    () => economyService.getCoins(),
+// 一次读取余额、商品和武器，避免领域对象的非响应式 computed 永久缓存。
+let refreshShop = (): void => {};
+const shop = useDomainStore(
+    () => ({ coins: economyService.getCoins(), goods: shopService.listGoods(props.sceneId), weapons: weaponService.getOwned() }),
     (onChange) => {
+        refreshShop = onChange;
         onEvent('inventory:changed', onChange);
         return () => offEvent('inventory:changed', onChange);
     }
 );
 
-const goods = computed(() => shopService.listGoods(props.sceneId));
-const ownedWeapons = computed(() => weaponService.getOwned());
+const coins = computed(() => shop.value.coins);
+const goods = computed(() => shop.value.goods);
+const ownedWeapons = computed(() => shop.value.weapons);
 
 function itemName(refId: string): string {
     // 武器物品与 WeaponDef 同 id（items 表 category=weapon），名称统一查 items
@@ -31,10 +34,12 @@ function itemName(refId: string): string {
 
 function buy(goodsId: string): void {
     const r = shopService.buy(goodsId); // 失败码由置灰预防（UI-C5）
+    refreshShop();
     audioDirector.playSfx(r.ok ? 'buy' : 'ui_error'); // AT-56 购买音效 / 失败提示音
 }
-function upgrade(itemId: string): void {
-    const r = shopService.upgradeWeapon(itemId);
+function upgrade(itemId: string, hand: 'main' | 'sub'): void {
+    const r = shopService.upgradeWeapon(itemId, hand);
+    refreshShop();
     audioDirector.playSfx(r.ok ? 'buy' : 'ui_error');
 }
 </script>
@@ -54,10 +59,10 @@ function upgrade(itemId: string): void {
             </div>
             <h3>武器升级</h3>
             <div class="list">
-                <div v-for="w in ownedWeapons" :key="w.itemId" class="row">
-                    <span class="name">{{ w.itemId }} Lv{{ w.level }}</span>
+                <div v-for="w in ownedWeapons" :key="`${w.itemId}#${w.hand}`" class="row">
+                    <span class="name">{{ itemName(w.itemId) }}（{{ w.hand === 'main' ? '主手' : '副手' }}） Lv{{ w.level }}</span>
                     <span v-if="w.level >= 5" class="state">已满级</span>
-                    <button v-else class="btn" @click="upgrade(w.itemId)">
+                    <button v-else class="btn" @click="upgrade(w.itemId, w.hand)">
                         升级 ◉{{ Math.round(60 * w.level ** 1.5) }} + {{ w.level }}残片
                     </button>
                 </div>
