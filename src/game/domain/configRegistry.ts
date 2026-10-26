@@ -306,14 +306,18 @@ function validateEconomyClosure(): void {
     }
 }
 
+/** SRS 附录 A：实现期数值可在基线 ±20% 内调整（超出须走 9.3 变更流程） */
+function within20(actual: number, baseline: number): boolean {
+    return actual >= baseline * 0.8 - 1e-9 && actual <= baseline * 1.2 + 1e-9;
+}
 function validatePlayerDefaults(): void {
     const p = PLAYER_DEFAULTS;
     if (p.hp !== 100 || p.hpMax !== 100) { push('playerDefaults', '*', 'hp', '初始/上限 100', p.hp); }
     if (p.sp !== 50 || p.spMax !== 50) { push('playerDefaults', '*', 'sp', '初始/上限 50', p.sp); }
     if (p.collider.w !== 22 || p.collider.h !== 44) { push('playerDefaults', '*', 'collider', '22×44', p.collider); }
-    if (p.walkSpeed !== 210) { push('playerDefaults', '*', 'walkSpeed', '210', p.walkSpeed); }
-    if (p.jumpVelocity !== 480) { push('playerDefaults', '*', 'jumpVelocity', '480', p.jumpVelocity); }
-    if (p.gravity !== 1300) { push('playerDefaults', '*', 'gravity', '1300', p.gravity); }
+    if (!within20(p.walkSpeed, 210)) { push('playerDefaults', '*', 'walkSpeed', '基线 210 ±20%', p.walkSpeed); }
+    if (!within20(p.jumpVelocity, 480)) { push('playerDefaults', '*', 'jumpVelocity', '基线 480 ±20%', p.jumpVelocity); }
+    if (!within20(p.gravity, 1300)) { push('playerDefaults', '*', 'gravity', '基线 1300 ±20%', p.gravity); }
     if (p.coyoteMs !== 100) { push('playerDefaults', '*', 'coyoteMs', '100', p.coyoteMs); }
     if (p.jumpBufferMs !== 120) { push('playerDefaults', '*', 'jumpBufferMs', '120', p.jumpBufferMs); }
     if (p.iFrameMs !== 800) { push('playerDefaults', '*', 'iFrameMs', '800', p.iFrameMs); }

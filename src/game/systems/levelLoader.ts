@@ -10,6 +10,7 @@ import { Geom, Physics, Tilemaps, type Scene } from 'phaser';
 import type { Result } from '../domain/result';
 import { ok, fail } from '../domain/result';
 import { ConfigRegistry } from '../domain/configRegistry';
+import { shouldSeparateOneway } from './onewaySeparation';
 
 export interface LevelContext {
     levelId: string;
@@ -33,7 +34,6 @@ export interface LevelContext {
     mapHeight: number;
 }
 
-const ONEWAY_TOLERANCE = 4; // 7.2.2 设计参数：防高速穿透
 
 export class LevelLoader {
     constructor(private scene: Scene) {}
@@ -148,8 +148,7 @@ export class LevelLoader {
      * 注册方式：scene.physics.add.collider(player, ctx.onewayGroup, undefined, process)。
      */
     onewayProcess(body: Physics.Arcade.Body, tile: Tilemaps.Tile): boolean {
-        if (body.velocity.y <= 0) { return false; }
-        // 图层置于 (0,0)，tile.pixelY 即世界坐标顶边
-        return body.bottom <= tile.pixelY + ONEWAY_TOLERANCE;
+        // 扫掠判定委托纯函数（onewaySeparation，Node 可测）；图层置于 (0,0)，pixelY 即世界顶边
+        return shouldSeparateOneway(body, tile.pixelY);
     }
 }

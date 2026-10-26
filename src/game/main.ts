@@ -4,6 +4,7 @@ import { MenuScene } from './scenes/MenuScene';
 import { LevelScene } from './scenes/LevelScene';
 import { CampScene } from './scenes/CampScene';
 import { AUTO, Game, Scale } from 'phaser';
+import { PLAYER_DEFAULTS } from './data/playerDefaults';
 
 // GameConfig：1024×768 逻辑分辨率（SRS 2.2 基线）+ Scale.FIT 等比缩放（NFR-06 / EX-06）
 // Arcade Physics 重力 1300（SRS 附录 A，与 MotionModel 同源）
@@ -20,7 +21,7 @@ const config: Phaser.Types.Core.GameConfig = {
     physics: {
         default: 'arcade',
         arcade: {
-            gravity: { x: 0, y: 1300 },
+            gravity: { x: 0, y: PLAYER_DEFAULTS.gravity }, // 单一数值源（DR-01），消除双写
             debug: false
         }
     },

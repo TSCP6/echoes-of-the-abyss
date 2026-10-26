@@ -102,6 +102,11 @@ class AudioDirectorImpl {
         }
     }
 
+    /** destroyed sound 的 volume getter 会触 volumeNode.gain 空引用：安全读取 */
+    private safeVolume(snd: Phaser.Sound.WebAudioSound): number | null {
+        return snd.volumeNode === null || snd.volumeNode === undefined ? null : snd.volume;
+    }
+
     /** 资源存在性经 cache.audio（SoundManager 无 exists；FR-16 缺资源静默跳过） */
     private hasAudio(file: string): boolean {
         return this.game !== null && this.game.cache.audio.exists(file);
@@ -144,7 +149,10 @@ class AudioDirectorImpl {
         next.play();
         this.fades.push({ snd: next, from: 0, to: targetVol, t: 0, killOnEnd: false });
         if (old !== null) {
-            this.fades.push({ snd: old, from: old.volume, to: 0, t: 0, killOnEnd: true });
+            const v = this.safeVolume(old);
+            if (v !== null) {
+                this.fades.push({ snd: old, from: v, to: 0, t: 0, killOnEnd: true });
+            }
         }
         this.bgmSound = next;
     }
@@ -157,7 +165,10 @@ class AudioDirectorImpl {
 
     stopBgm(): void {
         if (this.bgmSound !== null) {
-            this.fades.push({ snd: this.bgmSound, from: this.bgmSound.volume, to: 0, t: 0, killOnEnd: true });
+            const v = this.safeVolume(this.bgmSound as Phaser.Sound.WebAudioSound);
+            if (v !== null) {
+                this.fades.push({ snd: this.bgmSound, from: v, to: 0, t: 0, killOnEnd: true });
+            }
         }
         this.bgmSound = null;
         this.currentBgm = null;
