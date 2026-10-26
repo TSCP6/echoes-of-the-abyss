@@ -50,7 +50,9 @@ function open(next: UiState): void {
 function close(): void {
     const prev = uiState.value;
     uiState.value = history.length > 0 ? history.pop() as UiState : 'none';
-    emitEvent('ui:overlay', { name: prev, open: false });
+    // 返回上一层面板时仍应暂停；只有最后一层关闭才恢复玩法。
+    const next = uiState.value;
+    emitEvent('ui:overlay', { name: next === 'none' ? prev : next, open: next !== 'none' });
     audioDirector.playSfx('ui_close');
 }
 

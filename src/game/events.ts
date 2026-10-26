@@ -22,7 +22,8 @@ export interface EventPayloads {
     'settings:changed': SettingsChangedPayload;                             // IF-E09
     'save:written': { slot: 0; at: string };                                // IF-E10
     'save:failed': { slot: 0; reason: 'QUOTA' | 'UNAVAILABLE' };            // IF-E11
-    'ui:overlay': { name: UiState; open: boolean };                         // IF-E12
+    // IF-E12：open 表示切换后是否仍有面板；返回上一层面板时保持 true，最后一层关闭才为 false。
+    'ui:overlay': { name: UiState; open: boolean };
     // 设计文档 6.2 契约外、4.3.10/8.3 UI-11 所需的桥接通知（TutorialDirector → TutorialHints，
     // DR-04 未列——按"不新增 DR-04 事件"原则走同一 EventBus 但以独立前缀标注非契约事件）：
     'tutorial:hint': { hintId: string; text: string } | { hintId: string; done: true };
