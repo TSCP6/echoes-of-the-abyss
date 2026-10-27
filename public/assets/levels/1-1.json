@@ -38,6 +38,7 @@
          "name":"decor_back",
          "opacity":1,
          "type":"tilelayer",
+         "encoding":"csv",
          "visible":true,
          "width":120,
          "x":0,
@@ -79,6 +80,7 @@
          "name":"collision",
          "opacity":1,
          "type":"tilelayer",
+         "encoding":"csv",
          "visible":true,
          "width":120,
          "x":0,
@@ -120,6 +122,7 @@
          "name":"oneway",
          "opacity":1,
          "type":"tilelayer",
+         "encoding":"csv",
          "visible":true,
          "width":120,
          "x":0,
@@ -161,6 +164,7 @@
          "name":"decor_front",
          "opacity":1,
          "type":"tilelayer",
+         "encoding":"csv",
          "visible":true,
          "width":120,
          "x":0,
@@ -597,6 +601,9 @@
          "tilecount":242,
          "tileheight":32,
          "tiles":[
+                { "id":28, "properties":[{ "name":"solid", "type":"bool", "value":true }] },
+                { "id":29, "properties":[{ "name":"solid", "type":"bool", "value":true }] },
+                { "id":30, "properties":[{ "name":"solid", "type":"bool", "value":true }] },
                 {
                  "id":6,
                  "properties":[
