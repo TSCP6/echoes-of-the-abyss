@@ -33,6 +33,7 @@ import { TutorialDirector } from '../systems/tutorialDirector';
 import { createViewportBackground } from '../systems/viewportLayout';
 import { BossDangerFx } from '../systems/bossDangerFx';
 import { bossPalette, bossSummonPositions } from '../systems/bossSkillPresentation';
+import { BossArena } from '../systems/bossArena';
 
 const DEATH_PAUSE_MS = 800; // FR-16 规则 3
 const DASH_SPEED_PX_S = 900; // 回响冲刺 180px / 0.2s
@@ -49,6 +50,7 @@ export class LevelScene extends Scene {
     private combat!: CombatResolver;
     private fx!: WorldFxLayer;
     private dangerFx!: BossDangerFx;
+    private arena: BossArena | null = null;
     private hud = hudViewModel;
     private elapsedSec = 0;
     private kills = 0;
@@ -155,6 +157,7 @@ export class LevelScene extends Scene {
 
         this.cameraRig = new CameraRig(this, this.player);
         this.cameraRig.setMapSize(this.ctx.mapWidth, this.ctx.mapHeight);
+        this.arena = this.ctx.bossArena === null ? null : new BossArena(this, this.ctx.bossArena, this.ctx.mapHeight);
 
         this.physics.add.collider(this.player.sprite, this.ctx.collisionGroup);
         this.physics.add.collider(
@@ -176,8 +179,10 @@ export class LevelScene extends Scene {
         this.enemies.events = {
             onBossPhase: (enemy, phaseIndex) => {
                 // FR-02 规则 5：Boss 战锁相机至场地；FR-14 规则 5 血条由每帧 setBossBar 驱动
-                const arena = new Geom.Rectangle(enemy.spawnPos.x - 400, enemy.spawnPos.y - 300, 800, 600);
-                this.cameraRig.lockTo(arena);
+                if (this.ctx.bossArena !== null) {
+                    this.arena?.activate([this.player.body, enemy.body]);
+                    this.cameraRig.lockTo(this.ctx.bossArena);
+                }
                 audioDirector.setBossPhase(phaseIndex); // FR-16 规则 1：紧张变体
             },
             onBossSkill: (enemy, kind, params) => {
@@ -388,6 +393,7 @@ export class LevelScene extends Scene {
     private respawn(): void {
         const cp = this.ctx.checkpoints.find((c) => c.id === this.activeCheckpoint) ?? this.ctx.checkpoints[0];
         resourceSystem.refill(); // FR-11 规则 7
+        this.arena?.release();
         this.enemies.resetAll();
         this.projectiles.clear();
         this.dangerFx.clear();
@@ -446,6 +452,14 @@ export class LevelScene extends Scene {
 
         // Boss 血条（FR-14 规则 5）
         const boss = this.enemies.getBoss();
+        if (this.arena?.isActive) {
+            if (boss === null) {
+                this.arena.release();
+                this.cameraRig.lockTo(null);
+            } else {
+                this.arena.enforce([this.player.body, ...this.enemies.getEntities().filter((e) => !e.dead).map((e) => e.body)]);
+            }
+        }
         this.hud.setBossBar(boss !== null ? { name: bossPalette(boss.def.id).name, ratio: Math.max(0, boss.hp / boss.def.hp) } : null);
 
         // EX-11：掉出地图救援（先于即死区判定，避免穿透死亡面后误判死亡）
@@ -517,6 +531,8 @@ export class LevelScene extends Scene {
         // 首次建关失败时，部分系统可能尚未创建。
         this.combat?.destroy();
         this.projectiles?.destroy();
+        this.arena?.destroy();
+        this.arena = null;
         this.enemies?.destroy();
         this.fx?.destroy();
         this.dangerFx?.destroy();

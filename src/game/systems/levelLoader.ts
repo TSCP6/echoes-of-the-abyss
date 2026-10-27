@@ -3,7 +3,7 @@
  * load(levelId)：tilemapTiledJSON 解析 → 图层映射（7.2.2）→ validate() → Result<LevelContext>。
  * 校验清单（DR-03 加载校验，任一失败中止进关，EX-03）：
  * player_spawn 恰 1；goal 恰 1；checkpoints 常规 ≥2 / Boss ≥1；shards 恰 3 且唯一；
- * enemies 对象名 ∈ EnemyDef；tilewidth/tileheight=32、orientation=orthogonal、encoding=csv。
+ * enemies 对象名 ∈ EnemyDef；tilewidth/tileheight=32、orientation=orthogonal、encoding=csv；Boss 关须有合法 boss_arena。
  * 单向平台：oneway 层全瓦片碰撞 + collider processCallback（body.vy>0 且 bottom ≤ tileTop+4 才分离，7.2.2 容差 4px）。
  */
 import { Geom, Physics, Tilemaps, type Scene } from 'phaser';
@@ -117,6 +117,28 @@ export class LevelLoader {
             id: o.name ?? '', action: prop(o, 'action'),
             x: o.x ?? 0, y: o.y ?? 0, w: o.width ?? 0, h: o.height ?? 0
         }));
+        const arenas = group('boss_arena').filter((o) => o.name === 'boss_arena');
+        let bossArena: Geom.Rectangle | null = null;
+        if (def.isBossLevel) {
+            if (arenas.length !== 1) { errors.push(`boss_arena 数量=${arenas.length}（Boss 关须恰 1）`); }
+            else {
+                const a = arenas[0];
+                const rect = new Geom.Rectangle(a.x ?? 0, a.y ?? 0, a.width ?? 0, a.height ?? 0);
+                if (![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)
+                    || rect.width <= 0 || rect.height <= 0 || rect.x < 0 || rect.y < 0
+                    || rect.right > map.widthInPixels || rect.bottom > map.heightInPixels) {
+                    errors.push('boss_arena 须为地图内的非空矩形');
+                } else {
+                    bossArena = rect;
+                    const boss = enemySpawns.find((e) => e.defId === def.bossId);
+                    if (boss === undefined || boss.x < rect.left || boss.x > rect.right) { errors.push('Boss 须位于 boss_arena 内'); }
+                    const goal = goals[0];
+                    if (goal !== undefined && ((goal.x ?? 0) < rect.left || (goal.x ?? 0) + (goal.width ?? 64) > rect.right)) {
+                        errors.push('终点须位于 boss_arena 的左右范围内');
+                    }
+                }
+            }
+        }
 
         if (errors.length > 0) {
             map.destroy();
@@ -134,7 +156,7 @@ export class LevelLoader {
             checkpoints, shards, enemySpawns, coinClusters, chests, hazards,
             goal: new Geom.Rectangle(goalObj.x ?? 0, goalObj.y ?? 0, goalObj.width ?? 64, goalObj.height ?? 96),
             hints,
-            bossArena: null,
+            bossArena,
             bossId: def.bossId,
             bgmId: def.bgmId,
             mapWidth: map.widthInPixels,

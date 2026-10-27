@@ -87,6 +87,7 @@ class Level:
     def goal(self, tx, ty): self.obj("goal", "goal", tx, ty, 2, 3)
     def hint(self, n, action, tx, ty, tw, th): self.obj("hints", f"hint_{n}", tx, ty, tw, th, props={"action": action})
     def enemy(self, def_id, tx, ty): self.obj("enemies", def_id, tx, ty)
+    def boss_arena(self, tx, ty, tw, th): self.obj("boss_arena", "boss_arena", tx, ty, tw, th)
 
     def to_json(self):
         def tile_layer(name, data, lid):
@@ -102,6 +103,8 @@ class Level:
             tile_layer("decor_front", self.decor_front, 4),
         ]
         order = ["spawn", "enemies", "checkpoints", "shards", "pickups", "hazards", "goal", "hints"]
+        if any(name == "boss_arena" for name, _ in self.objects):
+            order.append("boss_arena")
         lid = 5
         for name in order:
             objs = [o for (ln, o) in self.objects if ln == name]
@@ -266,6 +269,7 @@ def build_1_4() -> Level:
     lv.goal(85, 23)
     lv.enemy("enm_boss_guardian", 72, 24)
     lv.spawn(3, 24)
+    lv.boss_arena(56, 12, 34, 14)
     return lv
 
 
@@ -402,6 +406,7 @@ def build_2_4() -> Level:
     lv.goal(85, 23)
     lv.enemy("enm_boss_spider", 72, 24)
     lv.spawn(3, 24)
+    lv.boss_arena(56, 12, 34, 14)
     return lv
 
 
@@ -534,6 +539,7 @@ def build_3_4() -> Level:
     lv.goal(85, 23)
     lv.enemy("enm_boss_echo", 72, 24)
     lv.spawn(3, 24)
+    lv.boss_arena(56, 12, 34, 14)
     return lv
 
 

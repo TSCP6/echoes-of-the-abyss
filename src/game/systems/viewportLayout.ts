@@ -32,13 +32,15 @@ export function createViewportBackground(scene: Scene, parallax = 0): void {
         bg.setSize(width, height);
         bg.setTileScale(Math.max(1, height / textureHeight));
     });
-    if (parallax > 0) {
-        const scroll = (): void => {
-            bg.tilePositionX = scene.cameras.main.scrollX * parallax;
-        };
-        scene.events.on(Scenes.Events.POST_UPDATE, scroll);
-        scene.events.once(Scenes.Events.SHUTDOWN, () => {
-            scene.events.off(Scenes.Events.POST_UPDATE, scroll);
-        });
-    }
+    const scroll = (): void => {
+        const cam = scene.cameras.main;
+        const inverseZoom = 1 / cam.zoom;
+        // 背景保持屏幕尺寸，不随竞技场取景缩放露出空边。
+        bg.setScale(inverseZoom).setPosition(cam.width * (1 - inverseZoom) / 2, cam.height * (1 - inverseZoom) / 2);
+        bg.tilePositionX = cam.scrollX * parallax;
+    };
+    scene.events.on(Scenes.Events.POST_UPDATE, scroll);
+    scene.events.once(Scenes.Events.SHUTDOWN, () => {
+        scene.events.off(Scenes.Events.POST_UPDATE, scroll);
+    });
 }

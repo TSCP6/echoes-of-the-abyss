@@ -2,7 +2,8 @@
  * MOD-02 CameraRig（Phaser 呈现层，管线阶段 9）—— FR-02 全部规则。
  * 插值跟随：水平时间常数 0.12 s、垂直 0.18 s（指数平滑，帧率无关）；
  * 视口偏移：水平朝向前方 96 px、垂直玩家偏下 48 px（相机中心 = player + facing*96, player.y - 48）；
- * 边界钳制：视口不超地图；地图小于视口居中；落地沉降 6 px / 0.10 s 回弹；Boss 战锁定区域（FR-02 规则 5，P3 接入）。
+ * 普通关边界钳制：视口不超地图，地图小于视口居中；落地沉降 6 px / 0.10 s 回弹。
+ * Boss 战按地图范围平滑取景，缩放适配视口并在四周保留 48px（FR-02 规则 5）。
  */
 import { Geom, type Scene } from 'phaser';
 import type { PlayerController } from './playerController';
@@ -15,6 +16,8 @@ const OFFSET_Y = -48; // 玩家偏下 → 相机中心在玩家上方 48
 const DIP_PX = 6;
 const DIP_DOWN_SEC = 0.10;
 const DIP_BACK_SEC = 0.15;
+const ARENA_TAU = 0.25;
+const ARENA_PADDING = 48;
 
 export class CameraRig {
     private mapW = 0;
@@ -46,23 +49,19 @@ export class CameraRig {
     /** FR-02 规则 5：Boss 战锁定相机至场地矩形（null 解除） */
     lockTo(rect: Geom.Rectangle | null): void {
         this.lockRect = rect;
-        const cam = this.scene.cameras.main;
-        if (rect !== null) {
-            cam.setBounds(rect.x, rect.y, rect.width, rect.height);
-        } else {
-            cam.setBounds(0, 0, this.mapW, this.mapH);
-        }
+        // setBounds 会立刻改写 scroll；锁场改由 update 平滑取景，避免首帧跳切。
+        this.scene.cameras.main.removeBounds();
+        this.dipT = -1;
     }
 
     private clampCenter(cx: number, cy: number): { x: number; y: number } {
         const cam = this.scene.cameras.main;
-        const vw = cam.width;
-        const vh = cam.height;
-        const rect = this.lockRect;
-        const minX = (rect?.x ?? 0) + vw / 2;
-        const maxX = (rect !== null ? rect.x + rect.width : this.mapW) - vw / 2;
-        const minY = (rect?.y ?? 0) + vh / 2;
-        const maxY = (rect !== null ? rect.y + rect.height : this.mapH) - vh / 2;
+        const vw = cam.width / cam.zoom;
+        const vh = cam.height / cam.zoom;
+        const minX = vw / 2;
+        const maxX = this.mapW - vw / 2;
+        const minY = vh / 2;
+        const maxY = this.mapH - vh / 2;
         // 地图小于视口 → 居中（FR-02 规则 3）
         const x = maxX < minX ? (minX + maxX) / 2 : Math.min(maxX, Math.max(minX, cx));
         const y = maxY < minY ? (minY + maxY) / 2 : Math.min(maxY, Math.max(minY, cy));
@@ -74,6 +73,20 @@ export class CameraRig {
         const dt = dtMs / 1000;
         const cam = this.scene.cameras.main;
         const p = this.player.getMotionState();
+        const arena = this.lockRect;
+        const blend = 1 - Math.exp(-dt / ARENA_TAU);
+        const targetZoom = arena === null ? 1 : Math.min(1,
+            cam.width / (arena.width + ARENA_PADDING * 2),
+            cam.height / (arena.height + ARENA_PADDING * 2));
+        const zoom = cam.zoom + (targetZoom - cam.zoom) * blend;
+        cam.setZoom(Math.abs(zoom - targetZoom) < 0.0001 ? targetZoom : zoom);
+        if (arena !== null) {
+            const cx = cam.scrollX + cam.width / 2;
+            const cy = cam.scrollY + cam.height / 2;
+            cam.setScroll(cx + (arena.centerX - cx) * blend - cam.width / 2,
+                cy + (arena.centerY - cy) * blend - cam.height / 2);
+            return;
+        }
 
         const targetX = p.x + p.facing * OFFSET_X;
         const targetY = p.y + OFFSET_Y;
