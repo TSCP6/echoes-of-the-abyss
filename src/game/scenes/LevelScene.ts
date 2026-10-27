@@ -30,7 +30,10 @@ import { emitEvent, onEvent, offEvent } from '../events';
 import { audioDirector } from '../systems/audioDirector';
 import { warnThrottled } from '../domain/warn';
 import { TutorialDirector } from '../systems/tutorialDirector';
-import { createViewportBackground } from '../systems/viewportLayout';
+import { createRegionBackdrop } from '../systems/regionBackdrop';
+import { LevelDeviceSystem } from '../systems/levelDeviceSystem';
+import { createLevelScenery } from '../systems/levelScenery';
+import { bindViewportLayout } from '../systems/viewportLayout';
 import { BossDangerFx } from '../systems/bossDangerFx';
 import { bossPalette, bossSummonPositions } from '../systems/bossSkillPresentation';
 import { BossArena } from '../systems/bossArena';
@@ -52,6 +55,7 @@ export class LevelScene extends Scene {
     private fx!: WorldFxLayer;
     private dangerFx!: BossDangerFx;
     private arena: BossArena | null = null;
+    private devices: LevelDeviceSystem | null = null;
     private hud = hudViewModel;
     private elapsedSec = 0;
     private kills = 0;
@@ -154,11 +158,23 @@ export class LevelScene extends Scene {
         this.ctx = result.value;
         progressService.setCurrentLevel(this.levelId);
 
-        createViewportBackground(this, 0.2);
+        const regionId = ConfigRegistry.levels().find(l => l.id === this.levelId)!.sceneId;
+        createRegionBackdrop(this, regionId === 2 ? 2 : regionId === 3 ? 3 : 1,
+            Number(this.levelId.split('-')[1]) - 1);
+        createLevelScenery(this, this.ctx, regionId === 2 ? 2 : regionId === 3 ? 3 : 1);
+        const title = this.add.text(0, 150, `${this.levelId}  ${this.ctx.title}`, {
+            fontSize: '28px', color: '#f4e8c3', stroke: '#142130', strokeThickness: 5
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(55);
+        const subtitle = this.add.text(0, 190, this.ctx.subtitle, {
+            fontSize: '16px', color: '#d0dfdf', stroke: '#142130', strokeThickness: 4
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(55);
+        bindViewportLayout(this, (width) => { title.setX(width / 2); subtitle.setX(width / 2); });
+        this.tweens.add({ targets: [title, subtitle], alpha: 0, delay: 2800, duration: 700 });
 
         this.gateway = new InputGateway(this);
         this.player = new PlayerController(this, this.gateway);
         this.player.teleportTo(this.ctx.spawn.x, this.ctx.spawn.y);
+        this.devices = new LevelDeviceSystem(this, this.player, this.ctx.devices);
 
         this.cameraRig = new CameraRig(this, this.player);
         this.cameraRig.setMapSize(this.ctx.mapWidth, this.ctx.mapHeight);
@@ -404,6 +420,7 @@ export class LevelScene extends Scene {
         this.dangerFx.clear();
         this.hazards = [];
         this.cameraRig.lockTo(null);
+        this.devices?.reset();
         this.player.teleportTo(point.x, point.y);
         this.dead = false;
         this.hud.setContext(this.levelId, this.pickups.checkpointsActive);
@@ -438,6 +455,7 @@ export class LevelScene extends Scene {
 
         // 阶段 2：玩家
         this.player.update(deltaMs);
+        if (!this.dead) { this.devices?.update(dt, this.gateway.justPressed('interact')); }
         this.mark();
         this.tutorial?.update(dt); // MOD-09：move 完成判定 + 8 s 超时
         this.bossWakeCheck();
@@ -536,6 +554,8 @@ export class LevelScene extends Scene {
         // 首次建关失败时，部分系统可能尚未创建。
         this.combat?.destroy();
         this.projectiles?.destroy();
+        this.devices?.destroy();
+        this.devices = null;
         this.arena?.destroy();
         this.arena = null;
         this.enemies?.destroy();

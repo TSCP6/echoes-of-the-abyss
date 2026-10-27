@@ -73,6 +73,24 @@ export const UI_TEXT = {
         ammoLow: '弹药不足', ammoEmpty: '弹药耗尽',
         resupply: '补给：关卡选择 → 营地 →', shop: '商店'
     },
+    camp: {
+        regions: {
+            1: { title: '林间余火', subtitle: '森林遗迹营地', description: '树影守住这片空地，远行前记得补足行囊。' },
+            2: { title: '晶光驿站', subtitle: '地下水晶洞营地', description: '循着晶簇的微光，在岩层深处稍作停留。' },
+            3: { title: '云上栖所', subtitle: '天空神殿营地', description: '风穿过残柱，回响之门等待下一次启程。' }
+        },
+        merchant: '旅行商人',
+        merchantDetail: '药水 · 弹药 · 武器强化',
+        portal: '回响之门',
+        portalDetail: '选择关卡，继续冒险',
+        trade: '交易与补给',
+        depart: '前往关卡选择',
+        choose: '切换设施',
+        confirm: '确认',
+        mouseHint: '也可直接点击摊位或传送门',
+        pauseHint: 'Esc 暂停',
+        fireNote: '余火未熄，旅途仍在继续'
+    },
     inventory: {
         ammoHint: '这是弹药，请返回关卡，用装备的远程武器攻击；初始轻弩按 K / 鼠标右键射击。',
         controls: '左键使用药水 ｜ 右键装主手 ｜ 双击装副手',

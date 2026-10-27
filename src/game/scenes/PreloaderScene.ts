@@ -15,6 +15,7 @@ import { saveSystem } from '../domain/saveSystem';
 import type { SaveData } from '../domain/saveSchema';
 import { audioDirector } from '../systems/audioDirector';
 import { bindViewportLayout, centerDesignCamera } from '../systems/viewportLayout';
+import { registerRegionArt } from '../systems/regionBackdrop';
 import { loadEnemyArt, registerEnemyAnimations } from '../systems/enemyVisuals';
 import { registerPickupTextures } from '../systems/pickupVisuals';
 
@@ -48,6 +49,7 @@ export class PreloaderScene extends Scene {
         markValidated();
 
         this.load.setPath('assets');
+        registerRegionArt(this);
         this.load.image('terrain32', 'gen/terrain32.png');
         // CC0 美术（Pixel Adventure 1 / SunnyLand Woods，docs/素材许可清单.md）；帧网格与占位一致（DD-11 换帧不改代码）
         this.load.spritesheet('player_idle', 'art/player_idle.png', { frameWidth: 64, frameHeight: 64 });

@@ -23,6 +23,7 @@ const config: Phaser.Types.Core.GameConfig = {
         default: 'arcade',
         arcade: {
             gravity: { x: 0, y: PLAYER_DEFAULTS.gravity }, // 单一数值源（DR-01），消除双写
+            tileBias: 32, // 高低路线下落可在一帧穿入 >16px；允许整格32px内的真实瓦片分离。
             debug: false
         }
     },

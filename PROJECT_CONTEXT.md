@@ -8,6 +8,7 @@
 > 2026-10-27 Boss 锁场调整：三个 Boss 地图用 `boss_arena` 对象统一驱动平滑取景与左右物理封锁；击败、重试和切关时解除。实现见 `systems/bossArena.ts`，原因与验证见 `docs/Boss战场镜头与边界修复.md`。
 > 2026-10-27 1-1 手工地图修复：保留用户布局，为四个瓦片层补齐 CSV 编码声明，并为新增 GID 29/30/31 补齐 solid；见 `docs/1-1手工地图加载修复.md`。
 > 2026-10-27 资源提示：金币/回响碎片/玩家弹丸采用独立轮廓；HUD 显示 SKP、强化残片与弹药余量，修复背包点击弹药误耗，帮助页补充玩法和补给路径；见 `docs/资源区分与弹药提示调整.md`。
+> 2026-10-27 关卡与营地改造：十二关新增树冠、双层遗迹、下潜矿井、回折竖井、浮岛与符文路线；三区域使用独立地形与四组背景变体，三营地美术交互重做。地图设计与本次验证见 `docs/关卡差异化改造.md`、`docs/营地改造.md`。实际地图审计改为读取 JSON，生成器必须明确指定关卡；1-1 手工基线保存在 `tools/maps/1-1-authored.json`。高台落地用 32px tileBias，运动参数仍以源码为准。
 > 2026-10-27 重生修复：未激活检查点时死亡或掉图救援回 ctx.spawn，激活后回实际检查点；重进/切关清除旧状态，见 `docs/出生点与检查点重生修复.md`。
 
 ## 1. 项目概述
@@ -51,8 +52,8 @@ src/ui/                   Vue DOM UI：UiLayer(状态机+导航+音频解锁) / 
                           MainMenu/LevelSelect/Pause/Result/Inventory/Shop/SkillTree/Settings/Records/
                           Help/TutorialHints；i18n.ts 文案；tokens.css 设计令牌
 tools/
-  gen_levels.py           ★12 关生成器 → public/assets/levels/*.json（Tiled 兼容）
-  audit_reach.py          ★BFS 可达性审计（节点=地面+平台；边=弹道跳跃/步行；GOAL 可达断言）
+  gen_levels.py           ★定向关卡生成入口；布局在 level_layouts.py，公共模型在 level_model.py
+  audit_reach.py          ★读取实际 JSON 的体积弹道审计；检查连续收全碎片/开关后到达终点
   extract_art.py          CC0 美术抽取（源包在 tools/source-packs/）
   kenney-source/          Kenney 音频源包 zip（CC0 归档）
 public/assets/            art/ audio/(ogg+m4a 双格式) gen/(程序化纹理) levels/ bg.png
@@ -77,13 +78,13 @@ docs/                     SRS / SDD / M4验收记录 / 素材许可清单 / AI�
 
 ## 4. 关键技术决策
 
-1. **数值单一源**：`data/playerDefaults.ts` 为权威；`main.ts` 世界重力读它；`configRegistry` 以 SRS 附录 A 基线 ±20% 容差校验（实现期调整合法区间）。当前值：gravity **1040**（−20.0%）、jumpVelocity **560**（+16.7%）→ 跳高 ≈151px（4 格台阶）、reach ≈7 格、walkSpeed 210。
+1. **数值单一源**：`data/playerDefaults.ts` 为权威；`main.ts` 世界重力读它；`configRegistry` 以 SRS 附录 A 基线 ±20% 容差校验。当前源码：gravity **1140**、jumpVelocity **560**、walkSpeed **210** → 理论满跳高约137.5px，同高水平位移约206px；以上不是建议将主路做到极限值。新高低路线采用32px tileBias，修复长落差一帧穿入超过默认16px后漏分离。
 2. **oneway 扫掠分离**：`bottom - deltaY() <= tileTop + 2` 才分离。旧容差模型在帧穿透 >4px 时穿透平台（用户报"跳不上平台"真因之一）；纯函数化 + 3 单测。
 3. **场景切换**：fadeTo 用 DOM `setTimeout`（源场景 pause/shutdown 不丢定时器）+ rAF 轮询目标进入 active 列表收尾；切换期新请求入单槽 pending（覆盖旧意图），目标 active 后消费。曾两次吞点击/静默丢弃的根因均已根治（6/6 回归）。
 4. **HUD 双通道**：文本 ≤10Hz 事件；条形/扇形/Boss 血条经 HudOverlay 单一 rAF 直写 CSS（scaleX/conic-gradient），且 HUD 根节点每帧锚定 canvas 矩形（Scale.FIT 黑边不承载 HUD）。
 5. **音频**：双格式 ogg+m4a（Safari ≥17 不解 Vorbis）；交叉淡化 tick 驱动（场景停止不中断）；未解锁挂起队列解锁后冲刷；destroyed sound 的 `volume` getter 会触 `volumeNode.gain` 空引用 → `safeVolume`/tick 守卫。
 6. **教学**：队列模型（FR-17"按顺序"）；完成钩子链式保留（音效等先注册者不被覆盖）。
-7. **地图管线**：代码生成 Tiled 兼容 JSON（DEC-7）；Tiled 可直接打开编辑保存；`audit_reach.py` 作为改图后的可达性门禁（当前 12 关 0 违规）。
+7. **地图管线**：`gen_levels.py <id>` 定向构造 Tiled JSON（DEC-7），不传关卡会拒绝覆盖；Tiled 可直接编辑保存，加载器兼容数字数组省略默认encoding和新版class对象。`audit_reach.py` 直接读取实际JSON，静态审计与真实Arcade路线、机关计时和Boss结算分别验证。本轮216单测、16审计回归、12条浏览器路线、3Boss实际攻击结算及60交互断言通过，详见关卡改造记录。
 8. **EXD-4 兜底**：window error/unhandledrejection/Vue errorHandler → console + 横幅 + gotoMenu（1 分钟去重）。场景切换期残留 update 经 ready 闸/body 守卫防未捕获异常。
 
 ## 5. 调参/改图操作手册

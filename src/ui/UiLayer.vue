@@ -37,7 +37,7 @@ const resultData = ref<EventPayloads['level:cleared'] | null>(null);
 const shopSceneId = ref<1 | 2 | 3>(1);
 const history: UiState[] = [];
 
-const showHud = computed(() => (sceneKey.value === 'Level' || sceneKey.value === 'Camp') && uiState.value === 'none');
+const showHud = computed(() => sceneKey.value === 'Level' && uiState.value === 'none');
 const showTutorial = computed(() => sceneKey.value === 'Level');
 
 function open(next: UiState): void {

@@ -11,9 +11,14 @@ import type { Result } from '../domain/result';
 import { ok, fail } from '../domain/result';
 import { ConfigRegistry } from '../domain/configRegistry';
 import { shouldSeparateOneway } from './onewaySeparation';
+import type { LevelDevice } from '../domain/levelDevices';
+import { getRegionTheme } from '../data/regionThemes';
 
 export interface LevelContext {
     levelId: string;
+    title: string;
+    subtitle: string;
+    devices: LevelDevice[];
     spawn: { x: number; y: number };
     collisionGroup: Tilemaps.TilemapLayer | Tilemaps.TilemapGPULayer;
     onewayGroup: Tilemaps.TilemapLayer | Tilemaps.TilemapGPULayer;
@@ -57,15 +62,23 @@ export class LevelLoader {
         if (raw.tilewidth !== 32 || raw.tileheight !== 32) { errors.push(`tile=${String(raw.tilewidth)}x${String(raw.tileheight)}（须 32x32）`); }
         const layers = (raw.layers ?? []) as Array<Record<string, unknown>>;
         for (const layer of layers) {
-            if (layer.type === 'tilelayer' && layer.encoding !== 'csv') {
+            // Phaser 4 ParseObject 仅保留旧 type；在解析前兼容新版 Tiled 的 class。
+            for (const object of (Array.isArray(layer.objects) ? layer.objects : []) as Array<Record<string, unknown>>) {
+                if (!object.type && typeof object.class === 'string') { object.type = object.class; }
+            }
+            if (layer.type === 'tilelayer' && ((layer.encoding ?? 'csv') !== 'csv'
+                || !Array.isArray(layer.data) || layer.data.length !== Number(raw.width) * Number(raw.height)
+                || !layer.data.every(value => Number.isInteger(value) && Number(value) >= 0))) {
                 errors.push(`图层 ${String(layer.name)} encoding=${String(layer.encoding)}（须 csv）`);
             }
         }
 
+        if (errors.length > 0) { return fail('MAP_INVALID', `地图校验失败（${levelId}）：${errors.join('；')}`); }
         const map = this.scene.add.tilemap(cacheKey);
-        const tileset = map.addTilesetImage('terrain', 'terrain32');
+        const theme = getRegionTheme(def.sceneId === 2 ? 2 : def.sceneId === 3 ? 3 : 1);
+        const tileset = map.addTilesetImage('terrain', theme.tileTextureKey);
         if (tileset === null) {
-            return fail('ASSET_MISSING', `瓦片集纹理缺失：terrain32（关卡 ${levelId}）`);
+            return fail('ASSET_MISSING', `瓦片集纹理缺失：${theme.tileTextureKey}（关卡 ${levelId}）`);
         }
         const decorBack = map.createLayer('decor_back', tileset) ?? null;
         const collisionLayer = map.createLayer('collision', tileset);
@@ -117,6 +130,26 @@ export class LevelLoader {
             id: o.name ?? '', action: prop(o, 'action'),
             x: o.x ?? 0, y: o.y ?? 0, w: o.width ?? 0, h: o.height ?? 0
         }));
+        const devices: LevelDevice[] = [];
+        for (const o of group('mechanisms')) {
+            const kind = (o.type || '') as LevelDevice['kind'];
+            const device: LevelDevice = {
+                id: o.name ?? '', kind, x: o.x ?? 0, y: o.y ?? 0, width: o.width ?? 0, height: o.height ?? 0,
+                group: prop(o, 'group'), order: Number(prop(o, 'order') || 0), label: prop(o, 'label')
+            };
+            if (!['switch', 'gate', 'crumble', 'sign'].includes(kind) || !device.id
+                || ![device.x, device.y, device.width, device.height, device.order].every(Number.isFinite)
+                || device.width <= 0 || device.height <= 0 || device.x < 0 || device.y < 0
+                || device.x + device.width > map.widthInPixels || device.y + device.height > map.heightInPixels
+                || !Number.isInteger(device.order) || device.order < 0
+                || (['switch', 'gate'].includes(kind) && !device.group)) {
+                errors.push(`机关 ${device.id} 的类型、坐标、尺寸或分组非法`);
+            } else { devices.push(device); }
+        }
+        if (new Set(devices.map(d => d.id)).size !== devices.length) { errors.push('机关名称重复'); }
+        for (const device of devices.filter(d => d.kind === 'gate')) {
+            if (!devices.some(d => d.kind === 'switch' && d.group === device.group)) { errors.push(`封印 ${device.id} 缺少对应开关`); }
+        }
         const arenas = group('boss_arena').filter((o) => o.name === 'boss_arena');
         let bossArena: Geom.Rectangle | null = null;
         if (def.isBossLevel) {
@@ -149,6 +182,9 @@ export class LevelLoader {
         const goalObj = goals[0];
         const ctx: LevelContext = {
             levelId,
+            title: String((raw.properties as Array<{ name: string; value: unknown }> | undefined)?.find(p => p.name === 'title')?.value ?? levelId),
+            subtitle: String((raw.properties as Array<{ name: string; value: unknown }> | undefined)?.find(p => p.name === 'subtitle')?.value ?? ''),
+            devices,
             spawn: { x: (spawnObj.x ?? 0) + 16, y: (spawnObj.y ?? 0) + 16 },
             collisionGroup: collisionLayer as Tilemaps.TilemapLayer,
             onewayGroup: onewayLayer as Tilemaps.TilemapLayer,

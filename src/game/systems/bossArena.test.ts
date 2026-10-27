@@ -67,8 +67,9 @@ describe('竞技场物理边界', () => {
         const group = (name: string) => map.layers.find((l: { name: string }) => l.name === name)?.objects ?? [];
         const field = group('boss_arena')[0];
         expect(field).toBeDefined();
-        expect(field.x).toBe(1792);
-        expect(field.x + field.width).toBe(2880);
+        expect(field.x).toBeGreaterThan(0);
+        expect(field.width).toBeGreaterThanOrEqual(1024);
+        expect(field.x + field.width).toBeLessThanOrEqual(map.width * map.tilewidth);
         expect(group('enemies')[0].x).toBeGreaterThan(field.x);
         expect(group('goal')[0].x + group('goal')[0].width).toBeLessThan(field.x + field.width);
         expect(group('checkpoints')[0].x).toBeLessThan(field.x);
