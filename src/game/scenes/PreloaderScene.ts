@@ -175,6 +175,32 @@ export class PreloaderScene extends Scene {
         }
     }
 
+    /** 保留角色本体，叠加弩与短暂枪口闪光；和挥剑动作区分。 */
+    private registerShootTextures(): void {
+        if (this.textures.exists('player_shoot_0')) { return; }
+        const base = this.textures.getFrame('player_idle', 0);
+        for (let f = 0; f < 3; f++) {
+            const texture = this.textures.createCanvas(`player_shoot_${f}`, 64, 64);
+            if (texture === null) { continue; }
+            const ctx = texture.getContext();
+            ctx.imageSmoothingEnabled = false;
+            const recoil = f === 0 ? -2 : 0;
+            ctx.drawImage(base.source.image as HTMLImageElement,
+                base.cutX, base.cutY, base.cutWidth, base.cutHeight, recoil, 0, 64, 64);
+            ctx.fillStyle = '#75482e';
+            ctx.fillRect(38 + recoil, 30, 19, 5);
+            ctx.fillStyle = '#d8e4e8';
+            ctx.fillRect(49 + recoil, 23, 3, 19);
+            ctx.fillRect(39 + recoil, 32, 22, 2);
+            if (f === 0) {
+                ctx.fillStyle = '#ffe066';
+                ctx.fillRect(58, 28, 5, 9);
+                ctx.fillRect(55, 31, 9, 3);
+            }
+            texture.refresh();
+        }
+    }
+
     private registerAnimations(): void {
         const a = this.anims;
         if (!a.exists('player-idle')) {
@@ -202,6 +228,13 @@ export class PreloaderScene extends Scene {
             a.create({
                 key: 'player-swing', frameRate: 24, repeat: 0,
                 frames: [{ key: 'player_swing_0' }, { key: 'player_swing_1' }, { key: 'player_swing_2' }, { key: 'player_swing_3' }]
+            });
+        }
+        this.registerShootTextures();
+        if (!a.exists('player-shoot')) {
+            a.create({
+                key: 'player-shoot', frameRate: 24, repeat: 0,
+                frames: [{ key: 'player_shoot_0' }, { key: 'player_shoot_1' }, { key: 'player_shoot_2' }]
             });
         }
     }

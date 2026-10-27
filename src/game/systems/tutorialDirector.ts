@@ -43,7 +43,7 @@ export class TutorialDirector {
         const prevJump = player.onJumped;
         player.onJumped = () => { prevJump?.(); this.complete('jump'); };
         const prevAttack = combat.onAttackBegan;
-        combat.onAttackBegan = () => { prevAttack?.(); this.complete('attack'); };
+        combat.onAttackBegan = (type) => { prevAttack?.(type); this.complete('attack'); };
         const prevCoin = pickups.onCoinPicked;
         pickups.onCoinPicked = () => { prevCoin?.(); this.complete('pickup'); };
         const prevChest = pickups.onChestOpened;

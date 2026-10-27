@@ -14,6 +14,7 @@ const config: Phaser.Types.Core.GameConfig = {
     height: DESIGN_HEIGHT,
     parent: 'game-container',
     backgroundColor: '#1a1c2c',
+    disableContextMenu: true, // 右键用于副手攻击，不弹出浏览器菜单。
     scale: {
         mode: Scale.EXPAND,
         autoCenter: Scale.CENTER_BOTH

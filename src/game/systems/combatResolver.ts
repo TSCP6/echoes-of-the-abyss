@@ -47,12 +47,32 @@ export class CombatResolver {
     activeWeaponId = 'wpn_shortsword';
     onPlayerDied: (() => void) | null = null;
     /** TutorialDirector / 挥击音效：攻击发起（场景内直调，6.2.3） */
-    onAttackBegan: (() => void) | null = null;
+    onAttackBegan: ((type: WeaponDef['type']) => void) | null = null;
+    onAttackRejected: ((message: string) => void) | null = null;
     /** 命中敌人音效/教学钩子（场景内直调，6.2.3） */
     onEnemyHit: (() => void) | null = null;
 
     /** 测试接缝：注入确定性随机源（TT-01） */
     setRng(rng: () => number): void { this.rng = rng; }
+
+    /** 先校验状态与弹药，再播放动作；失败射击不占用硬直。 */
+    tryAttack(hand: 'main' | 'sub'): boolean {
+        if (weaponService.isSwitchLocked() || !this.player.canAttack()) { return false; }
+        const def = weaponService.getEquippedDefs()[hand];
+        if (def === null || (hand === 'sub' && def.type !== 'ranged')) { return false; }
+        if (def.type === 'ranged') {
+            const ammo = weaponService.consumeAmmo(def.id);
+            if (!ammo.ok) {
+                this.onAttackRejected?.(ammo.message);
+                return false;
+            }
+        }
+        if (!this.player.beginAttack(def.type)) { return false; }
+        this.activeWeaponId = def.id;
+        if (def.type === 'melee') { this.beginMelee(def, hand); }
+        else { this.spawnProjectile(def, 0, hand); }
+        return true;
+    }
 
     /** FR-04 规则 1：近战挥击（hitbox 0.10 s + hitSet 去重） */
     beginMelee(def: WeaponDef, hand: 'main' | 'sub' = 'main'): void {
@@ -65,7 +85,7 @@ export class CombatResolver {
         );
         this.swings.push({ rect, life: MELEE_LIFETIME_SEC, hitSet: new Set(), def, facing: p.facing,
             weaponLevelFactor: weaponService.getLevelFactor(def.id, hand) });
-        this.onAttackBegan?.();
+        this.onAttackBegan?.('melee');
     }
 
     /** FR-04 规则 2：远程弹丸（弹药校验由调用方 WeaponService.consumeAmmo 完成） */
@@ -77,7 +97,7 @@ export class CombatResolver {
             range: def.range, damage: def.baseDamage,
             side: 'player', sourceId: def.id, weaponLevelFactor: weaponService.getLevelFactor(def.id, hand)
         });
-        this.onAttackBegan?.();
+        this.onAttackBegan?.('ranged');
     }
 
     /** 范围伤害（旋风斩等技能执行器调用，FR-07 规则 4） */

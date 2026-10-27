@@ -8,7 +8,7 @@
  */
 import { Physics, type Scene } from 'phaser';
 import type { InputGateway } from './inputGateway';
-import type { PlayerAnimState } from '../domain/types';
+import type { PlayerAnimState, WeaponDef } from '../domain/types';
 import { ConfigRegistry } from '../domain/configRegistry';
 import { economyService } from '../domain/economyService';
 import { emitEvent } from '../events';
@@ -30,6 +30,7 @@ export class PlayerController {
     private wasGrounded = false;
     private inputEnabled = true;
     private attackLockMs = 0;
+    private attackType: WeaponDef['type'] = 'melee';
     /** P2 接入：i-frame 截止时间戳（游戏时钟 ms） */
     iFrameUntil = 0;
     onLanded: (() => void) | null = null; // CameraRig 沉降 / 落地音效（场景内直调，6.2.3）
@@ -70,9 +71,12 @@ export class PlayerController {
         this.setState('idle');
     }
 
+    canAttack(): boolean { return this.state !== 'dead' && this.attackLockMs <= 0; }
+
     /** FR-05 规则 1：进入攻击态（0.12 s 硬直）；dead/硬直中拒绝。返回是否成功发起 */
-    beginAttack(): boolean {
-        if (this.state === 'dead' || this.attackLockMs > 0) { return false; }
+    beginAttack(type: WeaponDef['type'] = 'melee'): boolean {
+        if (!this.canAttack()) { return false; }
+        this.attackType = type;
         this.attackLockMs = ATTACK_LOCK_MS;
         this.setState('attack');
         return true;
@@ -93,7 +97,7 @@ export class PlayerController {
         const animMap: Partial<Record<PlayerAnimState, string>> = {
             idle: 'player-idle', run: 'player-run', jump: 'player-jump',
             fall: 'player-fall', hurt: 'player-hit', dead: 'player-dead',
-            attack: 'player-swing' // FR-16 规则 3：挥击 4 帧（P4 程序化剑弧）
+            attack: this.attackType === 'ranged' ? 'player-shoot' : 'player-swing'
         };
         const key = animMap[next];
         if (key !== undefined) { this.sprite.play(key, true); }

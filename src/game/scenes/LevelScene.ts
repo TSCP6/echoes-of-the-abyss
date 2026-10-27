@@ -203,10 +203,12 @@ export class LevelScene extends Scene {
         this.combat.onPlayerDied = () => this.onPlayerDeath();
         this.combat.onEnemyHit = () => audioDirector.playSfx('hit_melee'); // AT-56 命中音效
         // 攻击发起音效（TutorialDirector 在其后链式追加完成判定，6.2.3）
-        this.combat.onAttackBegan = () => {
-            const eq = weaponService.getEquippedDefs();
-            const ranged = eq.main?.type === 'ranged' || eq.sub?.type === 'ranged';
-            audioDirector.playSfx(ranged ? 'shoot' : 'swing');
+        this.combat.onAttackBegan = (type) => {
+            audioDirector.playSfx(type === 'ranged' ? 'shoot' : 'swing');
+        };
+        this.combat.onAttackRejected = (message) => {
+            this.fx.message(this.player.sprite.x - 32, this.player.sprite.y - 48, message);
+            audioDirector.playSfx('ui_error');
         };
         for (const e of this.enemies.getEntities()) {
             this.physics.add.collider(e.sprite, collisionLayer);
@@ -391,19 +393,10 @@ export class LevelScene extends Scene {
         // 攻击（FR-05）
         if (!this.dead && !weaponService.isSwitchLocked()) {
             if (this.gateway.justPressed('attackMain')) {
-                const def = weaponService.getEquippedDefs().main;
-                if (def !== null && this.player.beginAttack()) {
-                    this.combat.activeWeaponId = def.id;
-                    if (def.type === 'melee') { this.combat.beginMelee(def); }
-                    else if (weaponService.consumeAmmo(def.id).ok) { this.combat.spawnProjectile(def, 0); }
-                }
+                this.combat.tryAttack('main');
             }
             if (this.gateway.justPressed('attackSub')) {
-                const def = weaponService.getEquippedDefs().sub;
-                if (def !== null && def.type === 'ranged' && this.player.beginAttack()) {
-                    this.combat.activeWeaponId = def.id;
-                    if (weaponService.consumeAmmo(def.id).ok) { this.combat.spawnProjectile(def, 0, 'sub'); }
-                }
+                this.combat.tryAttack('sub');
             }
         }
         // 技能 1~4（FR-07 规则 6）

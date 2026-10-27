@@ -47,11 +47,20 @@ export class WorldFxLayer {
 
     /** 玩家对敌人伤害数字（FR-04 规则 6） */
     damageNumber(x: number, y: number, amount: number): void {
+        this.floatText(x, y, String(amount), '#ffe066');
+    }
+
+    message(x: number, y: number, message: string): void {
+        this.floatText(x, y, message, '#ffbd80');
+    }
+
+    private floatText(x: number, y: number, message: string, color: string): void {
         const slot = this.acquire();
+        this.scene.tweens.killTweensOf(slot.text);
         slot.inUse = true;
         slot.bornAt = this.clock;
-        slot.text.setText(String(amount));
-        slot.text.setColor('#ffe066');
+        slot.text.setText(message);
+        slot.text.setColor(color);
         slot.text.setPosition(x, y);
         slot.text.setAlpha(1);
         slot.text.setVisible(true);

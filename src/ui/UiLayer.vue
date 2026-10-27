@@ -262,7 +262,8 @@ defineExpose({ open, close, enterLevel, enterCamp, backToMenu, goto, hasSave });
     z-index: 10;
     font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
 }
-.ui-layer :deep(*) { pointer-events: auto; }
+/* 交互面板接收鼠标；HUD 和教学提示须穿透到游戏画布。 */
+.ui-layer > :deep(:not(.hud):not(.hint)) { pointer-events: auto; }
 /* 内容超过小窗口时从顶部滚动，避免居中布局把标题或返回按钮裁到屏幕外。 */
 .ui-layer > :deep(:not(.hud):not(.hint)) {
     box-sizing: border-box;
