@@ -34,7 +34,7 @@ export const UI_TEXT = {
         cleared: '关卡完成',
         time: '用时',
         kills: '击杀',
-        shards: '碎片',
+        shards: '回响碎片',
         coins: '金币',
         newRecord: '新纪录',
         next: '下一关',
@@ -44,6 +44,14 @@ export const UI_TEXT = {
     help: {
         title: '操作说明',
         back: '返回',
+        flowTitle: '冒险流程',
+        flow: '探索关卡、跳跃战斗 → 收集金币和回响碎片 → 激活检查点 → 到达终点解锁下一关。共 3 个区域，每区第 4 关击败 Boss 后才能通关。',
+        coin: '金币：金色圆币。在「关卡选择 → 营地」按交互键打开商店，购买弹药、药水、武器或强化装备。',
+        shard: '回响碎片：青色晶体。每枚增加 1 技能点（SKP），在技能树学习技能；主动技能装备后用 1–4 释放，消耗技能能量（SP）。',
+        material: '遗迹残片：紫色材料标记。与金币一起用于强化武器，与学习技能的回响碎片分别计数。',
+        ranged: '远程攻击：白蓝色箭形弹丸。初始副手轻弩每发消耗 1 支箭，受武器攻速和射程限制；飞镖枪使用飞镖。',
+        ammo: '新游戏有 20 支箭；背包点击弹药不会射击。弹药不足时回营地补给，也可拾取飞行敌人掉落的箭矢。常规近战攻击不消耗弹药。',
+        supplies: '当前商店补给',
         rows: [
             ['水平移动', 'A / D 或 ← / →'],
             ['跳跃', 'Space（短按截断跳高）'],
@@ -59,6 +67,15 @@ export const UI_TEXT = {
     },
     hud: {
         level: '关卡',
-        checkpoints: '检查点'
+        checkpoints: '检查点',
+        hp: '生命', sp: '技能能量', coins: '金币', skillPoints: '技能点', materials: '强化残片',
+        main: '主手', sub: '副手', emptyHand: '未装备', melee: '近战 · 无需弹药',
+        ammoLow: '弹药不足', ammoEmpty: '弹药耗尽',
+        resupply: '补给：关卡选择 → 营地 →', shop: '商店'
+    },
+    inventory: {
+        ammoHint: '这是弹药，请返回关卡，用装备的远程武器攻击；初始轻弩按 K / 鼠标右键射击。',
+        controls: '左键使用药水 ｜ 右键装主手 ｜ 双击装副手',
+        ammoNote: '弹药由远程武器消耗，点击弹药不会投掷。'
     }
 } as const;

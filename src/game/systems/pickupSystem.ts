@@ -10,6 +10,7 @@ import type { LevelContext } from './levelLoader';
 import type { PlayerController } from './playerController';
 import { economyService } from '../domain/economyService';
 import { progressService } from '../domain/progressService';
+import { PICKUP_TEXTURES } from './pickupVisuals';
 
 const MAGNET_DELAY_SEC = 0.15;
 const MAGNET_PX = 96;
@@ -51,7 +52,7 @@ export class PickupSystem {
         // 池预分配（DD-13）：统一 physics group，注册与碰撞层的单一 collider（金币落地）
         this.coinGroup = scene.physics.add.group({ allowGravity: true });
         for (let i = 0; i < COIN_POOL; i++) {
-            const sprite = scene.physics.add.sprite(-9999, -9999, 'fruit_apple', 0);
+            const sprite = scene.physics.add.sprite(-9999, -9999, PICKUP_TEXTURES.coin);
             sprite.setDepth(5);
             sprite.setScale(0.5); // 64px 帧 → 32px 世界（2x 素材约定，DD-11）
             sprite.setVisible(false);
@@ -87,8 +88,8 @@ export class PickupSystem {
         }
     }
 
-    private floatText(x: number, y: number, text: string): void {
-        const t = this.scene.add.text(x, y, text, { fontSize: '16px', color: '#ffe066' }).setDepth(30);
+    private floatText(x: number, y: number, text: string, color = '#ffe066'): void {
+        const t = this.scene.add.text(x, y, text, { fontSize: '16px', color, stroke: '#101827', strokeThickness: 3 }).setDepth(30);
         this.scene.tweens.add({ targets: t, y: y - 24, alpha: 0, duration: 600, onComplete: () => t.destroy() });
     }
 
@@ -118,7 +119,7 @@ export class PickupSystem {
             if (dist < 20) {
                 const r = economyService.addCoins(1);
                 if (r.ok && !r.value.rejected) {
-                    this.floatText(coin.sprite.x, coin.sprite.y - 10, '+1');
+                    this.floatText(coin.sprite.x, coin.sprite.y - 10, '+1 金币');
                     this.onCoinPicked?.();
                 } else {
                     this.floatText(coin.sprite.x, coin.sprite.y - 10, '金币已满');
@@ -147,7 +148,7 @@ export class PickupSystem {
             if (progressService.isShardCollected(this.ctx.levelId, sh.id)) { continue; }
             if (Math.abs(px - sh.x) < 36 && Math.abs(py - sh.y) < 48) {
                 progressService.collectShard(this.ctx.levelId, sh.id);
-                this.floatText(sh.x, sh.y - 12, '回响碎片 +1 SKP');
+                this.floatText(sh.x, sh.y - 12, '回响碎片 +1 技能点', '#9ff7ff');
                 this.events.onShard(sh.id);
             }
         }

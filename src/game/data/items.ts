@@ -38,11 +38,11 @@ export const ITEMS: ItemDef[] = [
         effect: { fullHp: true }, throwable: false, price: 120,
         icon: 'icon_potion_hp_l', description: '完全回复生命值。'
     },
-    // ---- 消耗品：弹药（可投掷）----
+    // ---- 消耗品：弹药（由远程武器消耗）----
     {
         id: 'itm_dart', name: '飞镖', category: 'consumable', stackMax: 99,
         effect: {}, throwable: true, price: 15,
-        icon: 'icon_dart', description: '飞镖枪弹药，亦可投掷。'
+        icon: 'icon_dart', description: '飞镖枪弹药，由远程武器攻击时消耗；背包内点击不会投掷。'
     },
     {
         id: 'itm_arrow', name: '箭矢', category: 'consumable', stackMax: 99,

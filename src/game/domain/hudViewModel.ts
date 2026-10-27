@@ -8,19 +8,25 @@ import { resourceSystem } from './resourceSystem';
 import { economyService } from './economyService';
 import { skillService } from './skillService';
 import { weaponService } from './weaponService';
+import { inventoryStore } from './inventoryStore';
 import { ConfigRegistry } from './configRegistry';
 import { emitEvent } from '../events';
+
+export interface HudAmmo { itemId: string; name: string; count: number }
 
 export interface HudPerFrame {
     hpRatio: number;
     spRatio: number;
     lowHp: boolean;
+    skillPoints: number;
     cooldowns: [number, number, number, number];
     cooldownRatios: [number, number, number, number];
     weaponIcons: {
         main: string | null; sub: string | null;
         mainLevel: number; subLevel: number;
         activeHand: 'main' | 'sub';
+        mainName: string; subName: string;
+        mainAmmo: HudAmmo | null; subAmmo: HudAmmo | null;
     };
     bossBar: { name: string; ratio: number } | null;
     levelId: string;
@@ -58,10 +64,14 @@ export class HudViewModel {
     getPerFrame(): Readonly<HudPerFrame> {
         const rs = resourceSystem.getSnapshot();
         const equipped = weaponService.getEquippedDefs();
+        const items = ConfigRegistry.items();
+        const ammo = (id: string | null | undefined): HudAmmo | null => id == null ? null
+            : { itemId: id, name: items[id]?.name ?? id, count: inventoryStore.countItem(id) };
         return {
             hpRatio: rs.hpMax > 0 ? rs.hp / rs.hpMax : 0,
             spRatio: rs.spMax > 0 ? rs.sp / rs.spMax : 0,
             lowHp: rs.lowHp,
+            skillPoints: skillService.skpBalance,
             cooldowns: this.readCooldowns(),
             cooldownRatios: this.readCooldownRatios(),
             weaponIcons: {
@@ -69,7 +79,11 @@ export class HudViewModel {
                 sub: equipped.sub?.id ?? null,
                 mainLevel: equipped.main !== null ? weaponService.getLevel(equipped.main.id, 'main') : 1,
                 subLevel: equipped.sub !== null ? weaponService.getLevel(equipped.sub.id, 'sub') : 1,
-                activeHand: weaponService.getActiveHand()
+                activeHand: weaponService.getActiveHand(),
+                mainName: equipped.main === null ? '' : items[equipped.main.id]?.name ?? equipped.main.id,
+                subName: equipped.sub === null ? '' : items[equipped.sub.id]?.name ?? equipped.sub.id,
+                mainAmmo: ammo(equipped.main?.ammoItemId),
+                subAmmo: ammo(equipped.sub?.ammoItemId)
             },
             bossBar: this.bossBar,
             levelId: this.levelId,

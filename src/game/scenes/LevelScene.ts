@@ -34,6 +34,7 @@ import { createViewportBackground } from '../systems/viewportLayout';
 import { BossDangerFx } from '../systems/bossDangerFx';
 import { bossPalette, bossSummonPositions } from '../systems/bossSkillPresentation';
 import { BossArena } from '../systems/bossArena';
+import { PICKUP_TEXTURES } from '../systems/pickupVisuals';
 
 const DEATH_PAUSE_MS = 800; // FR-16 规则 3
 const DASH_SPEED_PX_S = 900; // 回响冲刺 180px / 0.2s
@@ -248,7 +249,7 @@ export class LevelScene extends Scene {
         this.add.sprite(this.ctx.goal.x + 32, this.ctx.goal.y + 48, 'goal_idle', 0).setScale(0.5).setDepth(4);
         for (const sh of this.ctx.shards) {
             if (!progressService.isShardCollected(this.levelId, sh.id)) {
-                this.add.sprite(sh.x, sh.y, 'fruit_apple', 0).setScale(0.5).setDepth(4).setName(`shard_${sh.id}`);
+                this.add.sprite(sh.x, sh.y, PICKUP_TEXTURES.skillShard).setScale(0.5).setDepth(4).setName(`shard_${sh.id}`);
             }
         }
 
@@ -301,8 +302,8 @@ export class LevelScene extends Scene {
         const map: Record<string, string> = {
             move: '← → 或 A D 移动',
             jump: 'Space 跳跃（短按控制高度）',
-            attack: 'J / 鼠标左键 攻击',
-            pickup: '靠近金币自动拾取',
+            attack: 'J / 左键 主手攻击；K / 右键 副手攻击（远程消耗弹药）',
+            pickup: '金色圆币可在营地购物；青色晶体增加技能点（Y 学习）',
             interact: 'E 交互（宝箱/传送门）'
         };
         return map[action] ?? action;

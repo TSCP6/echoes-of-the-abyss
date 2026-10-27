@@ -16,6 +16,7 @@ import type { SaveData } from '../domain/saveSchema';
 import { audioDirector } from '../systems/audioDirector';
 import { bindViewportLayout, centerDesignCamera } from '../systems/viewportLayout';
 import { loadEnemyArt, registerEnemyAnimations } from '../systems/enemyVisuals';
+import { registerPickupTextures } from '../systems/pickupVisuals';
 
 export class PreloaderScene extends Scene {
     private retryCount = 0;
@@ -85,6 +86,7 @@ export class PreloaderScene extends Scene {
         }
         audioDirector.attach(this.game); // MOD-08：音频资源已加载，绑定 game（解锁经 UiLayer 手势）
         this.registerPlaceholderTextures();
+        registerPickupTextures(this);
         this.registerAnimations();
         registerEnemyAnimations(this);
         // FLOW-R1：存档装配 → 读档（checksum/迁移/损坏处置）→ 各 store 恢复

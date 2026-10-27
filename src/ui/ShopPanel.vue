@@ -8,6 +8,7 @@ import { ConfigRegistry } from '../game/domain/configRegistry';
 import { useDomainStore } from './useDomainStore';
 import { onEvent, offEvent } from '../game/events';
 import { audioDirector } from '../game/systems/audioDirector';
+import { UI_TEXT } from './i18n';
 
 const props = defineProps<{ sceneId: 1 | 2 | 3 }>();
 const emit = defineEmits<{ close: [] }>();
@@ -63,7 +64,7 @@ function upgrade(itemId: string, hand: 'main' | 'sub'): void {
                     <span class="name">{{ itemName(w.itemId) }}（{{ w.hand === 'main' ? '主手' : '副手' }}） Lv{{ w.level }}</span>
                     <span v-if="w.level >= 5" class="state">已满级</span>
                     <button v-else class="btn" @click="upgrade(w.itemId, w.hand)">
-                        升级 ◉{{ Math.round(60 * w.level ** 1.5) }} + {{ w.level }}残片
+                        升级 ◉{{ Math.round(60 * w.level ** 1.5) }} + {{ w.level }}{{ UI_TEXT.hud.materials }}
                     </button>
                 </div>
             </div>

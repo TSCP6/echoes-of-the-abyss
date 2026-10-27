@@ -34,7 +34,7 @@ export class ProjectilePool {
 
     constructor(scene: Scene, ctx: LevelContext) {
         // Enemy shots read as danger rather than collectible fruit.
-        for (const [key, color, size] of [['projectile_enemy', 0xff653f, 24], ['projectile_player', 0xffe066, 12]] as const) {
+        for (const [key, color, size] of [['projectile_enemy', 0xff653f, 24]] as const) {
             if (scene.textures.exists(key)) { continue; }
             const g = scene.make.graphics();
             g.fillStyle(color, 0.3);
@@ -45,6 +45,14 @@ export class ProjectilePool {
             g.fillCircle(size / 2, size / 2, size / 6);
             g.generateTexture(key, size, size);
             g.destroy();
+        }
+        if (!scene.textures.exists('projectile_player')) {
+            const g = scene.make.graphics();
+            g.lineStyle(5, 0x142d42); g.lineBetween(5, 6, 27, 6);
+            g.lineStyle(2, 0xe4f6ff); g.lineBetween(5, 6, 27, 6);
+            g.fillStyle(0xffffff); g.fillTriangle(33, 6, 24, 1, 24, 11);
+            g.lineStyle(2, 0x64bbf5); g.lineBetween(2, 1, 8, 6); g.lineBetween(2, 11, 8, 6);
+            g.generateTexture('projectile_player', 34, 12); g.destroy();
         }
         for (const [key, color] of [['projectile_spider', 0xa3ed58], ['projectile_echo', 0xbb91ff]] as const) {
             if (scene.textures.exists(key)) { continue; }

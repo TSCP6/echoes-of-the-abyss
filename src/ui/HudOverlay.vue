@@ -7,16 +7,35 @@
  * 布局（FR-14 规则 1~6）：左上 HP/SP+金币/残片+关卡；右下技能栏 4 格+武器栏；顶中 Boss 血条。
  * 不遮挡中央 512×384（FR-14 边界）。
  */
-import { onMounted, onUnmounted, ref } from 'vue';
-import { hudViewModel } from '../game/domain/hudViewModel';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { hudViewModel, type HudPerFrame } from '../game/domain/hudViewModel';
 import { skillService } from '../game/domain/skillService';
 import { onEvent, offEvent, type EventPayloads } from '../game/events';
 import { UI_TEXT } from './i18n';
+import { settingsStore } from '../game/domain/settingsStore';
+import { effectiveKeys } from '../game/domain/keymap';
+import { useDomainStore } from './useDomainStore';
 
 const hpText = ref('100/100');
 const spText = ref('50/50');
 const coins = ref(0);
 const shards = ref(0);
+const skillPoints = ref(0);
+const weapons = ref<HudPerFrame['weaponIcons'] | null>(null);
+const settings = useDomainStore(() => settingsStore.getSnapshot(), onChange => {
+    onEvent('settings:changed', onChange);
+    return () => offEvent('settings:changed', onChange);
+});
+const weaponSlots = computed(() => (['main', 'sub'] as const).map(hand => ({
+    hand, name: weapons.value?.[hand === 'main' ? 'mainName' : 'subName'] || UI_TEXT.hud.emptyHand,
+    ammo: weapons.value?.[hand === 'main' ? 'mainAmmo' : 'subAmmo'] ?? null,
+    keys: effectiveKeys(hand === 'main' ? 'attackMain' : 'attackSub', settings.value.keymap).join('/'),
+    mouse: hand === 'main' ? '左键' : '右键',
+    equipped: weapons.value?.[hand] != null
+})));
+const lowAmmo = computed(() => weaponSlots.value.some(w => w.ammo !== null && w.ammo.count <= 5));
+const emptyAmmo = computed(() => weaponSlots.value.some(w => w.ammo?.count === 0));
+const interactKey = computed(() => effectiveKeys('interact', settings.value.keymap).join('/'));
 const levelId = ref('');
 const checkpoints = ref(0);
 const lowHp = ref(false);
@@ -55,6 +74,8 @@ const loop = (): void => {
     if (hpBar.value !== null) { hpBar.value.style.transform = `scaleX(${pf.hpRatio})`; }
     if (spBar.value !== null) { spBar.value.style.transform = `scaleX(${pf.spRatio})`; }
     lowHp.value = pf.lowHp;
+    skillPoints.value = pf.skillPoints;
+    weapons.value = pf.weaponIcons;
     levelId.value = pf.levelId;
     checkpoints.value = pf.checkpointsActive;
     // 冷却扇形（conic-gradient）+ 剩余秒 1 位小数（FR-14 规则 3 / AT-49）
@@ -95,15 +116,18 @@ onUnmounted(() => {
         <div class="topleft">
             <div class="bar hp" :class="{ low: lowHp }">
                 <div ref="hpBar" class="fill"></div>
-                <span class="txt">{{ hpText }}</span>
+                <span class="txt">{{ UI_TEXT.hud.hp }} {{ hpText }}</span>
             </div>
             <div class="bar sp">
                 <div ref="spBar" class="fill"></div>
-                <span class="txt">{{ spText }}</span>
+                <span class="txt">{{ UI_TEXT.hud.sp }} SP {{ spText }}</span>
             </div>
             <div class="row">
-                <span class="coin">◉ {{ coins }}</span>
-                <span class="shard">◆ {{ shards }}</span>
+                <span class="coin">◉ {{ UI_TEXT.hud.coins }} {{ coins }}</span>
+                <span class="shard">◆ {{ UI_TEXT.hud.skillPoints }} SKP {{ skillPoints }} · Y</span>
+            </div>
+            <div class="row material">
+                ◈ {{ UI_TEXT.hud.materials }} {{ shards }}
             </div>
             <div class="row muted">
                 {{ UI_TEXT.hud.level }} {{ levelId }} ｜ {{ UI_TEXT.hud.checkpoints }} {{ checkpoints }}
@@ -116,9 +140,17 @@ onUnmounted(() => {
             </div>
         </div>
         <div class="bottomright">
+            <div v-if="lowAmmo" class="ammo-warning" role="status">
+                <b>{{ emptyAmmo ? UI_TEXT.hud.ammoEmpty : UI_TEXT.hud.ammoLow }}</b>
+                <span>{{ UI_TEXT.hud.resupply }} {{ interactKey }} {{ UI_TEXT.hud.shop }}</span>
+            </div>
             <div class="weapons">
-                <span class="wslot main">主</span>
-                <span class="wslot sub">副</span>
+                <div v-for="w in weaponSlots" :key="w.hand" class="wslot" :class="w.hand">
+                    <span class="weapon-key">{{ w.keys }} / {{ w.mouse }} · {{ w.hand === 'main' ? UI_TEXT.hud.main : UI_TEXT.hud.sub }}</span>
+                    <b>{{ w.name }}</b>
+                    <span v-if="w.ammo" class="ammo" :class="{ low: w.ammo.count <= 5 }">➶ {{ w.ammo.name }} {{ w.ammo.count }}</span>
+                    <span v-else-if="w.equipped" class="muted">{{ UI_TEXT.hud.melee }}</span>
+                </div>
             </div>
             <div class="skills">
                 <div v-for="i in 4" :key="i" class="skill">
@@ -140,7 +172,7 @@ onUnmounted(() => {
     background: rgba(0, 0, 0, 0.55); border: 1px solid var(--border); border-radius: 3px;
     overflow: hidden;
 }
-.bar.sp { height: 14px; }
+.bar.sp { height: 18px; }
 .bar.boss { width: 100%; height: 16px; box-sizing: border-box; }
 .fill {
     position: absolute; inset: 0; transform-origin: left center;
@@ -154,9 +186,10 @@ onUnmounted(() => {
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     font-size: 14px; line-height: 1; color: #fff; text-shadow: 0 1px 2px #000;
 }
-.row { display: flex; gap: 14px; font-size: 15px; }
+.row { display: flex; flex-wrap: wrap; gap: 6px 14px; max-width: 330px; font-size: 15px; text-shadow: 0 1px 3px #000; }
 .coin { color: var(--gold); }
 .shard { color: #9fe8ff; }
+.material { color: #c5a4ff; }
 .muted { color: var(--muted); font-size: 14px; }
 .bossbar {
     position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
@@ -167,10 +200,15 @@ onUnmounted(() => {
 .bottomright { position: absolute; right: 12px; bottom: 12px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .weapons { display: flex; gap: 6px; }
 .wslot {
-    width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
-    background: rgba(0,0,0,0.5); border: 1px solid var(--border); border-radius: 4px; font-size: 14px;
+    min-width: 125px; padding: 7px 10px; display: flex; flex-direction: column; gap: 3px;
+    background: rgba(12,20,32,0.9); border: 1px solid var(--border); border-radius: 4px; font-size: 14px;
 }
 .wslot.main { border-color: var(--gold); }
+.wslot.sub { border-color: #8bcdf3; }
+.weapon-key { color: var(--muted); }
+.ammo { color: #e4f6ff; }
+.ammo.low, .ammo-warning { color: var(--warning); }
+.ammo-warning { display: flex; flex-direction: column; gap: 3px; font-size: 14px; padding: 7px 10px; background: rgba(12,20,32,0.9); border-radius: 4px; }
 .skills { display: flex; gap: 6px; }
 .skill {
     position: relative; width: 48px; height: 48px;
@@ -182,6 +220,6 @@ onUnmounted(() => {
 .cdmask { position: absolute; inset: 0; border-radius: 6px; }
 .cd { position: absolute; bottom: 2px; right: 4px; font-size: 14px; color: var(--warning); }
 @media (max-width: 1040px) {
-    .bossbar { top: 120px; }
+    .bossbar { top: 160px; }
 }
 </style>

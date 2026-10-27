@@ -8,6 +8,7 @@ import { ref } from 'vue';
 import { inventoryStore } from '../game/domain/inventoryStore';
 import { useDomainStore } from './useDomainStore';
 import { onEvent, offEvent } from '../game/events';
+import { UI_TEXT } from './i18n';
 
 const emit = defineEmits<{ close: [] }>();
 
@@ -21,6 +22,7 @@ const snap = useDomainStore(
 
 const hoverSlot = ref<number | null>(null);
 const confirmDrop = ref<number | null>(null);
+const feedback = ref('');
 
 const tooltip = (slot: number) => inventoryStore.getTooltip(slot);
 
@@ -29,8 +31,9 @@ function leftClick(slot: number): void {
     if (entry === null) { return; }
     const r = inventoryStore.useItem(slot);
     if (r.ok && 'throwMode' in r.value) {
-        // 投掷模式：M2 简化为直接投出（伤害 5，P3 细化）
-        inventoryStore.consumeItem(entry.itemId, 1);
+        feedback.value = UI_TEXT.inventory.ammoHint;
+    } else {
+        feedback.value = '';
     }
 }
 
@@ -58,23 +61,27 @@ function drop(slot: number): void {
                     @mouseenter="hoverSlot = i" @mouseleave="hoverSlot = null"
                     @click="leftClick(i)" @contextmenu.prevent="rightClick(i, 'main')"
                     @dblclick="rightClick(i, 'sub')">
-                    <span v-if="slot" class="icon">{{ slot.itemId.startsWith('wpn_') ? '⚔' : slot.itemId.includes('potion') ? '🧪' : slot.itemId.includes('shard') ? '◆' : '●' }}</span>
+                    <span v-if="slot" class="icon" :class="{ material: slot.itemId.includes('shard') }">{{ slot.itemId.startsWith('wpn_') ? '⚔' : slot.itemId.includes('potion') ? '🧪' : slot.itemId.includes('shard') ? '◆' : '➶' }}</span>
                     <span v-if="slot && slot.count > 1" class="count">{{ slot.count }}</span>
                     <button v-if="slot" class="drop" @click.stop="drop(i)">
                         {{ confirmDrop === i ? '确认?' : '×' }}
                     </button>
                 </div>
             </div>
-            <div v-if="hoverSlot !== null && tooltip(hoverSlot)" class="tip">
-                <b>{{ tooltip(hoverSlot)?.name }}</b>
-                <span class="cat">{{ tooltip(hoverSlot)?.category }}</span>
-                <p>{{ tooltip(hoverSlot)?.description }}</p>
+            <div class="tip-space">
+                <div v-if="hoverSlot !== null && tooltip(hoverSlot)" class="tip">
+                    <b>{{ tooltip(hoverSlot)?.name }}</b>
+                    <span class="cat">{{ tooltip(hoverSlot)?.category }}</span>
+                    <p>{{ tooltip(hoverSlot)?.description }}</p>
+                </div>
             </div>
             <nav class="foot">
                 <button class="btn" @click="inventoryStore.sort()">整理</button>
                 <button class="btn" @click="emit('close')">关闭（Tab）</button>
             </nav>
-            <p class="hint">左键使用 ｜ 右键装主手 ｜ 双击装副手</p>
+            <p class="hint">{{ UI_TEXT.inventory.controls }}</p>
+            <p class="hint">{{ UI_TEXT.inventory.ammoNote }}</p>
+            <p class="feedback" role="status">{{ feedback }}</p>
         </div>
     </div>
 </template>
@@ -110,6 +117,10 @@ h2 { margin: 0 0 14px; font-size: 22px; }
     background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
     padding: 10px; text-align: left; font-size: 14px;
 }
+.tip-space { height: 105px; max-width: 320px; }
+.tip { max-height: 100%; overflow-y: auto; }
+.material { color: #c5a4ff; }
+.feedback { min-height: 42px; max-width: 320px; font-size: 14px; color: var(--warning); margin: 8px 0 0; }
 .cat { color: var(--muted); margin-left: 8px; font-size: 14px; }
 .tip p { margin: 6px 0 0; color: var(--muted); }
 .meta { color: var(--gold) !important; }
