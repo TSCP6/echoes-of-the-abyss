@@ -4,11 +4,13 @@
  * 左键使用消耗品、右键装备武器（主/副手）、丢弃二次确认、整理（FR-08 规则 8 / AT-30）。
  * 数据经 useDomainStore 订阅 inventory:changed（IF-E07）。
  */
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { inventoryStore } from '../game/domain/inventoryStore';
 import { useDomainStore } from './useDomainStore';
 import { onEvent, offEvent } from '../game/events';
 import { UI_TEXT } from './i18n';
+import { ConfigRegistry } from '../game/domain/configRegistry';
+import { ammoGuide } from './ammoPresentation';
 
 const emit = defineEmits<{ close: [] }>();
 
@@ -23,22 +25,31 @@ const snap = useDomainStore(
 const hoverSlot = ref<number | null>(null);
 const confirmDrop = ref<number | null>(null);
 const feedback = ref('');
+const selectedSlot = ref<number | null>(null);
+const selectedWeapon = computed(() => {
+    const slot = selectedSlot.value === null ? null : snap.value.slots[selectedSlot.value];
+    return slot && ConfigRegistry.items()[slot.itemId]?.category === 'weapon' ? slot : null;
+});
+const itemName = (id: string | null) => id ? ConfigRegistry.items()[id]?.name : '未装备';
 
 const tooltip = (slot: number) => inventoryStore.getTooltip(slot);
 
 function leftClick(slot: number): void {
     const entry = snap.value.slots[slot];
     if (entry === null) { return; }
+    selectedSlot.value = slot;
+    if (ConfigRegistry.items()[entry.itemId]?.category === 'weapon') { feedback.value = UI_TEXT.inventory.chooseHand; return; }
     const r = inventoryStore.useItem(slot);
     if (r.ok && 'throwMode' in r.value) {
-        feedback.value = UI_TEXT.inventory.ammoHint;
+        feedback.value = ammoGuide(entry.itemId, snap.value.equipped);
     } else {
         feedback.value = '';
     }
 }
 
 function rightClick(slot: number, hand: 'main' | 'sub'): void {
-    inventoryStore.equip(slot, hand);
+    const name = itemName(snap.value.slots[slot]?.itemId ?? null);
+    if (inventoryStore.equip(slot, hand).ok) { feedback.value = `已将${name}装到${hand === 'main' ? '主手（J / 左键）' : '副手（K / 右键）'}`; selectedSlot.value = null; }
 }
 
 function drop(slot: number): void {
@@ -55,6 +66,7 @@ function drop(slot: number): void {
     <div class="inv">
         <div class="panel">
             <h2>背包</h2>
+            <p class="equipped-summary">主手：{{ itemName(snap.equipped.main) }} ｜ 副手：{{ itemName(snap.equipped.sub) }}</p>
             <div class="grid">
                 <div v-for="(slot, i) in snap.slots" :key="i" class="cell"
                     :class="{ equipped: slot !== null && (snap.equipped.main === slot.itemId || snap.equipped.sub === slot.itemId) }"
@@ -73,7 +85,13 @@ function drop(slot: number): void {
                     <b>{{ tooltip(hoverSlot)?.name }}</b>
                     <span class="cat">{{ tooltip(hoverSlot)?.category }}</span>
                     <p>{{ tooltip(hoverSlot)?.description }}</p>
+                    <p>{{ ammoGuide(snap.slots[hoverSlot]?.itemId ?? '', snap.equipped) }}</p>
                 </div>
+            </div>
+            <div v-if="selectedWeapon && selectedSlot !== null" class="equip-actions">
+                <b>{{ itemName(selectedWeapon.itemId) }}</b>
+                <button class="btn" @click="rightClick(selectedSlot, 'main')">装主手</button>
+                <button class="btn" @click="rightClick(selectedSlot, 'sub')">装副手</button>
             </div>
             <nav class="foot">
                 <button class="btn" @click="inventoryStore.sort()">整理</button>
@@ -96,6 +114,7 @@ function drop(slot: number): void {
     position: relative;
     background: var(--surface-2); border: 2px solid var(--border); border-radius: 10px;
     padding: 20px 28px; color: var(--fg); text-align: center;
+    max-height: calc(100% - 24px); box-sizing: border-box; overflow-y: auto;
 }
 h2 { margin: 0 0 14px; font-size: 22px; }
 .grid { display: grid; grid-template-columns: repeat(5, 56px); gap: 8px; }
@@ -117,10 +136,13 @@ h2 { margin: 0 0 14px; font-size: 22px; }
     background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
     padding: 10px; text-align: left; font-size: 14px;
 }
-.tip-space { height: 105px; max-width: 320px; }
+.tip-space { height: 155px; max-width: 320px; }
 .tip { max-height: 100%; overflow-y: auto; }
 .material { color: #c5a4ff; }
 .feedback { min-height: 42px; max-width: 320px; font-size: 14px; color: var(--warning); margin: 8px 0 0; }
+.equipped-summary { max-width: 320px; font-size: 14px; color: var(--accent); }
+.equip-actions { display: flex; align-items: center; gap: 8px; max-width: 320px; font-size: 14px; }
+.equip-actions .btn { padding: 6px 10px; }
 .cat { color: var(--muted); margin-left: 8px; font-size: 14px; }
 .tip p { margin: 6px 0 0; color: var(--muted); }
 .meta { color: var(--gold) !important; }

@@ -9,6 +9,7 @@ import { useDomainStore } from './useDomainStore';
 import { onEvent, offEvent } from '../game/events';
 import { audioDirector } from '../game/systems/audioDirector';
 import { UI_TEXT } from './i18n';
+import { ammoWeaponNames } from './ammoPresentation';
 
 const props = defineProps<{ sceneId: 1 | 2 | 3 }>();
 const emit = defineEmits<{ close: [] }>();
@@ -49,9 +50,12 @@ function upgrade(itemId: string, hand: 'main' | 'sub'): void {
     <div class="shop">
         <div class="panel">
             <h2>商店 <span class="coins">◉ {{ coins }}</span></h2>
+            <p class="guide">{{ UI_TEXT.inventory.ammoRule }}</p>
             <div class="list">
                 <div v-for="g in goods" :key="g.goodsId" class="row" :class="{ dim: g.owned || !g.affordable }">
-                    <span class="name">{{ itemName(g.refId) }}<i v-if="g.count > 1"> ×{{ g.count }}</i></span>
+                    <span class="name">{{ itemName(g.refId) }}<i v-if="g.count > 1"> ×{{ g.count }}</i>
+                        <small v-if="ammoWeaponNames(g.refId)" class="usage">用于{{ ammoWeaponNames(g.refId) }}</small>
+                    </span>
                     <span class="price">◉ {{ g.price }}</span>
                     <span v-if="g.owned" class="state">已拥有</span>
                     <span v-else-if="!g.affordable" class="state short">缺 {{ g.shortage }}</span>
@@ -84,6 +88,8 @@ h3 { margin: 14px 0 8px; font-size: 17px; color: var(--muted); }
 .row.dim { opacity: 0.55; }
 .name { flex: 1; font-size: 15px; }
 .name i { color: var(--muted); font-style: normal; }
+.usage { display: block; color: var(--muted); font-size: 14px; margin-top: 3px; }
+.guide { color: var(--muted); font-size: 14px; line-height: 1.5; }
 .price { color: var(--gold); font-size: 14px; }
 .state { color: var(--muted); font-size: 14px; }
 .state.short { color: var(--error); }

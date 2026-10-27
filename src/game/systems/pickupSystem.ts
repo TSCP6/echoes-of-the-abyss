@@ -1,11 +1,11 @@
 /**
- * MOD-07 PickupSystem（Phaser 呈现层，管线阶段 7）—— FR-09 金币三阶段 + FR-11 触发区。
- * 金币：接触即可拾取；掉落散开 0.15 s 后，玩家 96 px 内以 300 px/s 磁吸；预置金币立即吸附。
+ * MOD-07 PickupSystem（Phaser 呈现层，管线阶段 7）—— FR-09 金币悬浮拾取 + FR-11 触发区。
+ * 金币不分配刚体：原地悬浮，接触即可拾取；生成 0.15 s 后，96 px 内以 300 px/s 磁吸；预置立即吸附。
  * 拾取 → EconomyService.addCoins（上限拒拾 + 提示，AT-33）+ "+N" 浮动文本（场景内直调 6.2.3）。
  * 触发区（检查点/碎片/宝箱/终点/hints）：矩形重叠检测，幂等/单次熔断。
  * 对象池（DD-13）：金币池 64，场景 create 一次分配，shutdown 随场景销毁（NFR-04）。
  */
-import { Geom, Math as PhaserMath, Physics, type Scene } from 'phaser';
+import { Geom, type GameObjects, type Scene } from 'phaser';
 import type { LevelContext } from './levelLoader';
 import type { PlayerController } from './playerController';
 import { economyService } from '../domain/economyService';
@@ -18,7 +18,7 @@ const MAGNET_SPEED = 300;
 const COIN_POOL = 64;
 
 interface Coin {
-    sprite: Physics.Arcade.Sprite;
+    sprite: GameObjects.Sprite;
     age: number;
     active: boolean;
 }
@@ -34,7 +34,6 @@ export interface PickupEvents {
 
 export class PickupSystem {
     private coins: Coin[] = [];
-    private coinGroup: Physics.Arcade.Group;
     private activatedCheckpoints = new Set<string>();
     private openedChests = new Set<string>();
     private goalFired = false;
@@ -49,26 +48,21 @@ export class PickupSystem {
         private ctx: LevelContext,
         private events: PickupEvents
     ) {
-        // 池预分配（DD-13）：统一 physics group，注册与碰撞层的单一 collider（金币落地）
-        this.coinGroup = scene.physics.add.group({ allowGravity: true });
+        // 仅分配显示对象，不受重力、平台碰撞或刚体组重置影响。
         for (let i = 0; i < COIN_POOL; i++) {
-            const sprite = scene.physics.add.sprite(-9999, -9999, PICKUP_TEXTURES.coin);
+            const sprite = scene.add.sprite(-9999, -9999, PICKUP_TEXTURES.coin);
             sprite.setDepth(5);
             sprite.setScale(0.5); // 64px 帧 → 32px 世界（2x 素材约定，DD-11）
             sprite.setVisible(false);
-            (sprite.body as Physics.Arcade.Body).setCollideWorldBounds(false);
-            (sprite.body as Physics.Arcade.Body).setSize(32, 32); // Arcade body 不随 setScale 自动缩放
-            this.coinGroup.add(sprite);
             this.coins.push({ sprite, age: 0, active: false });
         }
-        scene.physics.add.collider(this.coinGroup, ctx.collisionGroup);
         // 预置金币堆（FR-09 规则 5 的关卡采集点）
         for (const cluster of ctx.coinClusters) {
             this.spawnCoinBurst({ x: cluster.x, y: cluster.y }, cluster.count, true);
         }
     }
 
-    /** enemy:killed 掉落入口（IF-M18）；preplaced = 关卡预置（跳过抛掷初速） */
+    /** enemy:killed 掉落入口（IF-M18）；preplaced = 预置金币立即允许吸附。 */
     spawnCoinBurst(pos: { x: number; y: number }, count: number, preplaced = false): void {
         for (let i = 0; i < count; i++) {
             const coin = this.coins.find((c) => !c.active);
@@ -77,14 +71,7 @@ export class PickupSystem {
             coin.age = 0;
             coin.sprite.setVisible(true);
             coin.sprite.setPosition(pos.x + (i % 4) * 10 - 15, pos.y - Math.floor(i / 4) * 10);
-            const body = coin.sprite.body as Physics.Arcade.Body;
-            body.setEnable(true);
-            if (preplaced) {
-                body.setVelocity(0, 0);
-                coin.age = MAGNET_DELAY_SEC; // 预置金币直接可磁吸
-            } else {
-                body.setVelocity(PhaserMath.Between(-60, 60), -200); // FR-09 规则 1
-            }
+            if (preplaced) { coin.age = MAGNET_DELAY_SEC; }
         }
     }
 
@@ -102,13 +89,11 @@ export class PickupSystem {
         for (const coin of this.coins) {
             if (!coin.active) { continue; }
             coin.age += dt;
-            const body = coin.sprite.body as Physics.Arcade.Body;
             // 掉入即死区销毁（FR-09 边界）
             for (const hz of this.ctx.hazards) {
                 if (hz.contains(coin.sprite.x, coin.sprite.y)) {
                     coin.active = false;
                     coin.sprite.setVisible(false);
-                    body.setEnable(false);
                     break;
                 }
             }
@@ -126,11 +111,10 @@ export class PickupSystem {
                 }
                 coin.active = false;
                 coin.sprite.setVisible(false);
-                body.setVelocity(0, 0);
-                body.setEnable(false);
             } else if (coin.age >= MAGNET_DELAY_SEC && dist < MAGNET_PX) {
-                // 先处理接触，避免中心重合时除以 0，污染对象池中的速度。
-                body.setVelocity((dx / dist) * MAGNET_SPEED, (dy / dist) * MAGNET_SPEED);
+                // 位移截断到目标，避免低帧率越过玩家；范围外不会残留刚体速度。
+                const step = Math.min(dist, MAGNET_SPEED * dt);
+                coin.sprite.setPosition(coin.sprite.x + dx / dist * step, coin.sprite.y + dy / dist * step);
             }
         }
 

@@ -97,6 +97,7 @@ export function bootstrapSave(): void {
     };
     settingsStore.onDirty(mark);
     inventoryStore.onDirty(mark);
+    skillService.onDirty(mark);
 }
 
 /** 读档成功后同步 SKP 累计获得（碎片数 + Boss 首通×2，附录 A） */

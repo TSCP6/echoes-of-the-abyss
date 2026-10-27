@@ -62,6 +62,7 @@ export interface SkillEffect {
 /** SkillDef —— 字段与取值范围 = SRS 5.1 SkillDef 表 */
 export interface SkillDef {
     id: string;                 // 全局唯一，sk_ 前缀
+    name: string;               // 中文展示名，存档仍使用稳定 ID
     branch: 'blade' | 'bolt' | 'ruin';
     kind: 'active' | 'passive';
     spCost: number;             // @range 主动 8~40，被动 0

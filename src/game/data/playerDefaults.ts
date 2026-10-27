@@ -32,6 +32,9 @@ export const SP_MAX_CAP = 150;
 export const SP_REGEN_PER_SEC = 4;
 export const SP_KILL_GAIN = 6;
 export const OUT_OF_COMBAT_DELAY_SEC = 3;
+/** 技能树上限计算的基础值；读档重算被动时不以已加成上限为基数。 */
+export const BASE_HP_MAX = 100;
+export const BASE_SP_MAX = 50;
 
 /** 死亡金币损失（附录 A：持有量 20%，向下取整，上限 200） */
 export const DEATH_COIN_LOSS_RATIO = 0.2;

@@ -2,6 +2,12 @@
  * UI-C6：全部界面文案集中管理（简体中文，约束 C7）。错误码 → 文案映射同址（E-1）。
  */
 export const UI_TEXT = {
+    skillTree: {
+        title: '技能树', branches: { blade: '刃影', bolt: '弩矢', ruin: '遗迹' }, empty: '待绑定',
+        intro: '技能点用于学习，不会直接变成技能。悬停查看介绍 → 选择技能并学习 → 主动技能绑定 1–4；被动技能学习后自动生效。入门可用 2 点学习回响冲刺。',
+        passiveReady: '已学习，被动持续生效，无需绑定', activeReady: '已学习；选择上方槽位，再点击绑定',
+        canLearn: '满足条件，可以学习', full: '已学习；技能栏已满，请选择槽位并绑定替换'
+    },
     title: '深渊回响',
     subtitle: 'Echoes of the Abyss',
     menu: {
@@ -92,6 +98,8 @@ export const UI_TEXT = {
         fireNote: '余火未熄，旅途仍在继续'
     },
     inventory: {
+        chooseHand: '已选中武器，请点击装主手或装副手。',
+        ammoRule: '箭矢供轻弩、火杖使用；飞镖供飞镖枪使用。弹药不会自动互换，购买武器后需在背包装备。飞镖枪在第 2 区域营地解锁。',
         ammoHint: '这是弹药，请返回关卡，用装备的远程武器攻击；初始轻弩按 K / 鼠标右键射击。',
         controls: '左键使用药水 ｜ 右键装主手 ｜ 双击装副手',
         ammoNote: '弹药由远程武器消耗，点击弹药不会投掷。'

@@ -38,6 +38,12 @@ export class SkillService {
     private skpSpent = 0;
     private loadout: (string | null)[] = [null, null, null, null];
     private cooldowns = new Map<string, number>();
+    private dirty: (() => void) | null = null;
+    onDirty(fn: () => void): void { this.dirty = fn; }
+    private syncPassiveCaps(): void {
+        const bonuses = this.passiveBonuses();
+        resourceSystem.setPassiveMaxBonus(bonuses.hp, bonuses.sp);
+    }
 
     get skpBalance(): number { return this.skpEarned - this.skpSpent; }
 
@@ -76,7 +82,9 @@ export class SkillService {
         }
         this.skpSpent += def.skpCost;
         this.unlocked.add(skillId);
+        this.syncPassiveCaps();
         emitEvent('skill:unlocked', { skillId, remainingSkp: this.skpBalance });
+        this.dirty?.();
         return ok(undefined);
     }
 
@@ -88,10 +96,11 @@ export class SkillService {
         const existing = this.loadout.indexOf(skillId);
         if (existing >= 0) { this.loadout[existing] = null; }
         this.loadout[slot] = skillId;
+        this.dirty?.();
         return ok(undefined);
     }
 
-    unequip(slot: 0 | 1 | 2 | 3): void { this.loadout[slot] = null; }
+    unequip(slot: 0 | 1 | 2 | 3): void { this.loadout[slot] = null; this.dirty?.(); }
 
     getLoadout(): ReadonlyArray<string | null> { return this.loadout; }
 
@@ -143,6 +152,8 @@ export class SkillService {
         this.unlocked.clear();
         this.loadout = [null, null, null, null];
         this.cooldowns.clear();
+        this.syncPassiveCaps();
+        this.dirty?.();
         return ok(undefined);
     }
 
@@ -159,6 +170,7 @@ export class SkillService {
             return id !== null && this.unlocked.has(id) ? id : null;
         });
         this.cooldowns.clear();
+        this.syncPassiveCaps();
     }
 
     /** 读档后由 ProgressService 同步累计获得（碎片数 + Boss 首通×2） */

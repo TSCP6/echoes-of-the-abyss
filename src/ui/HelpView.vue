@@ -17,6 +17,7 @@ const rows = computed(() => {
     return [
         ['水平移动', `${keys('moveLeft')} / ${keys('moveRight')}`],
         ['跳跃', `${keys('jump')}（短按截断跳高）`],
+        ['平台下跳', `${keys('moveDown')} + ${keys('jump')}（仅单向平台）`],
         ['主手攻击', `${keys('attackMain')} 或 鼠标左键`],
         ['副手攻击', `${keys('attackSub')} 或 鼠标右键`],
         ['技能 1~4', ['skill1', 'skill2', 'skill3', 'skill4'].map(a => keys(a as GameAction)).join(' / ')],
@@ -46,6 +47,7 @@ defineEmits<{ back: [] }>();
                     <p class="resource material"><span class="symbol">◈</span>{{ UI_TEXT.help.material }}</p>
                     <p class="resource ranged"><span class="symbol">➶</span>{{ UI_TEXT.help.ranged }}</p>
                     <p>{{ UI_TEXT.help.ammo }}</p>
+                    <p>{{ UI_TEXT.inventory.ammoRule }}</p>
                     <p class="supply">{{ UI_TEXT.help.supplies }}：{{ supplies }}<br>营地交互键：{{ interactKey }}</p>
                 </section>
                 <table>

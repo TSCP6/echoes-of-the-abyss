@@ -40,7 +40,6 @@ import { BossArena } from '../systems/bossArena';
 import { PICKUP_TEXTURES } from '../systems/pickupVisuals';
 
 const DEATH_PAUSE_MS = 800; // FR-16 规则 3
-const DASH_SPEED_PX_S = 900; // 回响冲刺 180px / 0.2s
 
 export class LevelScene extends Scene {
     private levelId = '1-1';
@@ -63,7 +62,6 @@ export class LevelScene extends Scene {
     private activeCheckpoint: string | null = null;
     private overlayOpen = false;
     private hazards: ArenaHazard[] = [];
-    private dashTimer = 0;
     private tutorial: TutorialDirector | null = null;
     private bossWoken = false;
     /** create 完成前置位；preload 窗口期（同关重启）update 跳过管线（防旧 player/combat 空引用，EXD-4） */
@@ -142,7 +140,6 @@ export class LevelScene extends Scene {
         this.overlayOpen = false;
         this.activeCheckpoint = null;
         this.bossWoken = false;
-        this.dashTimer = 0;
         this.ex11Count = 0;
         this.stageMarks.length = 0;
     }
@@ -183,7 +180,13 @@ export class LevelScene extends Scene {
         this.physics.add.collider(this.player.sprite, this.ctx.collisionGroup);
         this.physics.add.collider(
             this.player.sprite, this.ctx.onewayGroup, undefined,
-            (p, t) => loader.onewayProcess((p as { body: Phaser.Physics.Arcade.Body }).body, t as Tilemaps.Tile),
+            (p, t) => {
+                const tile = t as Tilemaps.Tile;
+                if (!this.player.canCollideOneway(tile.pixelY)) { return false; }
+                const separate = loader.onewayProcess((p as { body: Phaser.Physics.Arcade.Body }).body, tile);
+                if (separate) { this.player.noteOnewaySupport(tile.pixelY, tile.height); }
+                return separate;
+            },
             this
         );
         const collisionLayer = this.ctx.collisionGroup;
@@ -321,7 +324,7 @@ export class LevelScene extends Scene {
     private hintText(action: string): string {
         const map: Record<string, string> = {
             move: '← → 或 A D 移动',
-            jump: 'Space 跳跃（短按控制高度）',
+            jump: 'Space 跳跃（短按控制高度）；S / ↓ + 跳跃可下穿单向平台',
             attack: 'J / 左键 主手攻击；K / 右键 副手攻击（远程消耗弹药）',
             pickup: '金色圆币可在营地购物；青色晶体增加技能点（Y 学习）',
             interact: 'E 交互（宝箱/传送门）'
@@ -332,28 +335,32 @@ export class LevelScene extends Scene {
     /** 技能释放（FR-07 规则 4/6）：决策与执行分离（4.3.5） */
     private tryCastSlot(slot: 0 | 1 | 2 | 3): void {
         const id = skillService.getLoadout()[slot];
-        if (id === null) { return; }
+        if (id === null) { this.combat.onAttackRejected?.(`技能 ${slot + 1} 未绑定，请按 Y 学习并绑定`); return; }
+        const equipped = weaponService.getEquippedDefs();
+        const rangedHand = equipped.main?.type === 'ranged' ? 'main' : equipped.sub?.type === 'ranged' ? 'sub' : null;
+        const def = rangedHand === null ? null : equipped[rangedHand];
+        if (ConfigRegistry.skills()[id]?.effect.projectileCount !== undefined && def === null) {
+            this.combat.onAttackRejected?.('此技能需要主手或副手装备远程武器'); return;
+        }
         const decision = skillService.tryCast(id);
-        if (!decision.ok) { return; } // SP 不足/冷却：不消耗（FR-07 边界）
+        if (!decision.ok) { this.combat.onAttackRejected?.(decision.message); return; }
         const p = this.player.getMotionState();
         const ef = decision.value.effect;
         audioDirector.playSfx(ef.heal !== undefined ? 'heal' : 'skill'); // AT-56 技能/治疗音效
         if (ef.damage !== undefined && ef.radius !== undefined) {
             this.combat.areaDamage(p.x, p.y, ef.radius, ef.damage);
         } else if (ef.projectileCount !== undefined) {
-            const def = weaponService.getEquippedDefs().main;
             const count = ef.projectileCount;
             const spread = ef.spreadDeg ?? 15;
             for (let i = 0; i < count; i++) {
                 const angle = (i - (count - 1) / 2) * (spread / Math.max(1, count - 1));
                 if (def !== null && def.type === 'ranged') {
-                    this.combat.spawnProjectile({ ...def, baseDamage: ef.damage ?? def.baseDamage }, angle);
+                    this.combat.spawnProjectile({ ...def, baseDamage: ef.damage ?? def.baseDamage }, angle, rangedHand ?? 'main');
                 }
             }
         } else if (ef.dashDistance !== undefined) {
-            this.dashTimer = 0.2;
             this.player.iFrameUntil = this.time.now + (ef.invincibleMs ?? 200);
-            this.player.body.setVelocityX(p.facing * DASH_SPEED_PX_S);
+            this.player.startDash(ef.dashDistance, 200);
         } else if (ef.heal !== undefined) {
             resourceSystem.heal(ef.heal);
         }
@@ -459,7 +466,6 @@ export class LevelScene extends Scene {
         this.mark();
         this.tutorial?.update(dt); // MOD-09：move 完成判定 + 8 s 超时
         this.bossWakeCheck();
-        if (this.dashTimer > 0) { this.dashTimer -= dt; }
 
         // 阶段 3：弹丸
         this.projectiles.update(dt);

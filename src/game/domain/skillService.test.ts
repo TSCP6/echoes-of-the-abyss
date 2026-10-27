@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { SkillService } from './skillService';
-import { validateAll, markValidated } from './configRegistry';
+import { validateAll, markValidated, ConfigRegistry } from './configRegistry';
 import { resourceSystem } from './resourceSystem';
 import { economyService } from './economyService';
 beforeEach(() => {
@@ -17,6 +17,36 @@ describe('SkillService（FR-07）', () => {
     beforeEach(() => {
         sk = new SkillService();
         resourceSystem.fromSnapshot({ hp: 100, hpMax: 100, sp: 50, spMax: 50 });
+    });
+
+    it('全部技能都有中文展示名，界面不再依赖内部 ID', () => {
+        for (const def of Object.values(ConfigRegistry.skills())) {
+            expect(def.name).toMatch(/[\u4e00-\u9fff]/);
+        }
+    });
+
+    it('学习和槽位变更通知存档，失败命令不通知', () => {
+        let writes = 0;
+        sk.onDirty(() => writes++);
+        expect(sk.unlock('sk_dash').ok).toBe(false);
+        expect(writes).toBe(0);
+        sk.syncEarned(2);
+        sk.unlock('sk_dash');
+        sk.equip('sk_dash', 3);
+        expect(sk.getTreeSnapshot().loadout[3]).toBe('sk_dash');
+        sk.unequip(3);
+        expect(writes).toBe(3);
+    });
+
+    it('生存被动学习后增加上限，读档不重复叠加，洗点恢复基础上限', () => {
+        sk.syncEarned(20);
+        for (const id of ['sk_dash', 'sk_heal', 'sk_ruin_tough1', 'sk_ruin_tough2']) { expect(sk.unlock(id).ok).toBe(true); }
+        expect(resourceSystem.getSnapshot()).toMatchObject({ hpMax: 140, spMax: 70 });
+        sk.fromSnapshot(sk.toSnapshot());
+        expect(resourceSystem.getSnapshot()).toMatchObject({ hpMax: 140, spMax: 70 });
+        economyService.fromSnapshot({ coins: 200, materials: {} });
+        sk.resetBuild();
+        expect(resourceSystem.getSnapshot()).toMatchObject({ hpMax: 100, spMax: 50 });
     });
 
     it('前置未解锁拒绝且 SKP 不变（AT-25）', () => {

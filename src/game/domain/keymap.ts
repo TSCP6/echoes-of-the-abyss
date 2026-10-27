@@ -3,7 +3,7 @@ import type { KeymapData } from './saveSchema';
 export type RemappableAction = keyof KeymapData;
 export const REMAPPABLE_ACTIONS = ['moveLeft', 'moveRight', 'jump', 'attackMain', 'interact'] as const;
 export const DEFAULT_BINDINGS = {
-    moveLeft: ['A', 'LEFT'], moveRight: ['D', 'RIGHT'], jump: ['SPACE'],
+    moveLeft: ['A', 'LEFT'], moveRight: ['D', 'RIGHT'], moveDown: ['S', 'DOWN'], jump: ['SPACE'],
     attackMain: ['J'], attackSub: ['K'], skill1: ['1'], skill2: ['2'],
     skill3: ['3'], skill4: ['4'], interact: ['E'], inventory: ['TAB'],
     skillTree: ['Y'], pause: ['ESC'], fullscreen: ['F']

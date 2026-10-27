@@ -15,6 +15,7 @@ import { UI_TEXT } from './i18n';
 import { settingsStore } from '../game/domain/settingsStore';
 import { effectiveKeys } from '../game/domain/keymap';
 import { useDomainStore } from './useDomainStore';
+import { ConfigRegistry } from '../game/domain/configRegistry';
 
 const hpText = ref('100/100');
 const spText = ref('50/50');
@@ -155,11 +156,12 @@ onUnmounted(() => {
             <div class="skills">
                 <div v-for="i in 4" :key="i" class="skill">
                     <span class="key">{{ i }}</span>
-                    <span class="icon">{{ loadout[i - 1] ? '✦' : '' }}</span>
+                    <span class="skill-name">{{ loadout[i - 1] ? ConfigRegistry.skills()[loadout[i - 1] ?? '']?.name : UI_TEXT.skillTree.empty }}</span>
                     <div :ref="(el) => { cdMasks[i - 1] = el as HTMLElement | null; }" class="cdmask"></div>
                     <span class="cd">{{ cooldownTexts[i - 1] }}</span>
                 </div>
             </div>
+            <span class="muted">Y：学习 / 绑定技能</span>
         </div>
     </div>
 </template>
@@ -211,12 +213,13 @@ onUnmounted(() => {
 .ammo-warning { display: flex; flex-direction: column; gap: 3px; font-size: 14px; padding: 7px 10px; background: rgba(12,20,32,0.9); border-radius: 4px; }
 .skills { display: flex; gap: 6px; }
 .skill {
-    position: relative; width: 48px; height: 48px;
+    position: relative; width: 78px; height: 56px;
     background: rgba(0,0,0,0.55); border: 1px solid var(--border); border-radius: 6px;
     display: flex; align-items: center; justify-content: center;
 }
 .key { position: absolute; top: 2px; left: 4px; font-size: 14px; color: var(--muted); }
 .icon { font-size: 20px; color: var(--accent); }
+.skill-name { padding-top: 10px; font-size: 14px; color: var(--accent); }
 .cdmask { position: absolute; inset: 0; border-radius: 6px; }
 .cd { position: absolute; bottom: 2px; right: 4px; font-size: 14px; color: var(--warning); }
 @media (max-width: 1040px) {

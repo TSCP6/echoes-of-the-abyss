@@ -19,10 +19,8 @@ vi.mock('../EventBus', async () => {
 
 function fixture(onGoal: () => boolean) {
     // 仅替代渲染和物理分配；触发区和终点熔断使用真实 PickupSystem。
-    const sprites: { x: number; y: number; visible: boolean; body: { enabled: boolean; velocity: { x: number; y: number } } }[] = [];
-    const scene = { add: { text: () => ({ setDepth() { return this; }, destroy() {} }) }, tweens: { add() {} }, physics: { add: {
-        group: () => ({ add() {} }), collider() {},
-        sprite: () => {
+    const sprites: { x: number; y: number; visible: boolean; body?: { enabled: boolean; velocity: { x: number; y: number } } }[] = [];
+    const makeSprite = (physical = false) => {
             const sprite = { x: -9999, y: -9999, visible: false,
                 setDepth() { return this; }, setScale() { return this; },
                 setVisible(visible: boolean) { this.visible = visible; return this; },
@@ -30,9 +28,12 @@ function fixture(onGoal: () => boolean) {
                 body: { enabled: true, velocity: { x: 0, y: 0 }, setCollideWorldBounds() {}, setSize() {},
                     setEnable(enabled: boolean) { this.enabled = enabled; },
                     setVelocity(x: number, y: number) { this.velocity.x = x; this.velocity.y = y; } } };
-            sprites.push(sprite);
-            return sprite;
-        }
+            const result = physical ? sprite : { ...sprite, body: undefined };
+            sprites.push(result);
+            return result;
+    };
+    const scene = { add: { sprite: () => makeSprite(), text: () => ({ setDepth() { return this; }, destroy() {} }) }, tweens: { add() {} }, physics: { add: {
+        group: () => ({ add() {} }), collider() {}, sprite: () => makeSprite(true)
     } } } as unknown as Scene;
     const player = { sprite: { x: 5, y: 5 } } as PlayerController;
     const ctx = { levelId: '1-4', coinClusters: [], checkpoints: [], shards: [], chests: [], hazards: [], hints: [],
@@ -81,19 +82,20 @@ describe('金币拾取时机', () => {
         expect(economyService.getCoins()).toBe(1);
         expect(picked).toBe(1);
         expect(f.sprites[0].visible).toBe(false);
-        expect(f.sprites[0].body.enabled).toBe(false);
+        expect(f.sprites[0].body).toBeUndefined();
         f.pickups.update(1 / 60);
         expect(economyService.getCoins()).toBe(1);
         expect(picked).toBe(1);
     });
 
-    it('附近掉落只短暂散开，150ms后开始吸附，不必等待3.4秒', () => {
+    it('金币不分配刚体，附近掉落150ms后才开始吸附', () => {
         const f = fixture(() => false);
         f.pickups.spawnCoinBurst({ x: 80, y: 5 }, 1);
         f.pickups.update(0.14);
-        expect(f.sprites[0].body.velocity.x).toBe(0);
+        expect(f.sprites[0].x).toBe(65);
+        expect(f.sprites[0].body).toBeUndefined();
         f.pickups.update(0.02);
-        expect(f.sprites[0].body.velocity.x).toBeLessThan(0);
+        expect(f.sprites[0].x).toBeLessThan(65);
         expect(economyService.getCoins()).toBe(0);
     });
 
@@ -101,8 +103,8 @@ describe('金币拾取时机', () => {
         const f = fixture(() => false);
         f.pickups.spawnCoinBurst({ x: 20, y: 5 }, 1);
         f.pickups.update(4);
-        expect(Number.isFinite(f.sprites[0].body.velocity.x)).toBe(true);
-        expect(Number.isFinite(f.sprites[0].body.velocity.y)).toBe(true);
+        expect(Number.isFinite(f.sprites[0].x)).toBe(true);
+        expect(Number.isFinite(f.sprites[0].y)).toBe(true);
         expect(economyService.getCoins()).toBe(1);
     });
 
@@ -110,7 +112,20 @@ describe('金币拾取时机', () => {
         const f = fixture(() => false);
         f.pickups.spawnCoinBurst({ x: 80, y: 5 }, 1, true);
         f.pickups.update(1 / 60);
-        expect(f.sprites[0].body.velocity.x).toBeLessThan(0);
+        expect(f.sprites[0].x).toBeLessThan(65);
+    });
+
+    it('远处金币悬浮且不会越过玩家，离开吸附范围后停止移动', () => {
+        const f = fixture(() => false);
+        f.pickups.spawnCoinBurst({ x: 315, y: 120 }, 1);
+        f.pickups.update(2);
+        expect(f.sprites[0]).toMatchObject({ x: 300, y: 120 });
+        f.player.sprite.x = 250; f.player.sprite.y = 120;
+        f.pickups.update(1);
+        expect(f.sprites[0].x).toBe(250);
+        f.player.sprite.x = 500;
+        f.pickups.update(1);
+        expect(f.sprites[0].x).toBe(250);
     });
 });
 

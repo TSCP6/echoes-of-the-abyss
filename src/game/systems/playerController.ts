@@ -31,6 +31,25 @@ export class PlayerController {
     private inputEnabled = true;
     private attackLockMs = 0;
     private attackType: WeaponDef['type'] = 'melee';
+    private dashLeftMs = 0;
+    private dashVelocity = 0;
+    private onewaySupport: { top: number; bottom: number } | null = null;
+    private ignoredPlatform: { top: number; bottom: number; until: number } | null = null;
+
+    noteOnewaySupport(top: number, height: number): void { this.onewaySupport = { top, bottom: top + height }; }
+    canCollideOneway(top: number): boolean {
+        const ignored = this.ignoredPlatform;
+        if (ignored === null) { return true; }
+        if (this.scene.time.now >= ignored.until || this.body.top > ignored.bottom) {
+            this.ignoredPlatform = null; return true;
+        }
+        return top !== ignored.top;
+    }
+    startDash(distance: number, durationMs: number): void {
+        this.dashLeftMs = durationMs;
+        this.dashVelocity = this.facing * distance / (durationMs / 1000);
+        this.body.setVelocityX(this.dashVelocity);
+    }
     /** P2 接入：i-frame 截止时间戳（游戏时钟 ms） */
     iFrameUntil = 0;
     onLanded: (() => void) | null = null; // CameraRig 沉降 / 落地音效（场景内直调，6.2.3）
@@ -50,6 +69,8 @@ export class PlayerController {
     get body(): Physics.Arcade.Body { return this.sprite.body as Physics.Arcade.Body; }
 
     setInputEnabled(b: boolean): void { this.inputEnabled = b; }
+    private moveSpeedFactor = 1;
+    setMoveSpeedFactor(factor: number): void { this.moveSpeedFactor = Math.max(0.5, Math.min(1, factor)); }
     getState(): PlayerAnimState { return this.state; }
     getFacing(): 1 | -1 { return this.facing; }
     isGrounded(): boolean { return this.grounded; }
@@ -68,6 +89,9 @@ export class PlayerController {
         this.coyoteMs = 0;
         this.bufferMs = 0;
         this.attackLockMs = 0;
+        this.dashLeftMs = 0;
+        this.onewaySupport = null;
+        this.ignoredPlatform = null;
         this.setState('idle');
     }
 
@@ -86,6 +110,7 @@ export class PlayerController {
     die(checkpointId: string, levelId: string): void {
         if (this.state === 'dead') { return; }
         this.setState('dead');
+        this.dashLeftMs = 0;
         this.body.setVelocity(0, 0);
         const { lostCoins } = economyService.applyDeathPenalty();
         emitEvent('player:died', { levelId, checkpointId, lostCoins });
@@ -117,6 +142,11 @@ export class PlayerController {
         this.wasGrounded = this.grounded;
 
         if (this.state === 'dead') { return; }
+        if (this.dashLeftMs > 0) {
+            this.dashLeftMs = Math.max(0, this.dashLeftMs - dtMs);
+            this.body.setVelocityX(this.dashLeftMs > 0 ? this.dashVelocity : 0);
+            return;
+        }
 
         // 攻击硬直：期间不响应移动/跳跃（FR-05 规则 1）
         if (this.attackLockMs > 0) {
@@ -142,7 +172,7 @@ export class PlayerController {
         if (dir !== 0) { this.facing = dir as 1 | -1; this.sprite.setFlipX(dir < 0); }
 
         // 加减速模型：线性逼近目标速度（加速 0.12s / 减速 0.10s / 空中 0.85）
-        const target = dir * d.walkSpeed;
+        const target = dir * d.walkSpeed * this.moveSpeedFactor;
         const rate = this.grounded
             ? (dir !== 0 ? d.walkSpeed / d.accelTimeSec : d.walkSpeed / d.decelTimeSec)
             : (d.walkSpeed / d.accelTimeSec) * d.airControlFactor;
@@ -151,7 +181,18 @@ export class PlayerController {
         body.setVelocityX(Math.abs(dv) <= step ? target : body.velocity.x + Math.sign(dv) * step);
 
         // 跳跃缓冲：按下即记录 120ms
-        if (this.inputEnabled && this.input.justPressed('jump')) { this.bufferMs = d.jumpBufferMs; }
+        if (this.inputEnabled && this.input.justPressed('jump')) {
+            const support = this.onewaySupport;
+            if (this.input.isDown('moveDown') && this.grounded && support !== null && Math.abs(body.bottom - support.top) <= 4) {
+                this.ignoredPlatform = { ...support, until: this.scene.time.now + 450 };
+                this.onewaySupport = null;
+                this.bufferMs = 0; this.coyoteMs = 0; this.grounded = false;
+                body.setVelocityY(80);
+                this.setState('fall');
+                return;
+            }
+            this.bufferMs = d.jumpBufferMs;
+        }
 
         // 起跳：地面或土狼窗口内 + 缓冲命中
         const canJump = this.grounded || this.coyoteMs > 0;

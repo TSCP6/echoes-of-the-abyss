@@ -25,12 +25,19 @@ beforeEach(() => {
 
 function fixture() {
     let animation = 'player-idle';
-    const body = { velocity: { x: 0, y: 0 }, blocked: { down: true }, touching: { down: true },
-        setSize() {}, setOffset() {}, setBounce() {} };
+    const body = { velocity: { x: 0, y: 0 }, blocked: { down: true }, touching: { down: true }, bottom: 100, top: 56,
+        setSize() {}, setOffset() {}, setBounce() {},
+        setVelocity(x: number, y: number) { this.velocity = { x, y }; },
+        setVelocityX(x: number) { this.velocity.x = x; }, setVelocityY(y: number) { this.velocity.y = y; } };
     const sprite = { x: 100, y: 100, body, setCollideWorldBounds() {}, setDepth() {},
         play(key: string) { animation = key; } };
-    const scene = { sys: { isActive: () => true }, physics: { add: { sprite: () => sprite } } } as unknown as Scene;
-    const player = new PlayerController(scene, {} as InputGateway);
+    const scene = { sys: { isActive: () => true }, time: { now: 0 }, physics: { add: { sprite: () => sprite } } } as unknown as Scene;
+    const keys = { down: false, jump: false };
+    const player = new PlayerController(scene, {
+        isDown: (action: string) => action === 'moveDown' && keys.down,
+        justPressed: (action: string) => action === 'jump' && keys.jump,
+        justReleased: () => false
+    } as unknown as InputGateway);
     const spawned: ProjectileSpec[] = [];
     const notices: string[] = [];
     const attacks: string[] = [];
@@ -38,10 +45,33 @@ function fixture() {
         { spawn: (spec: ProjectileSpec) => { spawned.push(spec); } } as unknown as ProjectilePool, {} as WorldFxLayer);
     combat.onAttackRejected = (message: string) => notices.push(message);
     combat.onAttackBegan = (type: string) => attacks.push(type);
-    return { player, combat, spawned, notices, attacks, animation: () => animation };
+    return { player, combat, spawned, notices, attacks, keys, animation: () => animation };
 }
 
 describe('主副手攻击反馈', () => {
+    it('冲刺按配置距离保持速度，不被下一帧移动减速覆盖', () => {
+        const f = fixture();
+        f.player.startDash(240, 200);
+        f.player.update(50);
+        expect(f.player.body.velocity.x).toBe(1200);
+        f.player.update(150);
+        expect(f.player.body.velocity.x).toBe(0);
+    });
+
+    it('下加跳只穿透当前单向平台，不穿透下方平台', () => {
+        const f = fixture(); f.keys.down = true; f.keys.jump = true;
+        f.player.noteOnewaySupport(100, 32);
+        f.player.update(16);
+        expect(f.player.body.velocity.y).toBeGreaterThan(0);
+        expect(f.player.canCollideOneway(100)).toBe(false);
+        expect(f.player.canCollideOneway(164)).toBe(true);
+    });
+
+    it('实心地面下加跳保持正常跳跃，不关闭实体碰撞', () => {
+        const f = fixture(); f.keys.down = true; f.keys.jump = true;
+        f.player.update(16);
+        expect(f.player.body.velocity.y).toBeLessThan(0);
+    });
     it('副手射击扣一发弹药，播放射击动作并报告远程音效类型', () => {
         const f = fixture();
         expect(f.combat.tryAttack('sub')).toBe(true);

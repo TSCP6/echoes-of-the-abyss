@@ -5,7 +5,7 @@
  */
 import { ok, fail, type Result } from './result';
 import { warnThrottled } from './warn';
-import { HP_MAX_CAP, SP_MAX_CAP, SP_REGEN_PER_SEC, SP_KILL_GAIN, OUT_OF_COMBAT_DELAY_SEC } from '../data/playerDefaults';
+import { HP_MAX_CAP, SP_MAX_CAP, SP_REGEN_PER_SEC, SP_KILL_GAIN, OUT_OF_COMBAT_DELAY_SEC, BASE_HP_MAX, BASE_SP_MAX } from '../data/playerDefaults';
 import type { ResourceSnapshot } from './types';
 import type { SavePlayerSection } from './saveSchema';
 export class ResourceSystem {
@@ -16,7 +16,7 @@ export class ResourceSystem {
     private outOfCombatTimer = OUT_OF_COMBAT_DELAY_SEC; // 初始视为脱战
     private lowHp = false;
 
-    constructor(hp = 100, hpMax = 100, sp = 50, spMax = 50) {
+    constructor(hp = BASE_HP_MAX, hpMax = BASE_HP_MAX, sp = BASE_SP_MAX, spMax = BASE_SP_MAX) {
         this.hp = this.clampFinite(hp, 0, hpMax, 'hp');
         this.hpMax = this.clampFinite(hpMax, 1, HP_MAX_CAP, 'hpMax');
         this.sp = this.clampFinite(sp, 0, spMax, 'sp');
@@ -97,6 +97,15 @@ export class ResourceSystem {
     }
 
     /** 技能被动上限加成，钳制 hpMax≤200 / spMax≤150 */
+    setPassiveMaxBonus(hpBonus: number, spBonus: number): void {
+        this.hpMax = Math.min(HP_MAX_CAP, BASE_HP_MAX + Math.max(0, hpBonus));
+        this.spMax = Math.min(SP_MAX_CAP, BASE_SP_MAX + Math.max(0, spBonus));
+        this.hp = Math.min(this.hp, this.hpMax);
+        this.sp = Math.min(this.sp, this.spMax);
+        this.recomputeLowHp();
+    }
+
+    /** 增量接口；技能树用绝对合计，避免读档重复叠加。 */
     applyPassiveMaxBonus(hpBonus: number, spBonus: number): void {
         this.hpMax = Math.min(HP_MAX_CAP, this.hpMax + Math.max(0, hpBonus));
         this.spMax = Math.min(SP_MAX_CAP, this.spMax + Math.max(0, spBonus));
