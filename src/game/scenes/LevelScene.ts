@@ -56,7 +56,7 @@ export class LevelScene extends Scene {
     private elapsedSec = 0;
     private kills = 0;
     private dead = false;
-    private activeCheckpoint = 'cp_1';
+    private activeCheckpoint: string | null = null;
     private overlayOpen = false;
     private hazards: ArenaHazard[] = [];
     private dashTimer = 0;
@@ -88,16 +88,20 @@ export class LevelScene extends Scene {
         this.stageMarks.length = 0; // 每帧重置（NF-04 零累积）
     }
     private ex11Count = 0;
-    /** EX-11：掉出地图（y > 地图高 + 512）→ 传送最近检查点，不判死亡不扣金币；连续 3 次警告 */
+    /** 未激活检查点时使用本关出生点，不提前解锁后续检查点。 */
+    private respawnPoint(): { x: number; y: number } {
+        return this.ctx.checkpoints.find((c) => c.id === this.activeCheckpoint) ?? this.ctx.spawn;
+    }
+
+    /** EX-11：掉出地图（y > 地图高 + 512）→ 返回已激活检查点或出生点，不判死亡不扣金币；连续 3 次警告 */
     private ex11Rescue(): void {
         this.ex11Count += 1;
         if (this.ex11Count >= 3) {
             warnThrottled(`ex11-${this.levelId}`, `关卡 ${this.levelId} 连续掉出地图 ${this.ex11Count} 次`);
         }
-        const cp = this.ctx.checkpoints.find((c) => c.id === this.activeCheckpoint) ?? this.ctx.checkpoints[0];
-        if (cp === undefined) { return; }
+        const point = this.respawnPoint();
         this.cameras.main.fadeOut(150, 0, 0, 0);
-        this.player.teleportTo(cp.x, cp.y);
+        this.player.teleportTo(point.x, point.y);
         this.cameras.main.fadeIn(150, 0, 0, 0);
     }
     private onPlayerDamaged = (p: { amount: number; sourceId: string; hp: number }): void => {
@@ -132,7 +136,7 @@ export class LevelScene extends Scene {
         this.levelId = data.levelId ?? '1-1';
         this.ready = false; // 重建期旧管线停摆（preload 窗口期 update 跳过）
         this.overlayOpen = false;
-        this.activeCheckpoint = 'cp_1';
+        this.activeCheckpoint = null;
         this.bossWoken = false;
         this.dashTimer = 0;
         this.ex11Count = 0;
@@ -344,7 +348,7 @@ export class LevelScene extends Scene {
         this.dead = true;
         recordStore.addDeath();
         audioDirector.playSfx('death');
-        this.player.die(this.activeCheckpoint, this.levelId);
+        this.player.die(this.activeCheckpoint ?? 'player_spawn', this.levelId);
         this.time.delayedCall(DEATH_PAUSE_MS, () => {
             this.respawn();
             saveSystem.markDirty(); // FR-13：死亡重生后写入点（检查点进度）
@@ -392,7 +396,7 @@ export class LevelScene extends Scene {
     }
 
     private respawn(): void {
-        const cp = this.ctx.checkpoints.find((c) => c.id === this.activeCheckpoint) ?? this.ctx.checkpoints[0];
+        const point = this.respawnPoint();
         resourceSystem.refill(); // FR-11 规则 7
         this.arena?.release();
         this.enemies.resetAll();
@@ -400,7 +404,7 @@ export class LevelScene extends Scene {
         this.dangerFx.clear();
         this.hazards = [];
         this.cameraRig.lockTo(null);
-        this.player.teleportTo(cp.x, cp.y);
+        this.player.teleportTo(point.x, point.y);
         this.dead = false;
         this.hud.setContext(this.levelId, this.pickups.checkpointsActive);
     }
