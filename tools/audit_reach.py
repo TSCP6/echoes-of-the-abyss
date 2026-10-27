@@ -2,9 +2,19 @@
 跳跃模型：rise 取下降支到目标高度时刻 × walkSpeed；ascent 须 ≤ 跳高-8px；边间距须 ≤ reach-24px。
 步行边：两地面段之间无深渊且水平相邻/重叠。落地边：平台→下方地面（descent reach）。
 用法：python tools/audit_reach.py；退出码 1 = 存在不可达节点或终点断开。"""
-import ast, math, sys
+import ast, math, sys, re
+from pathlib import Path
 
-V, G, WALK = 560.0, 1040.0, 210.0
+ROOT = Path(__file__).resolve().parents[1]
+DEFAULTS = (ROOT / 'src/game/data/playerDefaults.ts').read_text(encoding='utf-8')
+
+def movement_value(name: str) -> float:
+    match = re.search(r'\b' + re.escape(name) + r'\s*:\s*(\d+(?:\.\d+)?)', DEFAULTS)
+    if match is None:
+        raise ValueError(f'playerDefaults 中缺少数值字段: {name}')
+    return float(match.group(1))
+
+V, G, WALK = (movement_value(name) for name in ('jumpVelocity', 'gravity', 'walkSpeed'))
 H = V * V / (2 * G)
 MARGIN = 24.0
 
@@ -28,7 +38,7 @@ def jump_ok(a, b) -> bool:
     return edge_gap_px(a, b) <= reach_px(dy) - MARGIN
 
 def main() -> int:
-    src = open('tools/gen_levels.py', encoding='utf-8').read()
+    src = (ROOT / 'tools/gen_levels.py').read_text(encoding='utf-8')
     tree = ast.parse(src)
     bad = 0
     for node in ast.walk(tree):
@@ -83,6 +93,7 @@ def main() -> int:
         for u in unreach:
             print(f'{node.name}: 不可达节点 {u}')
             bad += 1
+    print(f'movement: jump={V:g}, gravity={G:g}, walk={WALK:g}, height={H:.1f}px')
     print('violations:', bad)
     return 1 if bad else 0
 

@@ -16,7 +16,7 @@ export const PLAYER_DEFAULTS: PlayerDefaults = {
     decelTimeSec: 0.10,
     airControlFactor: 0.85,
     jumpVelocity: 560, // 基线 480 +16.7%（SRS 附录 A ±20% 内）
-    gravity: 1040, // 基线 1300 −20.0%（±20% 边界内）；跳高 ≈151px 覆盖地图 4 格台阶，reach ≈7 格
+    gravity: 1140, // 基线 1300 −12.3%；跳高 ≈138px，滞空 ≈0.98s，收紧原先偏飘的跳跃
     jumpCutVelocity: -180,
     coyoteMs: 100,
     jumpBufferMs: 120,

@@ -285,7 +285,7 @@ def build_2_1() -> Level:
     lv.solid_rect(100, 25, 102, 25)
     lv.death_plane(100, 24, 3, 1)
     lv.oneway_rect(15, 22, 18)
-    lv.oneway_rect(23, 18, 26)
+    lv.oneway_rect(22, 18, 26)  # 较低跳高下仍给四格台阶留出起落余量
     lv.shard("a", 24, 17)
     lv.oneway_rect(50, 22, 53)
     lv.oneway_rect(56, 18, 59)
@@ -486,11 +486,11 @@ def build_3_2() -> Level:
 def build_3_3() -> Level:
     """星辉祭坛：精英混编 + 机关顺序谜题（以高台+窄道表达）"""
     lv = Level("3-3", 140)
-    lv.solid_rect(0, 26, 45, 29)
-    lv.solid_rect(52, 26, 90, 29)
+    lv.solid_rect(0, 26, 46, 29)
+    lv.solid_rect(52, 26, 91, 29)
     lv.solid_rect(97, 26, 139, 29)
-    lv.death_plane(46, 27, 6, 3)
-    lv.death_plane(91, 27, 6, 3)
+    lv.death_plane(47, 27, 5, 3)
+    lv.death_plane(92, 27, 5, 3)
     lv.solid_rect(15, 22, 19, 23)
     lv.solid_rect(24, 18, 28, 19)
     lv.shard("a", 26, 17)
