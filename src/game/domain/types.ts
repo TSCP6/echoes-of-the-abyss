@@ -142,7 +142,7 @@ export interface PlayerDefaults {
     coyoteMs: number;       // 100
     jumpBufferMs: number;   // 120
     iFrameMs: number;       // 800
-    knockbackPx: number;    // 120（玩家受击，FR-04 规则 7）
+    knockbackPx: number;    // 玩家受击击退强度参数（FR-04 规则 7，实际位移受移动减速影响）
 }
 
 // ---------- 运行时状态投影（DD-12） ----------

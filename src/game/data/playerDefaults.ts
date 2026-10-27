@@ -21,7 +21,7 @@ export const PLAYER_DEFAULTS: PlayerDefaults = {
     coyoteMs: 100,
     jumpBufferMs: 120,
     iFrameMs: 800,
-    knockbackPx: 120
+    knockbackPx: 60
 };
 
 /** HP/SP 上限硬约束（FR-06 规则 1/2，applyPassiveMaxBonus 钳制上限） */

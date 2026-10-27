@@ -18,7 +18,7 @@ vi.mock('phaser', async () => {
     return { Geom: { Rectangle }, Physics: {} };
 });
 
-function duel() {
+function duel(enemyId = 'enm_patrol') {
     let state = 'idle';
     const player = {
         sprite: { x: 100, y: 100, setAlpha() {} }, iFrameUntil: 0,
@@ -26,7 +26,7 @@ function duel() {
         getMotionState: () => ({ x: 100, y: 100, facing: 1, state })
     } as unknown as PlayerController;
     const enemy = {
-        def: ConfigRegistry.enemies().enm_patrol, hp: 1, dead: false, sleeping: false,
+        def: ConfigRegistry.enemies()[enemyId], hp: 1, dead: false, sleeping: false,
         sprite: { x: 119, y: 100 },
         getHurtbox: () => ({ x: 105, y: 80, w: 28, h: 32 }),
         isInvincible: () => false,
@@ -47,6 +47,24 @@ function duel() {
 }
 
 describe('同帧致死结算', () => {
+    it.each(['enm_patrol', 'enm_chaser', 'enm_flyer', 'enm_elite',
+        'enm_boss_guardian', 'enm_boss_spider', 'enm_boss_echo'])('%s 接触只扣 5 点生命，持续重叠不重复扣血', id => {
+        const f = duel(id);
+        f.combat.update(1 / 60);
+        expect(resourceSystem.getSnapshot().hp).toBe(95);
+        f.combat.update(1 / 60);
+        expect(resourceSystem.getSnapshot().hp).toBe(95);
+    });
+
+    it.each([{ fromX: 119, want: -180 }, { fromX: 81, want: 180 }])(
+        '来自 $fromX 的受击使用缩短后的反向击退', ({ fromX, want }) => {
+            const f = duel();
+            let velocityX = 0;
+            f.player.body.setVelocityX = value => { velocityX = value; return f.player.body; };
+            f.combat.damagePlayer(5, 'enm_patrol', fromX);
+            expect(velocityX).toBe(want);
+        });
+
     it('Boss 危险区普通命中只扣血，连续重叠遵守受击无敌时间', () => {
         const f = duel();
         f.combat.damagePlayer(14, 'enm_boss_guardian', 200);

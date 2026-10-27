@@ -3,7 +3,7 @@
  * 近战 hitbox：朝向侧 40×36 px、0.10 s、同挥击同目标至多 1 次（hitSet，AT-15）；
  * 远程：委托 ProjectilePool（弹速/射程读 WeaponDef）；
  * 伤害：组装 DamageRequest → DamageCalculator（领域纯函数）→ 应用受击（闪白/浮动数字/i-frame/硬直）；
- * 玩家受击：i-frame 校验 → ResourceSystem.applyDamage → 120 px 反向击退 → player:damaged（IF-E03）；
+ * 玩家受击：i-frame 校验 → ResourceSystem.applyDamage → 配置驱动的反向击退 → player:damaged（IF-E03）；
  * 同帧互杀以玩家死亡为准（K7）：先结算"敌对玩家"，玩家死亡标志置位后跳过"玩家对敌"。
  */
 import { Geom, Physics, type Scene } from 'phaser';
@@ -20,7 +20,6 @@ import type { WorldFxLayer } from './worldFxLayer';
 import { emitEvent } from '../events';
 
 const MELEE_LIFETIME_SEC = 0.10;
-const PLAYER_KNOCKBACK = 120;
 const IFRAME_HZ = 8; // 8 Hz 闪烁（FR-04 规则 4）
 
 interface MeleeSwing {
@@ -226,9 +225,9 @@ export class CombatResolver {
         // i-frame 0.8 s + 8 Hz 闪烁（FR-04 规则 4）
         this.player.iFrameUntil = this.scene.time.now + ConfigRegistry.playerDefaults().iFrameMs;
         this.startIFrameBlink();
-        // 120 px 反向击退（FR-04 规则 7）
+        // 配置驱动的反向击退（FR-04 规则 7）
         const dir = this.player.sprite.x >= fromX ? 1 : -1;
-        this.player.body.setVelocityX(dir * PLAYER_KNOCKBACK * 3);
+        this.player.body.setVelocityX(dir * ConfigRegistry.playerDefaults().knockbackPx * 3);
         emitEvent('player:damaged', { amount: result.amount, sourceId, hp: applied.value.hp });
         if (applied.value.died && this.onPlayerDied !== null) {
             this.onPlayerDied();

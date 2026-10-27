@@ -8,47 +8,47 @@ import type { EnemyDef } from '../domain/types';
 
 export const ENEMIES: EnemyDef[] = [
     {
-        id: 'enm_patrol', kind: 'patrol', hp: 30, contactDamage: 10,
+        id: 'enm_patrol', kind: 'patrol', hp: 30, contactDamage: 5,
         moveSpeed: 60, detectRange: 160, coinsDrop: [3, 6],
         lootTableId: 'loot_patrol', hurtboxSize: { w: 40, h: 36 }, phases: []
     },
     {
-        id: 'enm_chaser', kind: 'chaser', hp: 45, contactDamage: 14,
+        id: 'enm_chaser', kind: 'chaser', hp: 45, contactDamage: 5,
         moveSpeed: 130, detectRange: 220, coinsDrop: [6, 10],
         lootTableId: 'loot_chaser', hurtboxSize: { w: 28, h: 34 }, phases: []
     },
     {
-        id: 'enm_flyer', kind: 'flyer', hp: 25, contactDamage: 8,
+        id: 'enm_flyer', kind: 'flyer', hp: 25, contactDamage: 5,
         moveSpeed: 50, detectRange: 220, coinsDrop: [5, 8],
         lootTableId: 'loot_flyer', hurtboxSize: { w: 28, h: 24 }, phases: []
     },
     {
-        id: 'enm_elite', kind: 'patrol', hp: 120, contactDamage: 20,
+        id: 'enm_elite', kind: 'patrol', hp: 120, contactDamage: 5,
         moveSpeed: 90, detectRange: 200, coinsDrop: [25, 35],
         lootTableId: 'loot_elite', hurtboxSize: { w: 40, h: 48 }, phases: []
     },
     // ---- Boss 1-4 石像守卫者（600 HP，冲撞型）----
     {
-        id: 'enm_boss_guardian', kind: 'boss', hp: 600, contactDamage: 25,
+        id: 'enm_boss_guardian', kind: 'boss', hp: 600, contactDamage: 5,
         moveSpeed: 70, detectRange: 300, coinsDrop: [150, 150],
         lootTableId: 'loot_boss1', hurtboxSize: { w: 80, h: 96 },
         phases: [
             {
                 hpThreshold: 1.0, invincibleMs: 1500, skills: [
-                    { kind: 'charge', damage: 25, cooldownSec: 3.0, params: { distance: 240, windupSec: 0.6 } },
+                    { kind: 'charge', damage: 25, cooldownSec: 3.0, params: { distance: 240, windupSec: 0.9 } },
                     { kind: 'arenaHazard', damage: 20, cooldownSec: 5.0, params: { count: 3, durationSec: 2.0 } }
                 ]
             },
             {
                 hpThreshold: 0.66, invincibleMs: 1500, skills: [
-                    { kind: 'charge', damage: 25, cooldownSec: 2.4, params: { distance: 300, windupSec: 0.5 } },
+                    { kind: 'charge', damage: 25, cooldownSec: 2.4, params: { distance: 300, windupSec: 0.8 } },
                     { kind: 'projectileSpread', damage: 18, cooldownSec: 3.5, params: { count: 3, spreadDeg: 30, speed: 260 } },
                     { kind: 'arenaHazard', damage: 20, cooldownSec: 5.0, params: { count: 4, durationSec: 2.0 } }
                 ]
             },
             {
                 hpThreshold: 0.33, invincibleMs: 1500, skills: [
-                    { kind: 'charge', damage: 25, cooldownSec: 1.8, params: { distance: 360, windupSec: 0.4 } },
+                    { kind: 'charge', damage: 25, cooldownSec: 1.8, params: { distance: 360, windupSec: 0.7 } },
                     { kind: 'projectileSpread', damage: 18, cooldownSec: 2.8, params: { count: 5, spreadDeg: 40, speed: 300 } },
                     { kind: 'arenaHazard', damage: 22, cooldownSec: 4.0, params: { count: 5, durationSec: 2.5 } }
                 ]
@@ -57,7 +57,7 @@ export const ENEMIES: EnemyDef[] = [
     },
     // ---- Boss 2-4 深渊蛛后（900 HP，召唤型）----
     {
-        id: 'enm_boss_spider', kind: 'boss', hp: 900, contactDamage: 22,
+        id: 'enm_boss_spider', kind: 'boss', hp: 900, contactDamage: 5,
         moveSpeed: 110, detectRange: 300, coinsDrop: [220, 220],
         lootTableId: 'loot_boss2', hurtboxSize: { w: 88, h: 72 },
         phases: [
@@ -85,7 +85,7 @@ export const ENEMIES: EnemyDef[] = [
     },
     // ---- Boss 3-4 回响之影（1400 HP，复用玩家技能的多阶段 AI）----
     {
-        id: 'enm_boss_echo', kind: 'boss', hp: 1400, contactDamage: 28,
+        id: 'enm_boss_echo', kind: 'boss', hp: 1400, contactDamage: 5,
         moveSpeed: 130, detectRange: 300, coinsDrop: [320, 320],
         lootTableId: 'loot_boss3', hurtboxSize: { w: 64, h: 88 },
         phases: [

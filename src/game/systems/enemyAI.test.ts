@@ -85,9 +85,12 @@ describe('Boss 实体攻击集成', () => {
         expect(f.body.velocity.x).toBe(0);
         f.playerSprite.x = 1200;
         for (let i = 0; i < 7; i++) { f.enemy.update(0.1, f.player, 200 + i * 100, f.events, null); }
+        expect(f.enemy.getBossAttack()?.stage).toBe('windup');
+        expect(f.body.velocity.x).toBe(0);
+        for (let i = 0; i < 3; i++) { f.enemy.update(0.1, f.player, 900 + i * 100, f.events, null); }
         expect(f.enemy.getBossAttack()?.stage).toBe('active');
         expect(f.body.velocity.x).toBe(-480);
-        f.enemy.update(0.1, f.player, 1000, f.events, null);
+        f.enemy.update(0.1, f.player, 1200, f.events, null);
         expect(f.body.velocity.x).toBe(-480);
         f.enemy.reset();
         expect(f.enemy.getBossAttack()).toBe(null);
