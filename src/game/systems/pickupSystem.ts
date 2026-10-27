@@ -1,6 +1,6 @@
 /**
  * MOD-07 PickupSystem（Phaser 呈现层，管线阶段 7）—— FR-09 金币三阶段 + FR-11 触发区。
- * 金币：掉落/预置后 0.4 s 不可拾取 → 3.0 s 静止期 → 玩家 96 px 内以 300 px/s 磁吸；
+ * 金币：接触即可拾取；掉落散开 0.15 s 后，玩家 96 px 内以 300 px/s 磁吸；预置金币立即吸附。
  * 拾取 → EconomyService.addCoins（上限拒拾 + 提示，AT-33）+ "+N" 浮动文本（场景内直调 6.2.3）。
  * 触发区（检查点/碎片/宝箱/终点/hints）：矩形重叠检测，幂等/单次熔断。
  * 对象池（DD-13）：金币池 64，场景 create 一次分配，shutdown 随场景销毁（NFR-04）。
@@ -11,8 +11,7 @@ import type { PlayerController } from './playerController';
 import { economyService } from '../domain/economyService';
 import { progressService } from '../domain/progressService';
 
-const UNPICKABLE_SEC = 0.4;
-const STILL_SEC = 3.0;
+const MAGNET_DELAY_SEC = 0.15;
 const MAGNET_PX = 96;
 const MAGNET_SPEED = 300;
 const COIN_POOL = 64;
@@ -81,7 +80,7 @@ export class PickupSystem {
             body.setEnable(true);
             if (preplaced) {
                 body.setVelocity(0, 0);
-                coin.age = UNPICKABLE_SEC + STILL_SEC; // 预置金币直接可磁吸
+                coin.age = MAGNET_DELAY_SEC; // 预置金币直接可磁吸
             } else {
                 body.setVelocity(PhaserMath.Between(-60, 60), -200); // FR-09 规则 1
             }
@@ -98,7 +97,7 @@ export class PickupSystem {
         const px = this.player.sprite.x;
         const py = this.player.sprite.y;
 
-        // 金币三阶段
+        // 接触拾取与掉落动画分开：散开期也可立即捡起。
         for (const coin of this.coins) {
             if (!coin.active) { continue; }
             coin.age += dt;
@@ -113,25 +112,24 @@ export class PickupSystem {
                 }
             }
             if (!coin.active) { continue; }
-            if (coin.age > UNPICKABLE_SEC + STILL_SEC) {
-                const dx = px - coin.sprite.x;
-                const dy = py - coin.sprite.y;
-                const dist = Math.hypot(dx, dy);
-                if (dist < MAGNET_PX) {
-                    body.setVelocity((dx / dist) * MAGNET_SPEED, (dy / dist) * MAGNET_SPEED);
+            const dx = px - coin.sprite.x;
+            const dy = py - coin.sprite.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist < 20) {
+                const r = economyService.addCoins(1);
+                if (r.ok && !r.value.rejected) {
+                    this.floatText(coin.sprite.x, coin.sprite.y - 10, '+1');
+                    this.onCoinPicked?.();
+                } else {
+                    this.floatText(coin.sprite.x, coin.sprite.y - 10, '金币已满');
                 }
-                if (dist < 20) {
-                    const r = economyService.addCoins(1);
-                    if (r.ok && !r.value.rejected) {
-                        this.floatText(coin.sprite.x, coin.sprite.y - 10, '+1');
-                        this.onCoinPicked?.();
-                    } else {
-                        this.floatText(coin.sprite.x, coin.sprite.y - 10, '金币已满');
-                    }
-                    coin.active = false;
-                    coin.sprite.setVisible(false);
-                    body.setEnable(false);
-                }
+                coin.active = false;
+                coin.sprite.setVisible(false);
+                body.setVelocity(0, 0);
+                body.setEnable(false);
+            } else if (coin.age >= MAGNET_DELAY_SEC && dist < MAGNET_PX) {
+                // 先处理接触，避免中心重合时除以 0，污染对象池中的速度。
+                body.setVelocity((dx / dist) * MAGNET_SPEED, (dy / dist) * MAGNET_SPEED);
             }
         }
 
