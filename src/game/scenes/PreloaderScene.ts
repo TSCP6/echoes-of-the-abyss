@@ -15,6 +15,7 @@ import { saveSystem } from '../domain/saveSystem';
 import type { SaveData } from '../domain/saveSchema';
 import { audioDirector } from '../systems/audioDirector';
 import { bindViewportLayout, centerDesignCamera } from '../systems/viewportLayout';
+import { loadEnemyArt, registerEnemyAnimations } from '../systems/enemyVisuals';
 
 export class PreloaderScene extends Scene {
     private retryCount = 0;
@@ -58,6 +59,7 @@ export class PreloaderScene extends Scene {
         this.load.spritesheet('fruit_apple', 'art/fruit_apple.png', { frameWidth: 64, frameHeight: 64 });
         this.load.spritesheet('fruit_collected', 'art/fruit_collected.png', { frameWidth: 64, frameHeight: 64 });
         this.load.image('bg_green', 'art/bg_green.png');
+        loadEnemyArt(this);
         // DD-11 音频清单（双格式 ogg/m4a：Safari ≥17 不解 Vorbis，NFR-06）
         const audioFiles = [
             'sfx_jump', 'sfx_land', 'sfx_swing', 'sfx_hit_melee', 'sfx_shoot', 'sfx_hit_taken',
@@ -84,6 +86,7 @@ export class PreloaderScene extends Scene {
         audioDirector.attach(this.game); // MOD-08：音频资源已加载，绑定 game（解锁经 UiLayer 手势）
         this.registerPlaceholderTextures();
         this.registerAnimations();
+        registerEnemyAnimations(this);
         // FLOW-R1：存档装配 → 读档（checksum/迁移/损坏处置）→ 各 store 恢复
         bootstrapSave();
         const loadResult = saveSystem.load(0);

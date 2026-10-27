@@ -28,3 +28,8 @@ coverage
 *.sw?
 
 *.tsbuildinfo
+
+# Kronovi source archive is local reference, not a redistributable asset pack.
+# Screenshots, browser logs, downloaded source packs and temporary review exports.
+/output/
+/.playwright-mcp/
