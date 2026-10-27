@@ -10,7 +10,7 @@ export const ENEMIES: EnemyDef[] = [
     {
         id: 'enm_patrol', kind: 'patrol', hp: 30, contactDamage: 10,
         moveSpeed: 60, detectRange: 160, coinsDrop: [3, 6],
-        lootTableId: 'loot_patrol', hurtboxSize: { w: 28, h: 32 }, phases: []
+        lootTableId: 'loot_patrol', hurtboxSize: { w: 40, h: 36 }, phases: []
     },
     {
         id: 'enm_chaser', kind: 'chaser', hp: 45, contactDamage: 14,

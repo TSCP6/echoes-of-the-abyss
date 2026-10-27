@@ -31,6 +31,8 @@ import { audioDirector } from '../systems/audioDirector';
 import { warnThrottled } from '../domain/warn';
 import { TutorialDirector } from '../systems/tutorialDirector';
 import { createViewportBackground } from '../systems/viewportLayout';
+import { BossDangerFx } from '../systems/bossDangerFx';
+import { bossPalette, bossSummonPositions } from '../systems/bossSkillPresentation';
 
 const DEATH_PAUSE_MS = 800; // FR-16 规则 3
 const DASH_SPEED_PX_S = 900; // 回响冲刺 180px / 0.2s
@@ -46,6 +48,7 @@ export class LevelScene extends Scene {
     private projectiles!: ProjectilePool;
     private combat!: CombatResolver;
     private fx!: WorldFxLayer;
+    private dangerFx!: BossDangerFx;
     private hud = hudViewModel;
     private elapsedSec = 0;
     private kills = 0;
@@ -166,6 +169,7 @@ export class LevelScene extends Scene {
         };
 
         this.fx = new WorldFxLayer(this);
+        this.dangerFx = new BossDangerFx(this);
         this.enemies = new EnemyAI(this, this.ctx, this.player, groundProbe);
         this.projectiles = new ProjectilePool(this, this.ctx);
         this.enemies.projectiles = this.projectiles;
@@ -182,18 +186,30 @@ export class LevelScene extends Scene {
                     const ref = params.enemyRef ?? 0;
                     const defIds = ['enm_patrol', 'enm_chaser', 'enm_flyer'];
                     const defId = defIds[Math.min(ref, defIds.length - 1)] as string;
-                    for (let i = 0; i < count; i++) {
-                        this.enemies.summonAt(enemy.sprite.x + (i % 2 === 0 ? -60 : 60), enemy.sprite.y, defId);
+                    const positions = bossSummonPositions(enemy.sprite.x, enemy.sprite.y, count);
+                    this.dangerFx.summonBurst(positions, enemy.def.id);
+                    for (const pos of positions) {
+                        const visualId = enemy.def.id === 'enm_boss_echo' ? 'echo_spirit'
+                            : enemy.def.id === 'enm_boss_spider' ? 'spiderling' : defId;
+                        this.enemies.summonAt(pos.x, pos.y, defId, visualId);
                     }
                 } else if (kind === 'arenaHazard') {
                     const count = Math.floor(params.count ?? 3);
                     const dur = params.durationSec ?? 2;
                     for (let i = 0; i < count; i++) {
                         const hx = this.player.sprite.x + (i - (count - 1) / 2) * 96;
+                        const layer = this.ctx.collisionGroup as Tilemaps.TilemapLayer;
+                        let floorY = this.player.body.bottom;
+                        for (let y = floorY; y < this.ctx.mapHeight; y += 16) {
+                            const tile = layer.getTileAtWorldXY(hx, y, true);
+                            if (tile !== null && tile.index > 0) { floorY = tile.getTop(); break; }
+                        }
                         this.hazards.push({
-                            rect: new Geom.Rectangle(hx - 32, this.player.sprite.y - 16, 64, 48),
-                            untilSec: this.elapsedSec + dur,
-                            damage: params.damage ?? 14
+                            rect: new Geom.Rectangle(hx - 32, floorY - 48, 64, 48),
+                            startsAtSec: this.elapsedSec + 0.85,
+                            untilSec: this.elapsedSec + 0.85 + dur,
+                            damage: params.damage ?? 14,
+                            sourceId: enemy.def.id
                         });
                     }
                 }
@@ -364,7 +380,7 @@ export class LevelScene extends Scene {
     private bossWakeCheck(): void {
         if (this.bossWoken) { return; }
         const boss = this.enemies.getBoss();
-        if (boss === null || boss.sleeping) { return; }
+        if (boss === null || boss.sleeping || !boss.bossEngaged) { return; }
         this.bossWoken = true;
         audioDirector.setBossPhase(boss.phaseIndex);
     }
@@ -373,6 +389,8 @@ export class LevelScene extends Scene {
         const cp = this.ctx.checkpoints.find((c) => c.id === this.activeCheckpoint) ?? this.ctx.checkpoints[0];
         resourceSystem.refill(); // FR-11 规则 7
         this.enemies.resetAll();
+        this.projectiles.clear();
+        this.dangerFx.clear();
         this.hazards = [];
         this.cameraRig.lockTo(null);
         this.player.teleportTo(cp.x, cp.y);
@@ -428,7 +446,7 @@ export class LevelScene extends Scene {
 
         // Boss 血条（FR-14 规则 5）
         const boss = this.enemies.getBoss();
-        this.hud.setBossBar(boss !== null ? { name: boss.def.id, ratio: Math.max(0, boss.hp / boss.def.hp) } : null);
+        this.hud.setBossBar(boss !== null ? { name: bossPalette(boss.def.id).name, ratio: Math.max(0, boss.hp / boss.def.hp) } : null);
 
         // EX-11：掉出地图救援（先于即死区判定，避免穿透死亡面后误判死亡）
         if (!this.dead && this.player.sprite.y > this.ctx.mapHeight + 512) {
@@ -439,22 +457,20 @@ export class LevelScene extends Scene {
         if (!this.dead) {
             const b = this.player.body;
             const pb = new Geom.Rectangle(b.x, b.y, b.width, b.height);
-            let died = false;
+            let touchedDeathZone = false;
             for (const hz of this.ctx.hazards) {
-                if (Geom.Rectangle.Overlaps(pb, hz)) { died = true; break; }
+                if (Geom.Rectangle.Overlaps(pb, hz)) { touchedDeathZone = true; break; }
             }
-            if (!died) {
+            if (touchedDeathZone) { this.onPlayerDeath(); }
+            else {
                 this.hazards = this.hazards.filter((h) => h.untilSec > this.elapsedSec);
                 for (const hz of this.hazards) {
-                    if (Geom.Rectangle.Overlaps(pb, hz.rect)) {
-                        const applied = resourceSystem.applyDamage(hz.damage);
-                        if (applied.ok && applied.value.died) { this.onPlayerDeath(); }
-                        died = true;
+                    if (this.elapsedSec >= hz.startsAtSec && Geom.Rectangle.Overlaps(pb, hz.rect)) {
+                        this.combat.damagePlayer(hz.damage, hz.sourceId, hz.rect.centerX);
                         break;
                     }
                 }
             }
-            if (died && !this.dead) { this.onPlayerDeath(); }
         }
         this.mark();
 
@@ -467,6 +483,7 @@ export class LevelScene extends Scene {
         skillService.tickCooldowns(dt);
         weaponService.tickSwitchLock(dt);
         this.fx.tick(dt);
+        this.dangerFx.render(this.hazards, this.elapsedSec, this.enemies.getBoss());
         this.mark();
 
         // 阶段 9：相机
@@ -502,6 +519,7 @@ export class LevelScene extends Scene {
         this.projectiles?.destroy();
         this.enemies?.destroy();
         this.fx?.destroy();
+        this.dangerFx?.destroy();
         this.pickups?.destroy();
         this.tutorial = null;
         this.hazards = [];

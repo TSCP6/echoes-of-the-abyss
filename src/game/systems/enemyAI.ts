@@ -5,8 +5,8 @@
  * 追击：def.moveSpeed、视线丢失 2.5 s 返回（AT-09）；v1 不跳跃。
  * 飞行：忽略重力、锚点半径 96 正弦巡航、220 px 俯冲、俯冲后硬直 1.0 s（AT-10）。
  * Boss：三阶段（HP 100/66/33% 切换，AT-11）、切换 1.5 s 无敌 + 特效事件、每阶段循环 2~3 技能（DD-06）。
- * 受击 0.15 s 硬直 + 60 px 击退；死亡 0.4 s 消失 + enemy:killed（FR-03 输出）。
- * 同屏预算 >24 最远冻结（FR-03 边界）。视觉：M2 程序化占位纹理（P4 换 CC0）。
+ * 受击 0.15 s 硬直 + 60 px 击退；死亡时长随角色动画配置。
+ * 同屏预算 >24 最远冻结（FR-03 边界）。巡逻兵、三个 Boss 与召唤物接入动画。
  */
 import { Geom, Physics, type Scene } from 'phaser';
 import type { EnemyDef, BossPhaseDef } from '../domain/types';
@@ -14,12 +14,14 @@ import { ConfigRegistry } from '../domain/configRegistry';
 import type { LevelContext } from './levelLoader';
 import type { PlayerController } from './playerController';
 import type { ProjectilePool } from './projectilePool';
+import { EnemyVisual, enemyTexture } from './enemyVisuals';
+import { beginBossAttack, tickBossAttack, type BossAttack } from './bossAttack';
+import { bossProjectileAngles } from './bossSkillPresentation';
 
 const PATROL_SPAN = 128;
 const CHASE_LOST_SEC = 2.5;
 const HIT_STAGGER_SEC = 0.15;
 const KNOCKBACK_IMPULSE = 240; // 短冲量近似 60px 位移
-const DEATH_ANIM_SEC = 0.4;
 const SCREEN_BUDGET = 24;
 const EDGE_PROBE_PX = 8;
 const FLYER_CRUISE_RADIUS = 96;
@@ -43,6 +45,7 @@ export class EnemyEntity {
     /** Boss 阶段切换无敌截止（游戏时钟 ms） */
     invincibleUntil = 0;
     phaseIndex = 0;
+    bossEngaged = false;
     private stagger = 0;
     private dir: 1 | -1 = 1;
     private chaseLost = 0;
@@ -54,16 +57,27 @@ export class EnemyEntity {
     // boss
     private skillQueue: number[] = [];
     private skillCooldown = 0;
+    private readonly visual: EnemyVisual;
+    private bossAttack: BossAttack | null = null;
 
     constructor(scene: Scene, def: EnemyDef, x: number, y: number,
-        private groundProbe: (x: number, y: number) => boolean) {
+        private groundProbe: (x: number, y: number) => boolean, visualId = def.id) {
         this.def = def;
         this.hp = def.hp;
+        if (def.id === 'enm_boss_spider') {
+            // The spider walks on the floor; the other two bosses intentionally hover.
+            for (let foot = y + 24; foot <= y + 280; foot += 8) {
+                if (groundProbe(x, foot)) { y = foot - 24; break; }
+            }
+        }
         this.spawnPos = { x, y };
-        this.sprite = scene.physics.add.sprite(x, y, `enemy_${def.kind}`);
+        this.sprite = scene.physics.add.sprite(x, y, enemyTexture(visualId, def.kind));
+        this.visual = new EnemyVisual(this.sprite, visualId);
         const body = this.body;
         body.setSize(def.hurtboxSize.w, def.hurtboxSize.h);
-        body.setOffset((48 - def.hurtboxSize.w) / 2, 48 - def.hurtboxSize.h);
+        // Preserve the old 48px texture's world-space hurtbox and ground baseline.
+        const frameSize = this.visual.frameSize;
+        body.setOffset((frameSize - def.hurtboxSize.w) / 2, frameSize / 2 + 24 - def.hurtboxSize.h);
         body.setCollideWorldBounds(false);
         if (def.kind === 'flyer' || def.kind === 'boss') { body.setAllowGravity(false); }
         this.sprite.setDepth(6);
@@ -78,6 +92,8 @@ export class EnemyEntity {
 
     isInvincible(nowMs: number): boolean { return this.invincibleUntil > nowMs; }
 
+    getBossAttack(): BossAttack | null { return this.dead ? null : this.bossAttack; }
+
     /** FR-03：受击硬直 + 击退；返回是否死亡 */
     applyHit(amount: number, fromX: number): boolean {
         if (this.dead) { return false; }
@@ -87,10 +103,11 @@ export class EnemyEntity {
         this.body.setVelocityX(dir * KNOCKBACK_IMPULSE);
         if (this.hp <= 0) {
             this.dead = true;
-            this.deathTimer = DEATH_ANIM_SEC;
+            this.deathTimer = this.visual.deathDuration;
             this.body.setEnable(false);
-            this.sprite.setAlpha(0.6);
+            if (!this.visual.hasArt) { this.sprite.setAlpha(0.6); }
         }
+        this.visual.update(0, this.dead ? 'dead' : 'hit');
         return this.dead;
     }
 
@@ -98,12 +115,17 @@ export class EnemyEntity {
     update(dt: number, player: PlayerController, nowMs: number, events: EnemyEvents,
         projectiles: ProjectilePool | null): boolean {
         if (this.dead) {
+            this.visual.update(dt, 'dead');
             this.deathTimer -= dt;
             if (this.deathTimer <= 0) { this.sprite.setVisible(false); return true; }
             return false;
         }
-        if (this.sleeping) { return false; }
-        if (this.stagger > 0) { this.stagger -= dt; return false; }
+        if (this.sleeping) { this.visual.update(0, 'idle', true); return false; }
+        if (this.stagger > 0) {
+            this.stagger -= dt;
+            this.visual.update(dt, 'hit');
+            return false;
+        }
 
         switch (this.def.kind) {
             case 'patrol': this.updatePatrol(dt, player); break;
@@ -111,6 +133,7 @@ export class EnemyEntity {
             case 'flyer': this.updateFlyer(dt, player); break;
             case 'boss': this.updateBoss(dt, player, nowMs, events, projectiles); break;
         }
+        this.visual.update(dt, this.isInvincible(nowMs) ? 'phase' : this.body.velocity.length() > 1 ? 'move' : 'idle');
         return false;
     }
 
@@ -125,7 +148,7 @@ export class EnemyEntity {
         if (body.blocked.right) { this.dir = -1; }
         if (!this.hasGroundAhead()) { this.dir = this.dir === 1 ? -1 : 1; }
         body.setVelocityX(this.dir * this.def.moveSpeed);
-        this.sprite.setFlipX(this.dir < 0);
+        this.visual.face(this.dir);
     }
 
     private updateChaser(dt: number, player: PlayerController): void {
@@ -141,13 +164,13 @@ export class EnemyEntity {
                 this.body.setVelocityX(0);
             }
         }
-        this.sprite.setFlipX(this.dir < 0);
+        this.visual.face(this.dir);
     }
 
     private updateChase(dt: number, player: PlayerController): void {
         this.dir = player.sprite.x >= this.sprite.x ? 1 : -1;
         this.body.setVelocityX(this.dir * this.def.moveSpeed);
-        this.sprite.setFlipX(this.dir < 0);
+        this.visual.face(this.dir);
         void dt;
     }
 
@@ -186,21 +209,46 @@ export class EnemyEntity {
     /** Boss 三阶段（AT-11）+ 技能循环（DD-06） */
     private updateBoss(dt: number, player: PlayerController, nowMs: number,
         events: EnemyEvents, projectiles: ProjectilePool | null): void {
+        if (!this.bossEngaged) {
+            if (Math.abs(player.sprite.x - this.sprite.x) > this.def.detectRange
+                || Math.abs(player.sprite.y - this.sprite.y) > 160) {
+                this.body.setVelocity(0, 0);
+                return;
+            }
+            this.bossEngaged = true;
+            events.onBossPhase(this, this.phaseIndex);
+        }
         const ratio = this.hp / this.def.hp;
         const targetPhase = ratio > 0.66 ? 0 : ratio > 0.33 ? 1 : 2;
         if (targetPhase !== this.phaseIndex) {
             this.phaseIndex = targetPhase;
             this.invincibleUntil = nowMs + BOSS_SWITCH_INVINCIBLE_MS;
             this.skillQueue = [];
+            this.bossAttack = null;
             events.onBossPhase(this, targetPhase);
         }
         if (this.isInvincible(nowMs)) {
             this.body.setVelocity(0, 0);
             return;
         }
+        if (this.bossAttack !== null) {
+            const attack = this.bossAttack;
+            const transition = tickBossAttack(attack, dt);
+            this.dir = attack.direction;
+            this.visual.face(this.dir);
+            this.body.setVelocity(0, 0);
+            if (transition === 'fire') {
+                this.executeBossSkill(attack.skill.kind, attack.skill.damage, attack.skill.params, events, projectiles);
+            }
+            if (attack.stage === 'active' && attack.skill.kind === 'charge') {
+                this.body.setVelocityX(attack.direction * ((attack.skill.params.distance ?? 240) / 0.5));
+            }
+            if (transition === 'finished') { this.bossAttack = null; }
+            return;
+        }
         // 面向玩家缓步逼近
         this.dir = player.sprite.x >= this.sprite.x ? 1 : -1;
-        this.sprite.setFlipX(this.dir < 0);
+        this.visual.face(this.dir);
         this.body.setVelocityX(this.dir * this.def.moveSpeed * 0.5);
 
         // 技能循环
@@ -215,13 +263,16 @@ export class EnemyEntity {
             const skill = phase?.skills[idx];
             if (skill !== undefined && phase !== undefined) {
                 this.skillCooldown = skill.cooldownSec;
-                this.executeBossSkill(skill.kind, skill.damage, skill.params, events, projectiles);
+                this.bossAttack = beginBossAttack(skill, this.dir);
+                this.body.setVelocity(0, 0);
+                this.visual.windup(skill.kind);
             }
         }
     }
 
     private executeBossSkill(kind: string, damage: number, params: Record<string, number>,
         events: EnemyEvents, projectiles: ProjectilePool | null): void {
+        this.visual.skill(kind);
         switch (kind) {
             case 'charge': {
                 const dist = params.distance ?? 240;
@@ -233,11 +284,9 @@ export class EnemyEntity {
                 const count = Math.floor(params.count ?? 3);
                 const spread = params.spreadDeg ?? 30;
                 const speed = params.speed ?? 260;
-                const base = this.dir === 1 ? 0 : 180;
-                for (let i = 0; i < count; i++) {
-                    const angle = base + (i - (count - 1) / 2) * (spread / Math.max(1, count - 1));
+                for (const angle of bossProjectileAngles(this.dir, count, spread)) {
                     projectiles.spawn({
-                        x: this.sprite.x, y: this.sprite.y,
+                        x: this.sprite.x + this.dir * (this.def.hurtboxSize.w / 2 + 8), y: this.body.center.y,
                         angleDeg: angle, speed, range: 600, damage,
                         side: 'enemy', sourceId: this.def.id
                     });
@@ -246,7 +295,7 @@ export class EnemyEntity {
             }
             case 'summon':
             case 'arenaHazard':
-                events.onBossSkill(this, kind, params);
+                events.onBossSkill(this, kind, { ...params, damage });
                 break;
             default:
                 break;
@@ -273,8 +322,12 @@ export class EnemyEntity {
         this.phaseIndex = 0;
         this.invincibleUntil = 0;
         this.skillQueue = [];
+        this.skillCooldown = 0;
+        this.bossAttack = null;
+        this.bossEngaged = false;
         this.diving = false;
         this.diveStagger = 0;
+        this.visual.reset();
         this.sprite.setPosition(this.spawnPos.x, this.spawnPos.y);
         this.sprite.setVisible(true);
         this.sprite.setAlpha(1);
@@ -285,16 +338,19 @@ export class EnemyEntity {
 
 export class EnemyAI {
     private enemies: EnemyEntity[] = [];
+    private initialCount = 0;
+    private summonColliders: Physics.Arcade.Collider[] = [];
     events: EnemyEvents = { onBossPhase: () => {}, onBossSkill: () => {} };
     projectiles: ProjectilePool | null = null;
 
-    constructor(private scene: Scene, ctx: LevelContext, private player: PlayerController,
+    constructor(private scene: Scene, private ctx: LevelContext, private player: PlayerController,
         private groundProbe: (x: number, y: number) => boolean) {
         for (const spawn of ctx.enemySpawns) {
             const def = ConfigRegistry.enemies()[spawn.defId];
             if (def === undefined) { continue; }
             this.enemies.push(new EnemyEntity(scene, def, spawn.x, spawn.y, this.groundProbe));
         }
+        this.initialCount = this.enemies.length;
     }
 
     getEntities(): EnemyEntity[] { return this.enemies; }
@@ -322,14 +378,19 @@ export class EnemyAI {
     }
 
     /** Boss 召唤小怪（FR-03 Boss 技能） */
-    summonAt(x: number, y: number, defId: string): void {
+    summonAt(x: number, y: number, defId: string, visualId = defId): void {
         const def = ConfigRegistry.enemies()[defId];
         if (def === undefined) { return; }
-        this.enemies.push(new EnemyEntity(this.scene, def, x, y, this.groundProbe));
+        const enemy = new EnemyEntity(this.scene, def, x, y, this.groundProbe, visualId);
+        this.enemies.push(enemy);
+        this.summonColliders.push(this.scene.physics.add.collider(enemy.sprite, this.ctx.collisionGroup));
     }
 
     /** FR-11 规则 7：玩家死亡后敌人重置 */
     resetAll(): void {
+        for (const collider of this.summonColliders) { collider.destroy(); }
+        this.summonColliders = [];
+        for (const enemy of this.enemies.splice(this.initialCount)) { enemy.sprite.destroy(); }
         for (const e of this.enemies) { e.reset(); }
     }
 
@@ -339,10 +400,18 @@ export class EnemyAI {
     }
 
     destroy(): void {
+        for (const collider of this.summonColliders) { collider.destroy(); }
+        this.summonColliders = [];
         for (const e of this.enemies) { e.sprite.destroy(); }
         this.enemies = [];
     }
 }
 
 /** Boss 场地危险区矩形（arenaHazard 技能产物，LevelScene 持有并检测） */
-export interface ArenaHazard { rect: Geom.Rectangle; untilSec: number; damage: number }
+export interface ArenaHazard {
+    rect: Geom.Rectangle;
+    startsAtSec: number;
+    untilSec: number;
+    damage: number;
+    sourceId: string;
+}

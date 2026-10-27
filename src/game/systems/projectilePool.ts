@@ -6,6 +6,7 @@
  */
 import { Physics, type Scene } from 'phaser';
 import type { LevelContext } from './levelLoader';
+import { bossProjectileTexture } from './bossSkillPresentation';
 
 const POOL = 32;
 
@@ -32,10 +33,45 @@ export class ProjectilePool {
     private pool: Projectile[] = [];
 
     constructor(scene: Scene, ctx: LevelContext) {
+        // Enemy shots read as danger rather than collectible fruit.
+        for (const [key, color, size] of [['projectile_enemy', 0xff653f, 24], ['projectile_player', 0xffe066, 12]] as const) {
+            if (scene.textures.exists(key)) { continue; }
+            const g = scene.make.graphics();
+            g.fillStyle(color, 0.3);
+            g.fillCircle(size / 2, size / 2, size / 2);
+            g.fillStyle(color, 1);
+            g.fillCircle(size / 2, size / 2, size / 3);
+            g.fillStyle(0xfff1c9, 1);
+            g.fillCircle(size / 2, size / 2, size / 6);
+            g.generateTexture(key, size, size);
+            g.destroy();
+        }
+        for (const [key, color] of [['projectile_spider', 0xa3ed58], ['projectile_echo', 0xbb91ff]] as const) {
+            if (scene.textures.exists(key)) { continue; }
+            const g = scene.make.graphics();
+            g.fillStyle(color, 0.22);
+            g.fillCircle(16, 16, 16);
+            g.lineStyle(2, 0xff7058, 0.9);
+            g.strokeCircle(16, 16, 10);
+            g.fillStyle(color, 1);
+            g.fillCircle(16, 16, 8);
+            g.fillStyle(0xffffff, 1);
+            if (key === 'projectile_spider') {
+                g.fillCircle(14, 14, 3);
+                g.lineStyle(1, 0xf0ffd6, 0.9);
+                for (let i = 0; i < 4; i++) {
+                    const a = i * Math.PI / 2;
+                    g.lineBetween(16, 16, 16 + Math.cos(a) * 11, 16 + Math.sin(a) * 11);
+                }
+            } else {
+                g.fillTriangle(10, 10, 23, 16, 10, 22);
+            }
+            g.generateTexture(key, 32, 32);
+            g.destroy();
+        }
         for (let i = 0; i < POOL; i++) {
-            const sprite = scene.physics.add.sprite(-9999, -9999, 'fruit_apple', 0);
+            const sprite = scene.physics.add.sprite(-9999, -9999, 'projectile_player');
             sprite.setDepth(8);
-            sprite.setScale(0.35);
             sprite.setVisible(false);
             const body = sprite.body as Physics.Arcade.Body;
             body.setAllowGravity(false);
@@ -56,6 +92,8 @@ export class ProjectilePool {
         slot.active = true;
         slot.traveled = 0;
         slot.spec = spec;
+        slot.sprite.setTexture(bossProjectileTexture(spec.sourceId, spec.side));
+        (slot.sprite.body as Physics.Arcade.Body).setSize(12, 12, true);
         slot.sprite.setVisible(true);
         slot.sprite.setPosition(spec.x, spec.y);
         const rad = (spec.angleDeg * Math.PI) / 180;
@@ -72,6 +110,10 @@ export class ProjectilePool {
     }
 
     getActive(): Projectile[] { return this.pool.filter((p) => p.active); }
+
+    clear(): void {
+        for (const projectile of this.pool) { if (projectile.active) { this.release(projectile); } }
+    }
 
     /** 管线阶段 3：射程检查（FR-04 规则 2 / AT-14） */
     update(dt: number): void {

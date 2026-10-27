@@ -47,6 +47,23 @@ function duel() {
 }
 
 describe('同帧致死结算', () => {
+    it('Boss 危险区普通命中只扣血，连续重叠遵守受击无敌时间', () => {
+        const f = duel();
+        f.combat.damagePlayer(14, 'enm_boss_guardian', 200);
+        expect(resourceSystem.getSnapshot().hp).toBe(86);
+        expect(f.deaths()).toBe(0);
+        f.combat.damagePlayer(14, 'enm_boss_guardian', 200);
+        expect(resourceSystem.getSnapshot().hp).toBe(86);
+    });
+
+    it('Boss 危险区致死只触发一次死亡', () => {
+        const f = duel();
+        resourceSystem.applyDamage(95);
+        f.combat.damagePlayer(14, 'enm_boss_guardian', 200);
+        f.combat.damagePlayer(14, 'enm_boss_guardian', 200);
+        expect(f.deaths()).toBe(1);
+    });
+
     it('接触伤害先致死时，不再用本帧挥击击杀敌人', () => {
         const f = duel();
         resourceSystem.applyDamage(99);

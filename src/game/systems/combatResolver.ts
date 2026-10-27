@@ -213,6 +213,12 @@ export class CombatResolver {
         }
     }
 
+    /** World hazards share contact/projectile i-frames, feedback and lethal checks. */
+    damagePlayer(amount: number, sourceId: string, fromX: number): void {
+        if (this.player.getMotionState().state === 'dead' || this.playerIsInvincible()) { return; }
+        this.hitPlayer(amount, sourceId, fromX);
+    }
+
     private hitPlayer(amount: number, sourceId: string, fromX: number): void {
         const result = calcDamage({ baseDamage: amount, weaponLevelFactor: 1, skillFactor: 1 }, this.rng);
         const applied = resourceSystem.applyDamage(result.amount);
