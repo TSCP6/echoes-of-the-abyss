@@ -57,17 +57,17 @@ docs/                     SRS / SDD / M4验收记录 / 素材许可清单 / AI�
 
 ## 3. 已完成工作（提交线）
 
-| 提交 | 内容 |
-|---|---|
-| e16c279/116a64c/9516f71 | P1：地图管线、1-1 全流程可玩 |
-| (P2) | 战斗与成长：近战/远程、敌人 AI、掉落、背包 |
-| 473984d | P3：12 关/Boss 三阶段/技能树/商店/营地/双键存档 |
-| a18ebbe | P4：CC0 素材+许可清单；AudioDirector/三个适配层/教学/震屏/粒子/挥击死亡动画 |
-| 7173de9 | M4-fix：场景切换稳定性、EX-03、构建瘦身（2.87MB / gzip 401KB）、saveSystem 覆盖 84.3% |
-| 43d3895 | M4-feat：字号 ≥14px、HUD 画布锚定、EX-11、TT-06 打点 |
-| 2a6cf0f | docs：M4 验收记录 |
-| e19a377 | 结算页重试竞态根治 + AT-64 闭环 |
-| f0c576a | ★手感方案 C + oneway 扫掠分离 + 全关可达性审计 |
+| 提交                    | 内容                                                                                  |
+| ----------------------- | ------------------------------------------------------------------------------------- |
+| e16c279/116a64c/9516f71 | P1：地图管线、1-1 全流程可玩                                                          |
+| (P2)                    | 战斗与成长：近战/远程、敌人 AI、掉落、背包                                            |
+| 473984d                 | P3：12 关/Boss 三阶段/技能树/商店/营地/双键存档                                       |
+| a18ebbe                 | P4：CC0 素材+许可清单；AudioDirector/三个适配层/教学/震屏/粒子/挥击死亡动画           |
+| 7173de9                 | M4-fix：场景切换稳定性、EX-03、构建瘦身（2.87MB / gzip 401KB）、saveSystem 覆盖 84.3% |
+| 43d3895                 | M4-feat：字号 ≥14px、HUD 画布锚定、EX-11、TT-06 打点                                  |
+| 2a6cf0f                 | docs：M4 验收记录                                                                     |
+| e19a377                 | 结算页重试竞态根治 + AT-64 闭环                                                       |
+| f0c576a                 | ★手感方案 C + oneway 扫掠分离 + 全关可达性审计                                        |
 
 验收状态：AT-01~51（P1~P3 冒烟）、AT-52~75 中可自动化项全过（见 M4验收记录）；88 单测绿；vue-tsc 零错误。
 
@@ -96,37 +96,31 @@ docs/                     SRS / SDD / M4验收记录 / 素材许可清单 / AI�
 ## 6. 当前问题与未决事项（勿遗漏）
 
 **人工验收（todo blocked，清单见 docs/M4验收记录.md §四）**
+
 1. AT-60/AT-72：3 名未接触测试者 5 分钟通关 1-1 + 求助次数（需真人）。
 2. AT-69：2h 长稳 + ≥20 次切关堆快照（TT-08 已给无累积代理证据）。
 3. AT-71：Firefox/Safari/Edge × 3 视口 + 禁用 WebGL 目视兼容模式提示。
 4. AT-63/AT-66：真机全屏开关；真机 10min Performance 录制（headed 自动化采样：空闲 p50 16.7/p95 17.2ms、>33.3ms 0.8%；输入注入期尖峰为 harness 开销）。
 
-**环境/工具链陷阱（后续会话必读）**
-5. 端口 8080 已被用户机器上的 CEF/Steam 远程调试端点占用（`curl :8080` 返回 "CEF remote debugging" 页）；dev 服务请用其他端口：`npx vite --config vite/config.dev.mjs --port <新>`（**必须带 config**，否则 .vue 解析 500）。会话内曾以 8084 后台 job 运行，可能已死，按需重启。
-6. 浏览器自动化伪影（非游戏 bug）：隐藏/被遮挡标签页 rAF 冻结（headed 多标签会 occlusion 冻结；headless 空闲也可能塌缩）→ 测量需页内 rAF 探针 + 等待期 keepalive ping；`tab.keyDown` 的 JustDown 采样要求按键跨帧（press 太快读不到）；自动化注入输入期间的帧尖峰不代表游戏性能。
-7. 键盘链式台阶跳的"游戏内自动化验证"始终受上述伪影污染；oneway/跳高的可靠证据 = 落体穿透测试（200/400px 落体停 top=736）+ onewaySeparation 单测 + 页内 vy 轨迹（oneway 上起跳初速 -560 正常）。**手感最终确认需用户真人试玩**。
-8. WSL 壳内 `npm` 受 localhost 代理配置损坏（supervised service 启动失败）；后台服务用 async bash job（Windows 壳）启动。
-9. 覆盖率整体 58.5%（NFR-08 只要求核心数值模块 ≥80%：damageCalculator/checksum 100%、economy 87.2%、saveSystem 84.3%——已满足）；若课程要求整体覆盖率需补 UI/系统层测试。
+**环境/工具链陷阱（后续会话必读）** 5. 端口 8086 已被用户机器上的 CEF/Steam 远程调试端点占用（`curl :8086` 返回 "CEF remote debugging" 页）；dev 服务请用其他端口：`npx vite --config vite/config.dev.mjs --port <新>`（**必须带 config**，否则 .vue 解析 500）。会话内曾以 8084 后台 job 运行，可能已死，按需重启。6. 浏览器自动化伪影（非游戏 bug）：隐藏/被遮挡标签页 rAF 冻结（headed 多标签会 occlusion 冻结；headless 空闲也可能塌缩）→ 测量需页内 rAF 探针 + 等待期 keepalive ping；`tab.keyDown` 的 JustDown 采样要求按键跨帧（press 太快读不到）；自动化注入输入期间的帧尖峰不代表游戏性能。7. 键盘链式台阶跳的"游戏内自动化验证"始终受上述伪影污染；oneway/跳高的可靠证据 = 落体穿透测试（200/400px 落体停 top=736）+ onewaySeparation 单测 + 页内 vy 轨迹（oneway 上起跳初速 -560 正常）。**手感最终确认需用户真人试玩**。8. WSL 壳内 `npm` 受 localhost 代理配置损坏（supervised service 启动失败）；后台服务用 async bash job（Windows 壳）启动。9. 覆盖率整体 58.5%（NFR-08 只要求核心数值模块 ≥80%：damageCalculator/checksum 100%、economy 87.2%、saveSystem 84.3%——已满足）；若课程要求整体覆盖率需补 UI/系统层测试。
 
-**已知设计边界（非缺陷）**
-10. SceneDirector pending 为单槽（连点取最后意图）；EX-12 由架构满足（Boss 进度不入存档）。
-11. `tools/source-packs/`、`tools/kenney-source/` 仅溯源不随构建分发；构建产物只引用 art/audio/gen/levels。
+**已知设计边界（非缺陷）** 10. SceneDirector pending 为单槽（连点取最后意图）；EX-12 由架构满足（Boss 进度不入存档）。11. `tools/source-packs/`、`tools/kenney-source/` 仅溯源不随构建分发；构建产物只引用 art/audio/gen/levels。
 
 ## 7. 重要代码位置速查
 
-| 位置 | 内容 |
-|---|---|
-| src/game/data/playerDefaults.ts:14-24 | 玩家物理数值（gravity/jumpVelocity/walkSpeed…） |
-| src/game/main.ts:24 | Arcade 世界重力（读配置） |
-| src/game/domain/configRegistry.ts:309-322 | ±20% 容差校验（within20） |
-| src/game/systems/onewaySeparation.ts | 单向平台扫掠判定 |
-| src/game/systems/levelLoader.ts:150-153 | onewayProcess 委托点 |
-| src/game/systems/playerController.ts:104-107,150-166 | update 守卫 / 起跳与可变跳高 |
-| src/game/scenes/LevelScene.ts:57-94,354-470 | ready 闸/EX-11/TT-06；十阶段管线 |
-| src/game/systems/sceneDirector.ts:35-77 | fadeTo/awaitTarget/request(pending) |
-| src/game/systems/audioDirector.ts:86-108,136-174 | tick 淡化/safeVolume/playBgm |
-| src/game/systems/tutorialDirector.ts | 教学队列模型 |
-| src/ui/HudOverlay.vue:43-54 | 画布锚定 rAF |
-| src/ui/UiLayer.vue:178-186 | 手势解锁 AudioContext |
-| tools/gen_levels.py / tools/audit_reach.py | 地图生成 / 可达性门禁 |
-| docs/M4验收记录.md | AT 实测证据与人工项清单 |
+| 位置                                                 | 内容                                            |
+| ---------------------------------------------------- | ----------------------------------------------- |
+| src/game/data/playerDefaults.ts:14-24                | 玩家物理数值（gravity/jumpVelocity/walkSpeed…） |
+| src/game/main.ts:24                                  | Arcade 世界重力（读配置）                       |
+| src/game/domain/configRegistry.ts:309-322            | ±20% 容差校验（within20）                       |
+| src/game/systems/onewaySeparation.ts                 | 单向平台扫掠判定                                |
+| src/game/systems/levelLoader.ts:150-153              | onewayProcess 委托点                            |
+| src/game/systems/playerController.ts:104-107,150-166 | update 守卫 / 起跳与可变跳高                    |
+| src/game/scenes/LevelScene.ts:57-94,354-470          | ready 闸/EX-11/TT-06；十阶段管线                |
+| src/game/systems/sceneDirector.ts:35-77              | fadeTo/awaitTarget/request(pending)             |
+| src/game/systems/audioDirector.ts:86-108,136-174     | tick 淡化/safeVolume/playBgm                    |
+| src/game/systems/tutorialDirector.ts                 | 教学队列模型                                    |
+| src/ui/HudOverlay.vue:43-54                          | 画布锚定 rAF                                    |
+| src/ui/UiLayer.vue:178-186                           | 手势解锁 AudioContext                           |
+| tools/gen_levels.py / tools/audit_reach.py           | 地图生成 / 可达性门禁                           |
+| docs/M4验收记录.md                                   | AT 实测证据与人工项清单                         |
