@@ -57,8 +57,16 @@ function showSaveManager(): void {
 
 function onSaveWritten(): void {
     refreshSave();
+    if (saveFailed.value) {
+        clearTimeout(noticeTimer);
+        saveNotice.value = '';
+    }
     saveFailed.value = false;
-    saveNotice.value = UI_TEXT.save.written;
+}
+
+/** 成功提示仅用于用户明确发起的保存操作，自动存档不刷新计时。 */
+function showManualSaveNotice(message: string): void {
+    saveNotice.value = message;
     clearTimeout(noticeTimer);
     noticeTimer = setTimeout(() => { saveNotice.value = ''; }, 4000);
 }
@@ -69,11 +77,13 @@ function onSaveFailed(payload: EventPayloads['save:failed']): void {
     saveNotice.value = payload.reason === 'QUOTA' ? UI_TEXT.save.failedQuota : UI_TEXT.save.failedUnavailable;
 }
 
-function retrySave(): void { saveSystem.retryWrite(); }
+function retrySave(): void {
+    if (saveSystem.retryWrite().ok) { showManualSaveNotice(UI_TEXT.save.written); }
+}
 function exportSave(): void { saveSystem.exportJson(); }
 function onSaveImported(): void {
     refreshSave();
-    saveNotice.value = UI_TEXT.save.imported;
+    showManualSaveNotice(UI_TEXT.save.imported);
 }
 
 function continueGame(): void {
@@ -142,6 +152,7 @@ function backToMenu(): void {
 function saveAndQuit(): void {
     const saved = saveSystem.write();
     if (!saved.ok) { return; }
+    showManualSaveNotice(UI_TEXT.save.written);
     requestedGameplay = null;
     history.length = 0;
     uiState.value = 'mainMenu';
