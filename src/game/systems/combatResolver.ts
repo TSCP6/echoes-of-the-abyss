@@ -18,6 +18,7 @@ import { skillService } from '../domain/skillService';
 import type { ProjectilePool } from './projectilePool';
 import type { WorldFxLayer } from './worldFxLayer';
 import { emitEvent } from '../events';
+import { bossWeaponFactor } from '../domain/bossDamage';
 
 const MELEE_LIFETIME_SEC = 0.10;
 const IFRAME_HZ = 8; // 8 Hz 闪烁（FR-04 规则 4）
@@ -31,13 +32,15 @@ interface MeleeSwing {
     facing: 1 | -1;
     weaponLevelFactor: number;
 }
+interface AttackSource { weaponId: string; levelFactor: number }
 
 export class CombatResolver {
     /** 可破坏场景对象（蛛卵）；使用稳定id保证同挥击去重。 */
     destructibleTargets: (() => Array<{ id: string; rect: { x: number; y: number; width: number; height: number }; hit: (damage: number) => void }>) | null = null;
     private swings: MeleeSwing[] = [];
-    private pendingAreas: Array<{ x: number; y: number; radius: number; damage: number }> = [];
+    private pendingAreas: Array<{ x: number; y: number; radius: number; damage: number; source: AttackSource }> = [];
     private rng: () => number = Math.random;
+    private feedbackUntil = new Map<EnemyEntity, number>();
 
     constructor(
         private scene: Scene,
@@ -105,22 +108,26 @@ export class CombatResolver {
 
     /** 范围伤害（旋风斩等技能执行器调用，FR-07 规则 4） */
     queueAreaDamage(x: number, y: number, radius: number, damage: number): void {
-        this.pendingAreas.push({ x, y, radius, damage });
+        this.pendingAreas.push({ x, y, radius, damage, source: this.areaSource() });
     }
 
-    areaDamage(x: number, y: number, radius: number, damage: number): void {
+    private areaSource(): AttackSource {
+        const weaponId = weaponService.getEquippedDefs().main?.id ?? this.activeWeaponId;
+        return { weaponId, levelFactor: weaponService.getLevelFactor(weaponId, 'main') };
+    }
+
+    areaDamage(x: number, y: number, radius: number, damage: number, source = this.areaSource()): void {
         for (const target of this.destructibleTargets?.() ?? []) {
             const r = target.rect;
             if (Math.hypot(r.x + r.width / 2 - x, r.y + r.height / 2 - y) <= radius) {
-                this.hitDestructible(target, damage, 1);
+                this.hitDestructible(target, damage, source.levelFactor);
             }
         }
         for (const enemy of this.enemies.getEntities()) {
             if (enemy.dead) { continue; }
             const dist = Math.hypot(enemy.sprite.x - x, enemy.sprite.y - y);
             if (dist <= radius) {
-                const id = weaponService.getEquippedDefs().main?.id ?? this.activeWeaponId;
-                this.hitEnemy(enemy, damage, x, weaponService.getLevelFactor(id, 'main'));
+                this.hitEnemy(enemy, damage, x, source.levelFactor, source.weaponId);
             }
         }
     }
@@ -182,7 +189,7 @@ export class CombatResolver {
         }
 
         for (const area of this.pendingAreas.splice(0)) {
-            this.areaDamage(area.x, area.y, area.radius, area.damage);
+            this.areaDamage(area.x, area.y, area.radius, area.damage, area.source);
         }
 
         // 挥击生命周期
@@ -198,7 +205,7 @@ export class CombatResolver {
                 const hb = enemy.getHurtbox();
                 if (Geom.Rectangle.Overlaps(swing.rect, new Geom.Rectangle(hb.x, hb.y, hb.w, hb.h))) {
                     swing.hitSet.add(enemy);
-                    this.hitEnemy(enemy, swing.def.baseDamage, this.player.sprite.x, swing.weaponLevelFactor);
+                    this.hitEnemy(enemy, swing.def.baseDamage, this.player.sprite.x, swing.weaponLevelFactor, swing.def.id);
                 }
             }
             for (const target of this.destructibleTargets?.() ?? []) {
@@ -220,7 +227,8 @@ export class CombatResolver {
                 if (enemy.dead) { continue; }
                 const hb = enemy.getHurtbox();
                 if (Geom.Rectangle.Overlaps(prect, new Geom.Rectangle(hb.x, hb.y, hb.w, hb.h))) {
-                    this.hitEnemy(enemy, proj.spec.damage, proj.sprite.x, proj.spec.weaponLevelFactor ?? 1);
+                    if (enemy.blocksProjectile?.(proj.sprite.x)) { this.defenseFeedback(enemy, '盾挡'); }
+                    else { this.hitEnemy(enemy, proj.spec.damage, proj.sprite.x, proj.spec.weaponLevelFactor ?? 1, proj.spec.sourceId); }
                     this.projectiles.release(proj);
                     consumed = true;
                     break;
@@ -251,14 +259,28 @@ export class CombatResolver {
         return this.player.iFrameUntil > this.scene.time.now;
     }
 
-    private hitEnemy(enemy: EnemyEntity, baseDamage: number, fromX: number, weaponLevelFactor: number): void {
+    private defenseFeedback(enemy: EnemyEntity, message: string): void {
+        if ((this.feedbackUntil.get(enemy) ?? 0) > this.scene.time.now) { return; }
+        this.feedbackUntil.set(enemy, this.scene.time.now + 450);
+        this.fx.message?.(enemy.sprite.x, enemy.sprite.y - 56, message);
+    }
+
+    private hitEnemy(enemy: EnemyEntity, baseDamage: number, fromX: number, weaponLevelFactor: number, weaponId: string): void {
+        if (enemy.def.kind === 'boss' && (!enemy.bossEngaged
+            || enemy.playerInsideArena && !enemy.playerInsideArena(this.player.sprite.x, this.player.sprite.y))) {
+            this.defenseFeedback(enemy, '结界守护');
+            return;
+        }
         // AT-11：Boss 阶段切换无敌期间攻击不造成伤害
         if (enemy.isInvincible(this.scene.time.now)) { return; }
+        const defenseFactor = bossWeaponFactor(enemy.def.id, weaponId, enemy.armorBroken);
         const result = calcDamage({
             baseDamage,
             weaponLevelFactor,
-            skillFactor: this.skillFactor()
+            skillFactor: this.skillFactor(), defenseFactor
         }, this.rng);
+        if (defenseFactor < 1) { this.defenseFeedback(enemy, '抵抗'); }
+        else if (defenseFactor > 1) { this.defenseFeedback(enemy, '弱点'); }
         const died = enemy.applyHit(result.amount, fromX);
         this.fx.damageNumber(enemy.sprite.x, enemy.sprite.y - 30, result.amount);
         this.fx.hitFlash(enemy.sprite);
@@ -316,6 +338,7 @@ export class CombatResolver {
         this.blinkTimer = null;
         this.swings = [];
         this.pendingAreas = [];
+        this.feedbackUntil.clear();
     }
 }
 void ConfigRegistry; // 保留引用（iFrameMs 读取点已在方法内）

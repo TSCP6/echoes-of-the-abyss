@@ -47,6 +47,31 @@ function duel(enemyId = 'enm_patrol') {
 }
 
 describe('同帧致死结算', () => {
+    it('未开战Boss不受场外弹丸和范围技能伤害', () => {
+        const f = duel('enm_boss_guardian');
+        f.player.iFrameUntil = 1000;
+        f.enemy.hp = 100;
+        f.enemy.bossEngaged = false;
+        f.combat.spawnProjectile(ConfigRegistry.weapons().wpn_crossbow, 0);
+        f.combat.update(1 / 60);
+        f.combat.areaDamage(120, 100, 64, 25);
+        expect(f.enemy.hp).toBe(100);
+    });
+    it('普通弩箭与同来源技能使用相同抗性，巨斧使用弱点倍率', () => {
+        const f = duel('enm_boss_guardian');
+        f.player.iFrameUntil = 1000;
+        f.enemy.bossEngaged = true;
+        f.enemy.hp = 100;
+        f.combat.spawnProjectile(ConfigRegistry.weapons().wpn_crossbow, 0);
+        f.combat.update(1 / 60);
+        expect(f.enemy.hp).toBe(94);
+        f.combat.spawnProjectile({ ...ConfigRegistry.weapons().wpn_crossbow, baseDamage: 20 }, 0);
+        f.combat.update(1 / 60);
+        expect(f.enemy.hp).toBe(80);
+        f.combat.beginMelee(ConfigRegistry.weapons().wpn_greataxe);
+        f.combat.update(1 / 60);
+        expect(f.enemy.hp).toBe(56);
+    });
     it('范围技能排队到敌方伤害之后，玩家同帧死亡时取消范围伤害', () => {
         const f = duel();
         resourceSystem.applyDamage(99);

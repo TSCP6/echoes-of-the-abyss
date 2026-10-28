@@ -21,6 +21,8 @@
 
 ## 1. 项目概述
 
+> 2026-10-28 Boss远程应对：增加武器抗性配置、战场外结界与入场唤醒、距离决策、守卫举盾/台面共振、蛛后平台压迫和有效换位。近战/弹丸/技能统一保留武器来源，Boss普通受击韧性避免连射锁死冷却。实现与本次验证见 `docs/Boss远程应对与武器抗性.md`；配置入口为 `data/bossCombatProfiles.ts`。
+
 - 产品：桌面浏览器单人 2D 横版平台跳跃动作游戏，12 关 + 3 Boss，纯前端无服务端。
 - 技术栈：Phaser 4.0.0 + Vue 3.5 + TypeScript 5.7（strict）+ Vite 6；Vitest 单测； Arcade Physics。
 - 1024×768 为最小逻辑视野，`Scale.EXPAND` 等比铺满浏览器，宽屏扩展水平视野、窄长窗口扩展垂直视野；瓦片 32px；地图为 Tiled 兼容 CSV JSON（`public/assets/levels/*.json`）。

@@ -14,6 +14,7 @@ import { BOSS_SKILL_KINDS } from './types';
 import { WEAPONS, INITIAL_WEAPONS, INITIAL_EQUIP } from '../data/weapons';
 import { ENEMIES } from '../data/enemies';
 import { NORMAL_ENEMY_COMBAT } from '../data/normalEnemyCombat';
+import { BOSS_COMBAT_PROFILES } from '../data/bossCombatProfiles';
 import { SKILLS, SKP_TOTAL_COST } from '../data/skills';
 import { ITEMS } from '../data/items';
 import { LEVELS, LEVEL_ORDER, BOSS_SKP_REWARD } from '../data/levels';
@@ -193,6 +194,41 @@ function validateEnemies(lootIdSet: Set<string>): void {
             }
         } else if (e.phases.length !== 0) {
             push('enemies', e.id, 'phases', '非 Boss 须为空数组', e.phases.length);
+        }
+    }
+}
+
+function validateBossCombatProfiles(weaponIdSet: Set<string>): void {
+    const table = 'bossCombatProfiles';
+    const bossIdSet = new Set(ENEMIES.filter((enemy) => enemy.kind === 'boss').map((enemy) => enemy.id));
+    for (const bossId of bossIdSet) {
+        if (!Object.prototype.hasOwnProperty.call(BOSS_COMBAT_PROFILES, bossId)) {
+            push(table, bossId, 'id', '每个 Boss 须有战斗配置', bossId);
+        }
+    }
+    for (const [bossId, profile] of Object.entries(BOSS_COMBAT_PROFILES)) {
+        if (!bossIdSet.has(bossId)) {
+            push(table, bossId, 'id', '须引用存在且 kind=boss 的 EnemyDef（V3）', bossId);
+        }
+        for (const field of ['nearRange', 'advanceSpeed'] as const) {
+            if (!Number.isFinite(profile[field]) || profile[field] <= 0) {
+                push(table, bossId, field, '须为有限正数', profile[field]);
+            }
+        }
+        if (profile.pressureFollowupSec !== undefined) {
+            checkRange(table, bossId, 'pressureFollowupSec', profile.pressureFollowupSec, 0.1, 1);
+        }
+        if (typeof profile.resistanceHint !== 'string' || !/[\u3400-\u9fff]/u.test(profile.resistanceHint)) {
+            push(table, bossId, 'resistanceHint', '须为非空中文提示', profile.resistanceHint);
+        }
+        for (const [weaponId, factor] of Object.entries(profile.weaponFactors)) {
+            const field = `weaponFactors.${weaponId}`;
+            if (!weaponIdSet.has(weaponId)) {
+                push(table, bossId, field, '须引用存在的 WeaponDef（V3）', weaponId);
+            }
+            if (typeof factor !== 'number' || !inRange(factor, 0.5, 1.25)) {
+                push(table, bossId, field, '须为 [0.5, 1.25] 内的有限倍率', factor);
+            }
         }
     }
 }
@@ -409,6 +445,7 @@ export function validateAll(): Result<void, 'CONFIG_INVALID'> & { errors?: Confi
     validateWeapons(itemIdSet);
     validateEnemies(lootIdSet);
     validateNormalEnemyCombat();
+    validateBossCombatProfiles(weaponIdSet);
     validateSkills();
     validateItems();
     validateLevels(enemyIdSet);

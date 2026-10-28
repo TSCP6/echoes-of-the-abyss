@@ -91,20 +91,20 @@ export const ENEMIES: EnemyDef[] = [
         phases: [
             {
                 hpThreshold: 1.0, invincibleMs: 1500, skills: [
-                    { kind: 'echoStep', damage: 14, cooldownSec: 2, params: { windupSec: 0.75, activeSec: 0.8, recoverySec: 0.7, shiftDistance: 180 } },
+                    { kind: 'echoStep', damage: 14, cooldownSec: 2, params: { windupSec: 0.75, activeSec: 0.8, recoverySec: 0.7, shiftDistance: 100 } },
                     { kind: 'echoDance', damage: 20, cooldownSec: 2.6, params: { windupSec: 0.95, activeSec: 1.85, recoverySec: 1, reach: 130 } }
                 ]
             },
             {
                 hpThreshold: 0.66, invincibleMs: 1500, skills: [
-                    { kind: 'echoStep', damage: 16, cooldownSec: 1.8, params: { windupSec: 0.7, activeSec: 0.8, recoverySec: 0.7, shiftDistance: 180 } },
+                    { kind: 'echoStep', damage: 16, cooldownSec: 1.8, params: { windupSec: 0.7, activeSec: 0.8, recoverySec: 0.7, shiftDistance: 100 } },
                     { kind: 'echoDance', damage: 22, cooldownSec: 2.4, params: { windupSec: 0.9, activeSec: 1.85, recoverySec: 1, reach: 130 } },
                     { kind: 'echoReplay', damage: 20, cooldownSec: 2.8, params: { windupSec: 1, activeSec: 0.25, recoverySec: 1.25, reach: 130, echoDelaySec: 0.95 } }
                 ]
             },
             {
                 hpThreshold: 0.33, invincibleMs: 1500, skills: [
-                    { kind: 'echoStep', damage: 18, cooldownSec: 1.6, params: { windupSec: 0.65, activeSec: 0.8, recoverySec: 0.7, shiftDistance: 180 } },
+                    { kind: 'echoStep', damage: 18, cooldownSec: 1.6, params: { windupSec: 0.65, activeSec: 0.8, recoverySec: 0.7, shiftDistance: 100 } },
                     { kind: 'echoDance', damage: 24, cooldownSec: 2.2, params: { windupSec: 0.85, activeSec: 1.85, recoverySec: 1, reach: 130 } },
                     { kind: 'echoReplay', damage: 22, cooldownSec: 2.5, params: { windupSec: 0.95, activeSec: 0.25, recoverySec: 1.25, reach: 130, echoDelaySec: 0.95 } }
                 ]

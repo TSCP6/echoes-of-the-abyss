@@ -298,6 +298,12 @@ async function checkSpider(h, add, shot) {
     for (const method of ['J', 'K', '范围技能']) {
         const { arena, eggs } = await spawnEggs(h);
         const egg = eggs[0];
+        if (method === 'K') {
+            // 卵现在铺在玩家附近；把夹具Boss放到射手后方，避免弹丸先命中Boss。
+            await h.page.evaluate(({ x, floor }) => {
+                window.__bossCheckGame.scene.getScene('Level').enemies.getBoss().body.reset(x, floor - 24);
+            }, { x: arena.left + 90, floor: arena.floor });
+        }
         await h.place(egg.rect.x - (method === 'K' ? 160 : 28), arena.floor);
         await h.key('d', true); await h.tick(1); await h.key('d', false); await h.tick(5);
         const before = (await h.snapshot()).field.eggs.find(e => e.id === egg.id);

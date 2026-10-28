@@ -68,7 +68,7 @@ describe('三个 Boss 独立招式配置', () => {
         { kind: 'spiderWeb', params: { activeSec: 0.25, recoverySec: 0.8, width: 150, durationSec: 5, slowFactor: 0.65 } },
         { kind: 'spiderEggs', params: { activeSec: 0.3, recoverySec: 0.8, count: 2, hatchSec: 3 } },
         { kind: 'spiderDrop', params: { activeSec: 0.4, recoverySec: 1.2, liftHeight: 260, width: 140 } },
-        { kind: 'echoStep', params: { activeSec: 0.8, recoverySec: 0.7, shiftDistance: 180 } },
+        { kind: 'echoStep', params: { activeSec: 0.8, recoverySec: 0.7, shiftDistance: 100 } },
         { kind: 'echoDance', params: { activeSec: 1.85, recoverySec: 1, reach: 130 } },
         { kind: 'echoReplay', params: { activeSec: 0.25, recoverySec: 1.25, reach: 130, echoDelaySec: 0.95 } }
     ])('$kind 将招式时长和范围交给同一配置来源', ({ kind, params }) => {

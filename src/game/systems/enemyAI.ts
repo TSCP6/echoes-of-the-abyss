@@ -8,7 +8,7 @@
  * 受击 0.15 s 硬直 + 60 px 击退；死亡时长随角色动画配置。
  * 同屏预算 >24 最远冻结（FR-03 边界）。巡逻兵、三个 Boss 与召唤物接入动画。
  */
-import { Geom, Physics, type Scene } from 'phaser';
+import { Geom, Physics, type Scene, type Tilemaps } from 'phaser';
 import type { EnemyDef, BossPhaseDef } from '../domain/types';
 import { ConfigRegistry } from '../domain/configRegistry';
 import type { LevelContext } from './levelLoader';
@@ -17,8 +17,11 @@ import type { ProjectilePool } from './projectilePool';
 import { EnemyVisual, enemyTexture } from './enemyVisuals';
 import { beginBossAttack, tickBossAttack, type BossAttack } from './bossAttack';
 import { bossProjectileAngles } from './bossSkillPresentation';
+import { getBossCombatProfile } from '../data/bossCombatProfiles';
+import type { AbilityRect } from '../domain/bossAbilities';
 import { NormalEnemyBrain, type NormalEnemyAttack, type NormalEnemySnapshot } from '../domain/normalEnemyBrain';
 import { NORMAL_ENEMY_COMBAT } from '../data/normalEnemyCombat';
+import { shouldSeparateOneway } from './onewaySeparation';
 
 const PATROL_SPAN = 128;
 const CHASE_LOST_SEC = 2.5;
@@ -49,6 +52,8 @@ export class EnemyEntity {
     invincibleUntil = 0;
     phaseIndex = 0;
     bossEngaged = false;
+    bossArena: AbilityRect | null = null;
+    guardianGuarding = false;
     abilityContactSuppressed = false;
     private stagger = 0;
     private dir: 1 | -1 = 1;
@@ -63,10 +68,13 @@ export class EnemyEntity {
     private skillCooldown = 0;
     private readonly visual: EnemyVisual;
     private bossAttack: BossAttack | null = null;
+    private pressureIndex = 0;
+    private wallRecovery = false;
+    private phaseOpening: 'spiderEggs' | 'spiderDrop' | null = null;
     private normalBrain: NormalEnemyBrain | null = null;
 
     constructor(scene: Scene, def: EnemyDef, x: number, y: number,
-        private groundProbe: (x: number, y: number) => boolean, visualId = def.id) {
+        private groundProbe: (x: number, y: number) => boolean, private visualId = def.id) {
         this.def = def;
         this.hp = def.hp;
         if (def.id === 'enm_boss_spider') {
@@ -127,9 +135,9 @@ export class EnemyEntity {
         this.normalBrain?.interrupt();
         // Boss施招计时与范围预警共用节奏，普通攻击不会把其中一方单独暂停。
         const casting = this.def.kind === 'boss' && this.bossAttack !== null;
-        this.stagger = casting ? 0 : HIT_STAGGER_SEC;
+        this.stagger = this.def.kind === 'boss' ? 0 : HIT_STAGGER_SEC;
         const dir = this.sprite.x >= fromX ? 1 : -1;
-        if (!casting) { this.body.setVelocityX(dir * KNOCKBACK_IMPULSE); }
+        if (this.def.kind !== 'boss') { this.body.setVelocityX(dir * KNOCKBACK_IMPULSE); }
         if (this.hp <= 0) {
             this.dead = true;
             this.deathTimer = this.visual.deathDuration;
@@ -158,7 +166,13 @@ export class EnemyEntity {
 
         if (this.normalBrain !== null) { this.updateNormal(dt, player, projectiles); }
         else switch (this.def.kind) {
-            case 'patrol': this.updatePatrol(dt, player); break;
+            case 'patrol':
+                if (this.visualId === 'spiderling') {
+                    this.dir = player.sprite.x >= this.sprite.x ? 1 : -1;
+                    this.body.setVelocityX(this.dir * (getBossCombatProfile('enm_boss_spider')?.advanceSpeed ?? this.def.moveSpeed));
+                    this.visual.face(this.dir);
+                } else { this.updatePatrol(dt, player); }
+                break;
             case 'chaser': this.updateChaser(dt, player); break;
             case 'flyer': this.updateFlyer(dt, player); break;
             case 'boss': this.updateBoss(dt, player, nowMs, events, projectiles); break;
@@ -282,9 +296,12 @@ export class EnemyEntity {
     /** Boss 三阶段（AT-11）+ 技能循环（DD-06） */
     private updateBoss(dt: number, player: PlayerController, nowMs: number,
         events: EnemyEvents, projectiles: ProjectilePool | null): void {
+        this.guardianGuarding = false;
         if (!this.bossEngaged) {
-            if (Math.abs(player.sprite.x - this.sprite.x) > this.def.detectRange
-                || Math.abs(player.sprite.y - this.sprite.y) > 160) {
+            const enters = this.bossArena !== null ? this.playerInsideArena(player.sprite.x, player.sprite.y)
+                : Math.abs(player.sprite.x - this.sprite.x) <= this.def.detectRange
+                    && Math.abs(player.sprite.y - this.sprite.y) <= 160;
+            if (!enters) {
                 this.body.setVelocity(0, 0);
                 return;
             }
@@ -298,6 +315,11 @@ export class EnemyEntity {
             this.invincibleUntil = nowMs + BOSS_SWITCH_INVINCIBLE_MS;
             this.skillQueue = [];
             this.bossAttack = null;
+            this.wallRecovery = false;
+            if (this.def.id === 'enm_boss_spider') {
+                this.skillCooldown = 0;
+                this.phaseOpening = targetPhase === 1 ? 'spiderEggs' : 'spiderDrop';
+            }
             events.onBossPhase(this, targetPhase);
         }
         if (this.isInvincible(nowMs)) {
@@ -317,6 +339,7 @@ export class EnemyEntity {
                 const hitWall = attack.activeSec - attack.remaining > 0.05
                     && (attack.direction === 1 ? this.body.blocked?.right : this.body.blocked?.left);
                 if (hitWall) {
+                    this.wallRecovery = true;
                     attack.stage = 'recovery';
                     attack.remaining = attack.recoverySec;
                     this.visual.skill('charge', 0);
@@ -324,13 +347,27 @@ export class EnemyEntity {
                     this.body.setVelocityX(attack.direction * ((attack.skill.params.distance ?? 240) / attack.activeSec));
                 }
             }
-            if (transition === 'finished') { this.bossAttack = null; }
+            if (transition === 'finished') {
+                this.bossAttack = null;
+                const followup = getBossCombatProfile(this.def.id)?.pressureFollowupSec;
+                if (attack.skill.kind === 'spiderDrop') {
+                    this.skillCooldown = Math.max(0, attack.skill.cooldownSec - attack.activeSec - attack.recoverySec);
+                }
+                if (followup !== undefined && ['spiderWeb', 'spiderEggs'].includes(attack.skill.kind)) {
+                    this.skillCooldown = followup;
+                    this.phaseOpening = 'spiderDrop';
+                }
+            }
             return;
         }
-        // 面向玩家缓步逼近
+        // 远距先推进或选择能真正威胁目标的招式，近距才使用原近战循环。
         this.dir = player.sprite.x >= this.sprite.x ? 1 : -1;
         this.visual.face(this.dir);
-        this.body.setVelocityX(this.dir * this.def.moveSpeed * 0.5);
+        const profile = getBossCombatProfile(this.def.id);
+        const distance = Math.abs(player.sprite.x - this.sprite.x);
+        const far = distance > (profile?.nearRange ?? 220) || Math.abs(player.sprite.y - this.sprite.y) > 80;
+        this.guardianGuarding = this.def.id === 'enm_boss_guardian' && far;
+        this.body.setVelocityX(this.dir * (far ? profile?.advanceSpeed ?? this.def.moveSpeed : distance > 90 ? this.def.moveSpeed * 0.5 : 0));
 
         // 技能循环
         this.skillCooldown -= dt;
@@ -339,10 +376,27 @@ export class EnemyEntity {
             if (phase !== undefined) { this.skillQueue = phase.skills.map((_, i) => i); }
         }
         if (this.skillCooldown <= 0 && this.skillQueue.length > 0) {
-            const idx = this.skillQueue.shift() as number;
             const phase = this.def.phases[this.phaseIndex];
+            let idx = this.skillQueue[0] as number;
+            const opening = phase?.skills.findIndex(s => s.kind === this.phaseOpening) ?? -1;
+            if (opening >= 0) { idx = opening; }
+            else if (far && phase !== undefined) {
+                const kinds = this.def.id === 'enm_boss_guardian'
+                    ? Math.abs(player.sprite.y - this.sprite.y) > 80 || !phase.skills.some(s => s.kind === 'charge')
+                        ? ['guardianStomp'] : ['charge', 'guardianStomp']
+                    : this.def.id === 'enm_boss_spider' ? ['spiderWeb', 'spiderDrop', 'spiderEggs'].filter(k => phase.skills.some(s => s.kind === k))
+                        : ['echoStep'];
+                const kind = kinds[this.pressureIndex++ % kinds.length];
+                const selected = phase.skills.findIndex(s => s.kind === kind);
+                if (selected >= 0) { idx = selected; }
+            }
+            const queued = this.skillQueue.indexOf(idx);
+            if (queued >= 0) { this.skillQueue.splice(queued, 1); }
             const skill = phase?.skills[idx];
             if (skill !== undefined && phase !== undefined) {
+                this.guardianGuarding = false;
+                this.wallRecovery = false;
+                this.phaseOpening = null;
                 this.skillCooldown = skill.cooldownSec;
                 this.bossAttack = beginBossAttack(skill, this.dir);
                 this.body.setVelocity(0, 0);
@@ -386,6 +440,19 @@ export class EnemyEntity {
 
     faceAbility(direction: 1 | -1): void { this.dir = direction; this.visual.face(direction); }
 
+    playerInsideArena(x: number, y: number): boolean {
+        const r = this.bossArena;
+        return r === null || x + 11 > r.x && x - 11 < r.x + r.width && y + 32 > r.y && y - 12 < r.y + r.height;
+    }
+
+    blocksProjectile(fromX: number): boolean {
+        return this.guardianGuarding && (fromX - this.sprite.x) * this.dir >= 0;
+    }
+
+    get armorBroken(): boolean {
+        return this.wallRecovery && this.bossAttack?.skill.kind === 'charge' && this.bossAttack.stage === 'recovery';
+    }
+
     private playerInRange(player: PlayerController, range: number): boolean {
         const dx = Math.abs(player.sprite.x - this.sprite.x);
         const dy = Math.abs(player.sprite.y - this.sprite.y);
@@ -409,6 +476,10 @@ export class EnemyEntity {
         this.skillCooldown = 0;
         this.bossAttack = null;
         this.bossEngaged = false;
+        this.guardianGuarding = false;
+        this.pressureIndex = 0;
+        this.wallRecovery = false;
+        this.phaseOpening = null;
         this.abilityContactSuppressed = false;
         if (this.body.checkCollision) { this.body.checkCollision.none = false; }
         this.diving = false;
@@ -438,12 +509,15 @@ export class EnemyAI {
         for (const spawn of ctx.enemySpawns) {
             const def = ConfigRegistry.enemies()[spawn.defId];
             if (def === undefined) { continue; }
-            this.enemies.push(new EnemyEntity(scene, def, spawn.x, spawn.y, this.groundProbe));
+            const enemy = new EnemyEntity(scene, def, spawn.x, spawn.y, this.groundProbe);
+            if (def.kind === 'boss') { enemy.bossArena = ctx.bossArena ?? null; }
+            this.enemies.push(enemy);
         }
         this.initialCount = this.enemies.length;
     }
 
     getEntities(): EnemyEntity[] { return this.enemies; }
+    getSummons(): EnemyEntity[] { return this.enemies.slice(this.initialCount); }
 
     /** FR-03 边界：同屏 >24 最远者冻结 */
     private budgetPass(): void {
@@ -474,6 +548,10 @@ export class EnemyAI {
         const enemy = new EnemyEntity(this.scene, def, x, y, this.groundProbe, visualId);
         this.enemies.push(enemy);
         this.summonColliders.push(this.scene.physics.add.collider(enemy.sprite, this.ctx.collisionGroup));
+        this.summonColliders.push(this.scene.physics.add.collider(enemy.sprite, this.ctx.onewayGroup, undefined, (object, target) => {
+            const body = (object as Physics.Arcade.Sprite).body as Physics.Arcade.Body;
+            return shouldSeparateOneway(body, (target as Tilemaps.Tile).pixelY);
+        }));
     }
 
     clearSummons(): void {

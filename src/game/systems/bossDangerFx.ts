@@ -1,11 +1,14 @@
 import type { GameObjects, Scene } from 'phaser';
 import type { ArenaHazard, EnemyEntity } from './enemyAI';
 import { bossPalette, bossProjectileAngles, bossSummonPositions } from './bossSkillPresentation';
+import { getBossCombatProfile } from '../data/bossCombatProfiles';
+import { bindViewportLayout } from './viewportLayout';
 
 /** Warnings and damage share rectangles; one reusable graphics object per level. */
 export class BossDangerFx {
     private graphics: GameObjects.Graphics;
     private label: GameObjects.Text;
+    private resistance: GameObjects.Text;
     private echoes: GameObjects.Image[];
     private bursts: { x: number; y: number; sourceId: string; until: number }[] = [];
 
@@ -15,6 +18,10 @@ export class BossDangerFx {
             fontFamily: 'sans-serif', fontSize: '20px', fontStyle: 'bold',
             color: '#ffd470', stroke: '#171727', strokeThickness: 5
         }).setOrigin(0.5, 1).setDepth(35).setVisible(false);
+        this.resistance = scene.add.text(0, 0, '', {
+            fontFamily: 'sans-serif', fontSize: '14px', color: '#c4d4e8', stroke: '#171727', strokeThickness: 4
+        }).setOrigin(0.5, 0).setDepth(35).setVisible(false).setName('boss-resistance-hint');
+        bindViewportLayout(scene, width => this.resistance.setWordWrapWidth(Math.max(280, width - 330)));
         this.echoes = Array.from({ length: 3 }, () => scene.add.image(0, 0, 'echo_idle').setDepth(4).setVisible(false));
     }
 
@@ -87,6 +94,7 @@ export class BossDangerFx {
         }
 
         const attack = boss?.getBossAttack();
+        this.resistance.setVisible(false);
         if (boss === null) { return; }
         const body = boss.getHurtbox();
         const x = boss.sprite.x;
@@ -94,6 +102,25 @@ export class BossDangerFx {
         const palette = bossPalette(boss.def.id);
         const echo = boss.def.id === 'enm_boss_echo';
         const spider = boss.def.id === 'enm_boss_spider';
+        const hint = getBossCombatProfile(boss.def.id)?.resistanceHint ?? '';
+        const resistanceText = boss.armorBroken ? '岩甲破裂 · 暂时取消抗性' : hint;
+        if (this.resistance.text !== resistanceText) { this.resistance.setText(resistanceText); }
+        const cam = this.scene.cameras.main;
+        this.resistance.setScale(1 / cam.zoom).setPosition(cam.scrollX + cam.width / 2,
+            cam.scrollY + cam.height / 2 + (86 - cam.height / 2) / cam.zoom).setVisible(boss.bossEngaged);
+        if (!boss.bossEngaged) {
+            g.lineStyle(3, 0x91cfe5, 0.85).strokeEllipse(x, y, body.w + 40, body.h + 32);
+            this.label.setPosition(x, body.y - 18).setVisible(true).setColor('#afe0ef').setText('结界守护 · 进入战场开战');
+            return;
+        }
+        if (boss.guardianGuarding) {
+            const side = boss.blocksProjectile(x + 1) ? 1 : -1;
+            const sx = x + side * (body.w / 2 + 12);
+            g.lineStyle(5, 0x91cfe5, 0.95).lineBetween(sx, body.y - 8, sx, body.y + body.h + 8);
+            g.lineStyle(2, 0xe2f4ff, 0.7).strokeEllipse(sx, y, 22, body.h + 22);
+            this.label.setPosition(x, body.y - 18).setVisible(true).setColor('#afe0ef').setText('举盾推进 · 绕侧或等待出招');
+            return;
+        }
         if (echo) {
             // A light backdrop keeps the source's dark robe readable against the cave/sky.
             g.fillStyle(palette.glow, 0.16);
@@ -184,12 +211,14 @@ export class BossDangerFx {
         this.bursts = [];
         this.graphics.clear();
         this.label.setVisible(false);
+        this.resistance.setVisible(false);
         for (const image of this.echoes) { image.setVisible(false); }
     }
 
     destroy(): void {
         this.graphics.destroy();
         this.label.destroy();
+        this.resistance.destroy();
         for (const image of this.echoes) { image.destroy(); }
         this.bursts = [];
     }

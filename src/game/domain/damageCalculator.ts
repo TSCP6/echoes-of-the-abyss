@@ -11,7 +11,7 @@ export interface DamageRequest {
     baseDamage: number;        // WeaponDef.baseDamage 或技能 effect.damage
     weaponLevelFactor: number; // WeaponService 计算：1 + 0.15×(等级-1)
     skillFactor: number;       // 技能加成系数，无加成时 1
-    defenseFactor?: number;    // 预留，v1 恒 1（DR-01 无防御字段，不虚构）
+    defenseFactor?: number;    // Boss 武器抗性/弱点倍率来自配置，其他目标缺省 1
 }
 
 export interface DamageResult {

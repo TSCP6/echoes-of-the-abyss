@@ -10,6 +10,8 @@ export interface BossCastContext {
     target: AbilityPoint;
     bodyWidth: number;
     arena: AbilityRect;
+    /** 玩家所在可站立表面，y 是平台顶边；未提供时使用战场底边。 */
+    targetSurface?: AbilityRect;
 }
 export interface AbilityZone {
     id: string;
@@ -35,12 +37,29 @@ export interface BossAbilitySnapshot {
 }
 interface MovingZone { zone: AbilityZone; startX: number; speed: number; minX: number; maxX: number }
 interface Cast { skill: BossSkillDef; context: BossCastContext; since: number; destination: number }
-interface Pending { at: number; cast: Cast; kind: 'web' | 'eggs' }
+interface Pending { at: number; cast: Cast; kind: 'web' | 'eggs'; rects: AbilityRect[] }
 
 export function abilityOverlaps(a: AbilityRect, b: AbilityRect): boolean {
     return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 }
 const clamp = (v: number, min: number, max: number): number => Math.max(min, Math.min(max, v));
+const targetSurface = (c: BossCastContext): AbilityRect => c.targetSurface
+    ?? { x: c.arena.x, y: c.arena.y + c.arena.height, width: c.arena.width, height: 0 };
+
+function shiftDestination(c: BossCastContext, distance: number): number {
+    const surface = targetSurface(c);
+    const margin = c.targetSurface ? Math.min(c.bodyWidth / 2, surface.width / 4) : 100;
+    const min = surface.x + margin, max = surface.x + surface.width - margin;
+    const preferred = clamp(c.target.x + c.direction * distance, min, max);
+    // 靠边时改到另一侧，避免把现身点夹到玩家身上。
+    const separation = c.bodyWidth / 2 + 19;
+    if (Math.abs(preferred - c.target.x) >= separation) return preferred;
+    const opposite = clamp(c.target.x - c.direction * distance, min, max);
+    if (Math.abs(opposite - c.target.x) >= separation || !c.targetSurface) return opposite;
+    // 窄平台允许正常悬边，但至少保留4px脚底支撑，为中央目标让出身体空间。
+    return clamp(c.target.x + c.direction * distance,
+        surface.x - c.bodyWidth / 2 + 4, surface.x + surface.width + c.bodyWidth / 2 - 4);
+}
 
 /** 独立技能的全部预警、伤害范围和实体生命周期；不导入 Phaser，不读取墙钟。 */
 export class BossAbilityField {
@@ -67,10 +86,11 @@ export class BossAbilityField {
 
     begin(skill: BossSkillDef, context: BossCastContext): void {
         // 捕获施招位置和目标，玩家之后的位移不会偷偷改变预警。
-        const c: BossCastContext = { ...context, origin: { ...context.origin }, target: { ...context.target }, arena: { ...context.arena } };
-        const floor = c.arena.y + c.arena.height;
-        const destination = clamp(c.target.x + c.direction * (skill.params.shiftDistance ?? 180),
-            c.arena.x + 100, c.arena.x + c.arena.width - 100);
+        const c: BossCastContext = { ...context, origin: { ...context.origin }, target: { ...context.target }, arena: { ...context.arena },
+            targetSurface: context.targetSurface ? { ...context.targetSurface } : undefined };
+        const surface = targetSurface(c);
+        const floor = skill.kind === 'echoDance' || skill.kind === 'echoReplay' ? c.origin.y + 24 : c.arena.y + c.arena.height;
+        const destination = shiftDestination(c, skill.params.shiftDistance ?? 100);
         const cast: Cast = { skill, context: c, since: this.now, destination };
         this.cast = cast;
         const start = this.now + (skill.params.windupSec ?? 0.8);
@@ -91,6 +111,14 @@ export class BossAbilityField {
                     this.waves.push({ zone: z, startX: x, speed: (skill.params.waveSpeed ?? 230) * direction,
                         minX: c.arena.x, maxX: c.arena.x + c.arena.width });
                 }
+                if (c.targetSurface && surface.y < floor - 32) {
+                    const left = Math.max(c.arena.x, surface.x);
+                    const right = Math.min(c.arena.x + c.arena.width, surface.x + surface.width);
+                    if (right > left) {
+                        this.zone('hammer', { x: left, y: surface.y - 24, width: right - left, height: 24 },
+                            start + 0.45, 0.25, cast, '台面共振 · 跳起避开震动');
+                    }
+                }
                 break;
             case 'charge': {
                 const left = c.direction === 1 ? c.origin.x : c.arena.x;
@@ -100,35 +128,49 @@ export class BossAbilityField {
                 break;
             }
             case 'spiderWeb': {
-                const width = Math.min(skill.params.width ?? 150, c.arena.width / 4);
-                const x = clamp(c.target.x - width / 2, c.arena.x + 50, c.arena.x + c.arena.width - width - 50);
-                this.zone('web', { x, y: floor - 12, width, height: 12 }, start, 0.15, cast, '织网封路 · 留意纤维范围', 0);
-                this.pending.push({ at: start, cast, kind: 'web' });
+                const margin = c.targetSurface ? 0 : 50;
+                const width = Math.min(skill.params.width ?? 150, c.arena.width / 4, surface.width - margin * 2);
+                const x = clamp(c.target.x - width / 2, surface.x + margin, surface.x + surface.width - width - margin);
+                const rect = { x, y: surface.y - 12, width, height: 12 };
+                this.zone('web', rect, start, 0.15, cast, '织网封路 · 留意纤维范围', 0);
+                this.pending.push({ at: start, cast, kind: 'web', rects: [rect] });
                 break;
             }
             case 'spiderEggs': {
                 const slots = Math.min(2 - this.eggs.length, Math.max(0, Math.floor(skill.params.count ?? 2)));
+                const rects: AbilityRect[] = [];
+                const margin = c.targetSurface ? 18 : 40;
+                const min = surface.x + margin, max = surface.x + surface.width - margin;
                 for (let n = 0; n < slots; n++) {
-                    const x = clamp(c.origin.x + (n % 2 === 0 ? -160 : 160), c.arena.x + 40, c.arena.x + c.arena.width - 40);
-                    this.zone('egg', { x: x - 18, y: floor - 42, width: 36, height: 42 }, start, 0.15, cast, '孵化蛛卵 · 可攻击打碎', 0);
+                    if (min > max) break;
+                    const desired = c.target.x + (n % 2 === 0 ? -110 : 110);
+                    const occupied = [...this.eggs.map(e => e.rect), ...rects];
+                    const candidates = [desired, min, max, ...occupied.flatMap(r => [r.x - 18, r.x + r.width + 18])]
+                        .map(x => clamp(x, min, max)).sort((a, b) => Math.abs(a - desired) - Math.abs(b - desired));
+                    const x = candidates.find(x => !occupied.some(r => abilityOverlaps(r, { x: x - 18, y: surface.y - 42, width: 36, height: 42 })));
+                    if (x === undefined) continue;
+                    const rect = { x: x - 18, y: surface.y - 42, width: 36, height: 42 };
+                    rects.push(rect);
+                    this.zone('egg', rect, start, 0.15, cast, '孵化蛛卵 · 可攻击打碎', 0);
                 }
-                this.pending.push({ at: start, cast, kind: 'eggs' });
+                this.pending.push({ at: start, cast, kind: 'eggs', rects });
                 break;
             }
             case 'spiderDrop': {
                 const width = skill.params.width ?? 140;
-                const x = clamp(c.target.x, c.arena.x + width / 2, c.arena.x + c.arena.width - width / 2);
+                const margin = Math.min(width / 2, surface.width / 2);
+                const x = clamp(c.target.x, surface.x + margin, surface.x + surface.width - margin);
                 cast.destination = x;
-                this.zone('drop', { x: x - width / 2, y: floor - 72, width, height: 72 }, start + 0.3,
+                this.zone('drop', { x: x - width / 2, y: surface.y - 72, width, height: 72 }, start + 0.3,
                     Math.max(0.05, Math.min(0.25, (skill.params.activeSec ?? 0.4) - 0.3)), cast, '吊顶俯袭 · 离开落点光环');
                 break;
             }
             case 'echoStep': {
                 const direction = c.target.x >= destination ? 1 : -1;
-                this.zone('shift', { x: destination - 32, y: floor - 100, width: 64, height: 100 }, start,
+                this.zone('shift', { x: destination - 32, y: surface.y - 100, width: 64, height: 100 }, start,
                     0.55, cast, '瞬影换位 · 标记位置即将现身', 0, direction);
                 this.zone('slash', { x: direction === 1 ? destination + 28 : destination - 158,
-                    y: floor - 66, width: 130, height: 58 }, start + 0.55, 0.2, cast, '拔剑 · 后退或跳跃', skill.damage, direction);
+                    y: surface.y - 66, width: 130, height: 58 }, start + 0.55, 0.2, cast, '拔剑 · 后退或跳跃', skill.damage, direction);
                 break;
             }
             case 'echoDance': {
@@ -157,19 +199,16 @@ export class BossAbilityField {
         const due = this.pending.filter(p => p.at <= this.now + 1e-8);
         this.pending = this.pending.filter(p => p.at > this.now + 1e-8);
         for (const p of due) {
-            const { skill, context: c } = p.cast;
-            const floor = c.arena.y + c.arena.height;
+            const { skill } = p.cast;
             if (p.kind === 'web') {
-                const width = Math.min(skill.params.width ?? 150, c.arena.width / 4);
-                const x = clamp(c.target.x - width / 2, c.arena.x + 50, c.arena.x + c.arena.width - width - 50);
-                this.webs.push({ id: `web_${++this.serial}`, rect: { x, y: floor - 12, width, height: 12 },
+                this.webs.push({ id: `web_${++this.serial}`, rect: { ...p.rects[0] },
                     expiresAt: this.now + (skill.params.durationSec ?? 5), slowFactor: skill.params.slowFactor ?? 0.65 });
                 this.webs = this.webs.slice(-2);
             } else {
-                const slots = Math.min(2 - this.eggs.length, Math.max(0, Math.floor(skill.params.count ?? 2)));
-                for (let n = 0; n < slots; n++) {
-                    const x = clamp(c.origin.x + (n % 2 === 0 ? -160 : 160), c.arena.x + 40, c.arena.x + c.arena.width - 40);
-                    this.eggs.push({ id: `egg_${++this.serial}`, rect: { x: x - 18, y: floor - 42, width: 36, height: 42 },
+                for (const rect of p.rects) {
+                    if (this.eggs.length >= 2) break;
+                    if (this.eggs.some(e => abilityOverlaps(e.rect, rect))) continue;
+                    this.eggs.push({ id: `egg_${++this.serial}`, rect: { ...rect },
                         hp: 18, hpMax: 18, hatchAt: this.now + (skill.params.hatchSec ?? 3) });
                 }
             }
@@ -197,20 +236,21 @@ export class BossAbilityField {
             const { skill, context: c } = cast;
             const age = this.now - cast.since, windup = skill.params.windupSec ?? 0.8;
             const floor = c.arena.y + c.arena.height;
+            const landingY = targetSurface(c).y - 24;
             if (skill.kind === 'charge') {
                 const z = this.zones.find(z => z.kind === 'charge');
                 if (z && (attackStage === 'recovery' || age > windup + (skill.params.activeSec ?? 2.4))) z.endsAt = this.now;
                 else if (z && age >= windup && pose) {
                     z.rect = { x: pose.x - c.bodyWidth / 2 - 18, y: floor - 86, width: c.bodyWidth + 36, height: 86 };
                 }
-            } else if (skill.kind === 'spiderDrop' && age < windup + 0.3 + 1e-8) {
+            } else if (skill.kind === 'spiderDrop' && age < windup + Math.max(0.3, skill.params.activeSec ?? 0.4) + 1e-8) {
                 const rise = clamp(age / Math.min(windup, 0.45), 0, 1);
                 const fall = clamp((age - windup) / 0.3, 0, 1);
                 this.motion = { x: c.origin.x + (cast.destination - c.origin.x) * rise,
-                    y: floor - 24 - (skill.params.liftHeight ?? 260) * rise * (1 - fall), alpha: 1, facing: c.direction };
+                    y: landingY - (skill.params.liftHeight ?? 260) * rise * (1 - fall), alpha: 1, facing: c.direction };
             } else if (skill.kind === 'echoStep' && age < windup + (skill.params.activeSec ?? 0.8)) {
                 const moved = age >= windup;
-                this.motion = { x: moved ? cast.destination : c.origin.x, y: floor - 24,
+                this.motion = { x: moved ? cast.destination : c.origin.x, y: moved ? landingY : c.origin.y,
                     alpha: moved ? 1 : 0.4, facing: moved ? (c.target.x >= cast.destination ? 1 : -1) : c.direction };
             }
             const total = windup + (skill.params.activeSec ?? 0.3) + (skill.params.recoverySec ?? 1);

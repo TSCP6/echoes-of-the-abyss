@@ -38,7 +38,7 @@ echoStep / echoDance / echoReplay
 | `spiderWeb` | 0.25 | 0.8 | `width: 150`、`durationSec: 5`、`slowFactor: 0.65` |
 | `spiderEggs` | 0.3 | 0.8 | `count: 2`、`hatchSec: 3` |
 | `spiderDrop` | 0.4 | 1.2 | `liftHeight: 260`、`width: 140` |
-| `echoStep` | 0.8 | 0.7 | `shiftDistance: 180` |
+| `echoStep` | 0.8 | 0.7 | `shiftDistance: 100`（2026-10-28修正原站位无法命中的间隙） |
 | `echoDance` | 1.85 | 1.0 | `reach: 130` |
 | `echoReplay` | 0.25 | 1.25 | `reach: 130`、`echoDelaySec: 0.95` |
 
