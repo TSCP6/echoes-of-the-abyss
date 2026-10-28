@@ -31,6 +31,9 @@ const newRecord = computed(() => recordStore.getLastSubmit()?.newRecord ?? false
                     <tr><td>{{ UI_TEXT.result.time }}</td><td>{{ data.timeSec.toFixed(1) }} s</td></tr>
                     <tr><td>{{ UI_TEXT.result.kills }}</td><td>{{ data.kills }}</td></tr>
                     <tr><td>{{ UI_TEXT.result.shards }}</td><td>{{ data.shards }} / 3</td></tr>
+                    <tr><td>{{ UI_TEXT.result.earnedCoins }}</td><td>{{ data.earnedCoins ?? 0 }}</td></tr>
+                    <tr><td>{{ UI_TEXT.result.firstClearCoins }}</td><td>{{ data.firstClearCoins ?? 0 }}</td></tr>
+                    <tr><td>{{ UI_TEXT.result.lostCoins }}</td><td>{{ data.lostCoins ?? 0 }}</td></tr>
                     <tr><td>{{ UI_TEXT.result.coins }}</td><td>{{ data.coins }}</td></tr>
                     <tr v-if="newRecord"><td colspan="2" class="record">★ {{ UI_TEXT.result.newRecord }}</td></tr>
                 </tbody>

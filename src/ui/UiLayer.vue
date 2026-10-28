@@ -28,6 +28,8 @@ import SkillTreePanel from './SkillTreePanel.vue';
 import SettingsPanel from './SettingsPanel.vue';
 import RecordsView from './RecordsView.vue';
 import TutorialHints from './TutorialHints.vue';
+import SaveManagerPanel from './SaveManagerPanel.vue';
+import { UI_TEXT } from './i18n';
 
 const uiState = ref<UiState>('none');
 const booted = ref(false);
@@ -36,6 +38,51 @@ const sceneKey = ref('');
 const resultData = ref<EventPayloads['level:cleared'] | null>(null);
 const shopSceneId = ref<1 | 2 | 3>(1);
 const history: UiState[] = [];
+let requestedGameplay: 'Level' | 'Camp' | null = null;
+const saveManagerOpen = ref(false);
+const saveSummary = ref<ReturnType<typeof saveSystem.getSummary>>(null);
+const saveFailed = ref(false);
+const saveNotice = ref('');
+let noticeTimer: ReturnType<typeof setTimeout> | undefined;
+
+function refreshSave(): void {
+    saveSummary.value = saveSystem.getSummary();
+    hasSave.value = saveSummary.value !== null;
+}
+
+function showSaveManager(): void {
+    refreshSave();
+    saveManagerOpen.value = true;
+}
+
+function onSaveWritten(): void {
+    refreshSave();
+    saveFailed.value = false;
+    saveNotice.value = UI_TEXT.save.written;
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => { saveNotice.value = ''; }, 4000);
+}
+
+function onSaveFailed(payload: EventPayloads['save:failed']): void {
+    clearTimeout(noticeTimer);
+    saveFailed.value = true;
+    saveNotice.value = payload.reason === 'QUOTA' ? UI_TEXT.save.failedQuota : UI_TEXT.save.failedUnavailable;
+}
+
+function retrySave(): void { saveSystem.retryWrite(); }
+function exportSave(): void { saveSystem.exportJson(); }
+function onSaveImported(): void {
+    refreshSave();
+    saveNotice.value = UI_TEXT.save.imported;
+}
+
+function continueGame(): void {
+    const currentLevel = progressService.getCurrentLevel();
+    if (currentLevel !== null) { enterLevel(currentLevel, true); return; }
+    if (progressService.isCleared('3-4')) { enterCamp(3); return; }
+    const unlocked = progressService.getLevelViews().filter((level) => level.unlocked);
+    enterLevel(unlocked[unlocked.length - 1]?.levelId ?? '1-1', true);
+}
 
 const showHud = computed(() => sceneKey.value === 'Level' && uiState.value === 'none');
 const showTutorial = computed(() => sceneKey.value === 'Level');
@@ -64,15 +111,17 @@ function goto(state: UiState): void {
 }
 
 /** 供子视图调用：进入关卡（关 overlay + 切场景） */
-function enterLevel(levelId: string): void {
+function enterLevel(levelId: string, resume = false): void {
+    requestedGameplay = 'Level';
     history.length = 0;
     const prev = uiState.value;
     uiState.value = 'none';
     if (prev !== 'none') { emitEvent('ui:overlay', { name: prev, open: false }); }
-    sceneDirector.gotoLevel(levelId);
+    sceneDirector.gotoLevel(levelId, resume);
 }
 
 function enterCamp(sceneId: 1 | 2 | 3): void {
+    requestedGameplay = 'Camp';
     history.length = 0;
     const prev = uiState.value;
     uiState.value = 'none';
@@ -81,11 +130,21 @@ function enterCamp(sceneId: 1 | 2 | 3): void {
 }
 
 function backToMenu(): void {
+    requestedGameplay = null;
     history.length = 0;
     uiState.value = 'mainMenu';
     // FR-13 规则 2：退出到主菜单 = 写入点
     saveSystem.markDirty();
     saveSystem.queueWrite();
+    sceneDirector.gotoMenu();
+}
+
+function saveAndQuit(): void {
+    const saved = saveSystem.write();
+    if (!saved.ok) { return; }
+    requestedGameplay = null;
+    history.length = 0;
+    uiState.value = 'mainMenu';
     sceneDirector.gotoMenu();
 }
 
@@ -126,10 +185,14 @@ function sceneKeyOf(s: unknown): string {
 }
 const onSceneReady = (scene: unknown): void => {
     sceneKey.value = sceneKeyOf(scene);
+    if (sceneKey.value === requestedGameplay) {
+        requestedGameplay = null;
+        uiState.value = 'none';
+    }
     // FR-16 规则 1：每场景 1 首 BGM（菜单 bgm_scene1；关卡/营地 bgm_scene2；Boss 变体由 LevelScene 切）
     if (sceneKey.value === 'Menu') { audioDirector.playBgm('menu'); }
     if (sceneKey.value === 'Camp') { audioDirector.playBgm('level'); }
-    if (sceneKey.value === 'Menu' && booted.value && uiState.value === 'none') {
+    if (sceneKey.value === 'Menu' && requestedGameplay === null && booted.value && uiState.value === 'none') {
         uiState.value = 'mainMenu';
     }
 };
@@ -141,6 +204,15 @@ const onKeyup = (e: KeyboardEvent): void => {
 };
 const onBlur = (): void => { consumedKeys.clear(); };
 const onKeydown = (e: KeyboardEvent): void => {
+    if (saveManagerOpen.value) {
+        if (e.key === 'Escape') {
+            consumedKeys.add(e.code || e.key);
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            saveManagerOpen.value = false;
+        }
+        return;
+    }
     if (consumedKeys.has(e.code || e.key)) {
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -187,6 +259,8 @@ onMounted(() => {
     onEvent('game:requestLevelSelect', onLevelSelectRequest);
     onEvent('game:requestSkillTree', onSkillTreeRequest);
     onEvent('level:cleared', onLevelCleared);
+    onEvent('save:written', onSaveWritten);
+    onEvent('save:failed', onSaveFailed);
     EventBus.on('current-scene-ready', (s: unknown) => {
         readyCount += 1;
         lastKey = sceneKeyOf(s);
@@ -206,6 +280,7 @@ onMounted(() => {
     window.addEventListener('blur', onBlur);
     AppBoot.ready.then((r) => {
         hasSave.value = r.save !== null;
+        saveSummary.value = saveSystem.getSummary();
         booted.value = true;
         if (sceneKey.value === 'Menu') { uiState.value = 'mainMenu'; }
     }).catch(() => {
@@ -214,6 +289,9 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+    clearTimeout(noticeTimer);
+    offEvent('save:written', onSaveWritten);
+    offEvent('save:failed', onSaveFailed);
     offEvent('game:requestPause', onPauseRequest);
     offEvent('game:requestInventory', onInventoryRequest);
     offEvent('game:requestShop', onShopRequest);
@@ -235,13 +313,14 @@ defineExpose({ open, close, enterLevel, enterCamp, backToMenu, goto, hasSave });
         <Transition name="fade">
             <div v-if="!booted" class="overlay loading">加载中…</div>
             <MainMenuView v-else-if="uiState === 'mainMenu'" :has-save="hasSave"
-                @start="goto('levelSelect')" @continue="enterLevel(progressService.getCurrentLevel() ?? '1-1')"
+                @start="goto('levelSelect')" @continue="continueGame"
                 @levels="goto('levelSelect')" @settings="open('settings')" @help="open('help')"
-                @records="open('records')" />
+                @records="open('records')" @saves="showSaveManager" />
             <LevelSelectView v-else-if="uiState === 'levelSelect'" @enter="enterLevel" @back="backToMenu"
                 @camp="enterCamp" />
             <PauseOverlay v-else-if="uiState === 'paused'" @resume="close" @help="open('help')"
-                @settings="open('settings')" @abandon="goto('levelSelect')" />
+                @settings="open('settings')" @abandon="goto('levelSelect')"
+                @save-quit="saveAndQuit" @saves="showSaveManager" />
             <ResultView v-else-if="uiState === 'result'" :data="resultData"
                 @next="enterLevel" @retry="enterLevel" @levels="goto('levelSelect')" />
             <InventoryPanel v-else-if="uiState === 'inventory'" @close="close" />
@@ -251,6 +330,17 @@ defineExpose({ open, close, enterLevel, enterCamp, backToMenu, goto, hasSave });
             <RecordsView v-else-if="uiState === 'records'" @close="close" />
             <HelpView v-else-if="uiState === 'help'" @back="close" />
         </Transition>
+        <div v-if="saveNotice && !saveManagerOpen" class="save-notice" :role="saveFailed ? 'alert' : 'status'">
+            <span>{{ saveNotice }}</span>
+            <template v-if="saveFailed">
+                <button @click="retrySave">{{ UI_TEXT.save.retry }}</button>
+                <button @click="exportSave">{{ UI_TEXT.save.export }}</button>
+            </template>
+            <button v-else @click="saveNotice = ''">{{ UI_TEXT.save.dismiss }}</button>
+        </div>
+        <SaveManagerPanel v-if="saveManagerOpen" :allow-import="uiState === 'mainMenu'" :summary="saveSummary"
+            :failed="saveFailed" :notice="saveNotice" @close="saveManagerOpen = false"
+            @retry="retrySave" @export="exportSave" @imported="onSaveImported" />
     </div>
 </template>
 
@@ -304,6 +394,15 @@ defineExpose({ open, close, enterLevel, enterCamp, backToMenu, goto, hasSave });
     color: var(--fg);
 }
 .loading { font-size: 24px; }
+.ui-layer > .save-notice {
+    position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+    width: min(720px, calc(100% - 32px)); padding: 12px 16px;
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    background: var(--surface-2); color: var(--fg); border: 2px solid var(--border); border-radius: 6px;
+}
+.save-notice span { flex: 1 1 240px; font-size: 15px; }
+.save-notice button { font-size: 15px; padding: 8px 12px; color: var(--fg); background: var(--surface); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; }
+.save-notice button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>

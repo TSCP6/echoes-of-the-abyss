@@ -89,7 +89,7 @@ export class SceneDirector {
         }
     }
 
-    gotoLevel(levelId: string): void { this.request('Level', { levelId }); }
+    gotoLevel(levelId: string, resume = false): void { this.request('Level', resume ? { levelId, resume: true } : { levelId }); }
 
     gotoMenu(): void { this.request('Menu'); }
 

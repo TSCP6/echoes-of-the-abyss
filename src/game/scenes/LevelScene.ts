@@ -22,7 +22,7 @@ import { hudViewModel } from '../domain/hudViewModel';
 import { resourceSystem } from '../domain/resourceSystem';
 import { economyService } from '../domain/economyService';
 import { enemyRewardItems, grantChestReward } from '../domain/rewardService';
-import { ENEMY_MATERIAL_COUNTS } from '../data/rewardDefaults';
+import { ENEMY_MATERIAL_COUNTS, FIRST_CLEAR_COINS } from '../data/rewardDefaults';
 import { progressService } from '../domain/progressService';
 import { weaponService } from '../domain/weaponService';
 import { skillService } from '../domain/skillService';
@@ -66,6 +66,8 @@ export class LevelScene extends Scene {
     private hud = hudViewModel;
     private elapsedSec = 0;
     private kills = 0;
+    private earnedCoins = 0;
+    private resumeRequested = false;
     private dead = false;
     private activeCheckpoint: string | null = null;
     private overlayOpen = false;
@@ -150,8 +152,10 @@ export class LevelScene extends Scene {
 
     constructor() { super('Level'); }
 
-    init(data: { levelId?: string }): void {
+    init(data: { levelId?: string; resume?: boolean }): void {
         this.levelId = data.levelId ?? '1-1';
+        this.resumeRequested = data.resume === true;
+        this.earnedCoins = 0;
         this.ready = false; // 重建期旧管线停摆（preload 窗口期 update 跳过）
         this.overlayOpen = false;
         this.activeCheckpoint = null;
@@ -169,7 +173,7 @@ export class LevelScene extends Scene {
             return;
         }
         this.ctx = result.value;
-        progressService.setCurrentLevel(this.levelId);
+        this.activeCheckpoint = progressService.beginLevel(this.levelId, this.resumeRequested, this.ctx.checkpoints.map(c => c.id));
 
         const regionId = ConfigRegistry.levels().find(l => l.id === this.levelId)!.sceneId;
         createRegionBackdrop(this, regionId === 2 ? 2 : regionId === 3 ? 3 : 1,
@@ -186,7 +190,9 @@ export class LevelScene extends Scene {
 
         this.gateway = new InputGateway(this);
         this.player = new PlayerController(this, this.gateway);
-        this.player.teleportTo(this.ctx.spawn.x, this.ctx.spawn.y);
+        const start = this.respawnPoint();
+        this.player.teleportTo(start.x, start.y);
+        if (this.resumeRequested || resourceSystem.getSnapshot().hp <= 0) { resourceSystem.refill(); }
         this.devices = new LevelDeviceSystem(this, this.player, this.ctx.devices);
 
         this.cameraRig = new CameraRig(this, this.player);
@@ -313,6 +319,7 @@ export class LevelScene extends Scene {
             },
             onChest: (id) => {
                 const reward = grantChestReward(this.levelId, id);
+                this.earnedCoins += reward.coins;
                 this.fx.message(this.player.sprite.x, this.player.sprite.y - 48,
                     `金币 +${reward.coins} · 强化残片 +${reward.materials.itm_relic_shard ?? 0}`);
                 audioDirector.playSfx('pickup_item');
@@ -329,7 +336,7 @@ export class LevelScene extends Scene {
         this.player.onJumped = () => { prevJump?.(); audioDirector.playSfx('jump'); };
         this.player.onLanded = () => { this.cameraRig.onLanded(); audioDirector.playSfx('land'); };
         const prevCoin = this.pickups.onCoinPicked;
-        this.pickups.onCoinPicked = (amount) => { prevCoin?.(amount); audioDirector.playSfx('coin'); };
+        this.pickups.onCoinPicked = (amount) => { this.earnedCoins += amount; prevCoin?.(amount); audioDirector.playSfx('coin'); };
         const prevChest = this.pickups.onChestOpened;
         this.pickups.onChestOpened = () => { prevChest?.(); audioDirector.playSfx('buy'); };
         audioDirector.playBgm('level');
@@ -424,6 +431,13 @@ export class LevelScene extends Scene {
         const shards = this.ctx.shards.filter((s) => progressService.isShardCollected(this.levelId, s.id)).length;
         audioDirector.playSfx('clear');
         const res = progressService.completeLevel(this.levelId);
+        let firstClearCoins = 0;
+        if (res.firstClear) {
+            const before = economyService.getCoins();
+            const chapter = ConfigRegistry.levels().find(l => l.id === this.levelId)!.sceneId;
+            economyService.addCoins((this.ctx.bossId === null ? FIRST_CLEAR_COINS.normal : FIRST_CLEAR_COINS.boss) * chapter);
+            firstClearCoins = economyService.getCoins() - before;
+        }
         // FR-19：最佳成绩（AT-64 新纪录判定）
         recordStore.submitResult(this.levelId, this.elapsedSec, shards);
         recordStore.setShardsTotal(progressService.toSnapshot().collectedShards.length);
@@ -436,7 +450,7 @@ export class LevelScene extends Scene {
             timeSec: Math.round(this.elapsedSec * 10) / 10,
             kills: this.kills,
             shards,
-            coins: economyService.getCoins()
+            coins: economyService.getCoins(), earnedCoins: this.earnedCoins, firstClearCoins, lostCoins: 0
         });
         // FR-13 规则 2：关卡结算完成 = 写入点
         saveSystem.markDirty();

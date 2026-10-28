@@ -142,6 +142,13 @@ describe('SceneDirector 场景切换', () => {
         expect(f.director.isTransitioning).toBe(false);
     });
 
+    it('明确续关时把恢复标志传入关卡，默认重玩保持原参数契约', () => {
+        const f = fixture({ Menu: 'active' });
+        f.director.gotoLevel('1-2', true);
+        f.finishFade();
+        expect(f.starts).toEqual([{ target: 'Level', data: { levelId: '1-2', resume: true } }]);
+    });
+
     it('连点仅保留最后一个 pending 意图及参数', () => {
         const f = fixture({ Menu: 'active' });
         f.director.gotoLevel('1-1');

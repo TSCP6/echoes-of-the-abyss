@@ -11,6 +11,7 @@ import { audioAdapter } from './audioAdapter';
 import { fullscreenAdapter } from './fullscreenAdapter';
 import { warnThrottled } from '../domain/warn';
 import { CANVAS, WEBGL } from 'phaser';
+import { saveSystem } from '../domain/saveSystem';
 
 class AppLifecycleImpl {
     private game: Phaser.Game | null = null;
@@ -28,8 +29,9 @@ class AppLifecycleImpl {
             if (hidden === this.hidden) { return; }
             this.hidden = hidden;
             audioAdapter.onVisibility(hidden, game);
-            if (hidden) { game.loop.sleep(); } else { game.loop.wake(); }
+            if (hidden) { saveSystem.flushPending(); game.loop.sleep(); } else { game.loop.wake(); }
         });
+        window.addEventListener('pagehide', () => saveSystem.flushPending());
         let webglLost = false;
         game.canvas.addEventListener('webglcontextlost', (e) => {
             e.preventDefault();

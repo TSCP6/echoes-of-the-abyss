@@ -17,6 +17,7 @@ export const UI_TEXT = {
         settings: '设置',
         help: '操作说明',
         records: '本地最佳榜',
+        saves: '存档管理',
         confirmOverwrite: '已有存档，开始新游戏将覆盖进度，确认？',
         confirmYes: '确认覆盖',
         confirmNo: '取消'
@@ -33,19 +34,40 @@ export const UI_TEXT = {
         settings: '设置',
         help: '操作说明',
         saveQuit: '保存并退出',
+        saves: '查看 / 导出存档',
         abandon: '放弃本关',
-        abandonHint: '放弃不写入存档，本关进度丢失'
+        abandonHint: '返回关卡选择；已获金币和永久收集保留，重玩从关卡起点开始'
     },
     result: {
         cleared: '关卡完成',
         time: '用时',
         kills: '击杀',
         shards: '回响碎片',
-        coins: '金币',
+        coins: '当前钱包',
+        earnedCoins: '本关获得金币',
+        firstClearCoins: '首通奖励',
+        lostCoins: '死亡损失',
         newRecord: '新纪录',
         next: '下一关',
         retry: '重试',
         back: '返回关卡选择'
+    },
+    save: {
+        title: '存档管理', current: '当前存档', preview: '待导入存档',
+        level: '关卡', checkpoint: '检查点', savedAt: '保存时间', playTime: '累计游玩',
+        noSave: '尚无已保存的进度。进入关卡后可在暂停菜单保存并退出。',
+        noLevel: '营地 / 待出发', spawn: '关卡出生点', unknownTime: '时间未知',
+        duration: (seconds: number) => `${Math.floor(seconds / 3600)} 小时 ${Math.floor(seconds % 3600 / 60)} 分 ${Math.floor(seconds % 60)} 秒`,
+        export: '导出 JSON', select: '选择 JSON 存档', replace: '导入并替换当前存档',
+        importWarning: '导入会替换当前进度、背包、技能、设置和纪录。建议先导出备份。',
+        importMenuOnly: '为避免覆盖正在游玩的状态，请返回主菜单后导入。',
+        imported: '存档已导入并保存，可以继续游戏。', readFailed: '无法读取此文件，请重新选择。',
+        invalid: '存档格式或校验不正确，未导入。', newer: '存档来自较新版本，当前版本无法导入。',
+        migrationFailed: '存档版本转换失败，未导入。',
+        failedQuota: '保存失败：本地存储空间不足。当前进度仅在内存中，请重试或导出备份。',
+        failedUnavailable: '保存失败：浏览器本地存储不可用。当前进度仅在内存中，请重试或导出备份。',
+        retry: '重试保存', written: '进度已保存', exported: '已发起 JSON 下载，请保管好备份。',
+        close: '关闭', dismiss: '收起提示'
     },
     help: {
         title: '操作说明',

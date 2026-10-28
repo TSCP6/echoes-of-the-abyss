@@ -9,7 +9,7 @@ const compat = computed(() => appLifecycle.compatMode);
 
 defineProps<{ hasSave: boolean }>();
 const emit = defineEmits<{
-    start: []; continue: []; levels: []; settings: []; help: []; records: [];
+    start: []; continue: []; levels: []; settings: []; help: []; records: []; saves: [];
 }>();
 </script>
 
@@ -27,6 +27,7 @@ const emit = defineEmits<{
             <button class="btn" @click="emit('settings')">{{ UI_TEXT.menu.settings }}</button>
             <button class="btn" @click="emit('help')">{{ UI_TEXT.menu.help }}</button>
             <button class="btn" @click="emit('records')">{{ UI_TEXT.menu.records }}</button>
+            <button class="btn" @click="emit('saves')">{{ UI_TEXT.menu.saves }}</button>
         </nav>
     </div>
 </template>
