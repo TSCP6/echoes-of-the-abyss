@@ -1,7 +1,7 @@
 """实际 Tiled JSON 的静态可达性审计（不读取生成器）。
 
 节点为可容纳完整碰撞体的连续站立区；边为通过体积碰撞检查的满跳或落体。
-只要求终点、三碎片、检查点与开关可达，装饰孤台不必全部可达。
+要求终点、三碎片、检查点、开关及每枚预置金币和宝箱可达；装饰孤台不必全部可达。
 运动参数读取 playerDefaults.ts，不借助土狼、跳跃缓冲或受伤位移。
 相邻 1/240 秒采样间使用包围盒扫掠，保守拒绝穿实体、即死区和中途平台。
 
@@ -308,13 +308,15 @@ def make_target(obj, kind):
     if kind == 'goal':
         bounds = [x, y, x + obj.get('width', 64), y + obj.get('height', 96)]
     else:
-        rx, ry = {'shard': (36, 48), 'checkpoint': (40, 60), 'switch': (76, 88)}[kind]
+        rx, ry = {'shard': (36, 48), 'checkpoint': (40, 60), 'switch': (76, 88), 'chest': (44, 56), 'coin': (96, 96)}[kind]
         bounds = [x - rx, y - ry, x + rx, y + ry]
     return {'id': obj.get('name', ''), 'kind': kind, 'bounds': bounds, 'object': {'x': x, 'y': y},
             **({'properties': properties(obj)} if kind == 'switch' else {})}
 
 
 def target_hit(target, x, foot, p):
+    if target['kind'] == 'coin':
+        return math.hypot(x - target['object']['x'], foot - p.spriteFootOffset - target['object']['y']) < 96 - EPS
     left, top, right, bottom = target['bounds']
     return left + EPS < x < right - EPS and top + EPS < foot - p.spriteFootOffset < bottom - EPS
 
@@ -353,8 +355,29 @@ def audit_map(raw, level_id='test', physics=None):
         errors.append(f'碎片数量={len(shards)}，须恰为3')
     if len({s['id'] for s in shards}) != len(shards):
         errors.append('碎片 id 重复')
-    targets = [goal, *shards, *checkpoints, *switches]
-    aims = [t['object']['x'] for t in targets]
+    chests = [make_target(o, 'chest') for o in g.objects('pickups') if o.get('name', '').startswith('chest_')]
+    coins = []
+    for obj in g.objects('pickups'):
+        if not obj.get('name', '').startswith('coin_cluster_'):
+            continue
+        count = int(properties(obj).get('count', 1))
+        if not 1 <= count <= 64:
+            errors.append(f"金币堆 {obj.get('name')} 数量必须为1至64")
+            continue
+        for i in range(count):
+            coin = {**obj, 'name': f"{obj['name']}/{i + 1}",
+                    'x': obj['x'] + (i % 4) * 10 - 15, 'y': obj['y'] - (i // 4) * 10}
+            coins.append({**make_target(coin, 'coin'), 'clusterId': obj['name'], 'coinIndex': i})
+    for target in [*chests, *coins]:
+        x, y = target['object']['x'], target['object']['y']
+        # 箱纹理48×40，显示中心y+8；金币64px帧缩半后圆轮廓约27px。
+        visual_bounds = (x - 24, y - 12, x + 24, y + 28) if target['kind'] == 'chest' else (x - 14, y - 14, x + 14, y + 14)
+        target['visualBounds'] = visual_bounds
+        target['clear'] = not g.blocked(visual_bounds)
+        if not target['clear']:
+            errors.append(f"{'宝箱' if target['kind'] == 'chest' else '金币'} {target['id']} 嵌入实体/即死区或越界")
+    targets = [goal, *shards, *checkpoints, *switches, *chests, *coins]
+    aims = list(dict.fromkeys(t['object']['x'] for t in targets))
     edges, adjacency = [], {s.id: [] for s in surfaces}
 
     def add_edge(edge):
@@ -373,7 +396,7 @@ def audit_map(raw, level_id='test', physics=None):
                 add_edge(edge)
     for source in surfaces:
         for target in targets:
-            if target['kind'] == 'switch' or standing_hit(target, source, p):
+            if target['kind'] in ('switch', 'chest') or standing_hit(target, source, p):
                 continue
             x, duration = clamp(target['object']['x'], source.xMin, source.xMax), 2 * p.jumpVelocity / p.gravity
             samples = samples_for(x, source.y, 0, 1, 0, duration, True, p)
@@ -456,14 +479,120 @@ def audit_map(raw, level_id='test', physics=None):
                 walk_to(final_hit['x'], current_node, target['id'] if target else None)
         return steps
 
+    # 奖励的独立路线需要真实的机关前置；长表面上的步行同样可能穿过关闭的门。
+    gate_rects = [(rect_of(obj), properties(obj).get('group', ''))
+             for obj in g.mechanisms if object_kind(obj) == 'gate']
+    group_masks = {group: sum(1 << i for i, switch in enumerate(switches)
+                              if switch['properties'].get('group', '') == group)
+                   for _, group in gate_rects}
+    switch_predecessors = [sum(1 << j for j, earlier in enumerate(switches)
+                               if earlier['properties'].get('group', '') == target['properties'].get('group', '')
+                               and int(earlier['properties'].get('order', 0)) < int(target['properties'].get('order', 0)))
+                           for target in switches]
+
+    def gate_mask(bounds):
+        mask = 0
+        for gate_bounds, group in gate_rects:
+            if overlap(bounds, gate_bounds):
+                # 没有配套开关的门不能被静态路线假设为已开启。
+                mask |= group_masks[group] or (1 << len(switches))
+        return mask
+
+    def walk_mask(x, tx, node):
+        return gate_mask((min(x, tx) - p.width / 2, surfaces[node].y - p.height,
+                          max(x, tx) + p.width / 2, surfaces[node].y))
+
+    def walk_step(x, tx, node, objective=None):
+        return {'kind': 'walk', 'surface': node, 'fromX': round(x, 3),
+                'target': {'x': round(tx, 3), 'y': surfaces[node].y},
+                'direction': 1 if tx >= x else -1, 'moveMs': round(abs(tx - x) / p.walkSpeed * 1000),
+                'objective': objective, 'quickDeparture': surfaces[node].kind == 'crumble'}
+
+    edge_gate_masks = {}
+    if gate_rects:
+        for edge in edges:
+            needed = walk_mask(edge['runUpStart']['x'], edge['launch']['x'], edge['from'])
+            samples = edge['_samples']
+            for previous, current in zip(samples, samples[1:]):
+                a, b = g.body(*previous[:2]), g.body(*current[:2])
+                needed |= gate_mask((min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3])))
+            edge_gate_masks[edge['id']] = needed
+    reward_start = (spawn_surface, round(sx, 4), 0)
+    reward_states = {reward_start: None} if spawn_surface is not None and gate_rects else {}
+    queue = deque(reward_states)
+    while queue:
+        state = queue.popleft()
+        node, x, mask = state
+
+        def remember(other, steps):
+            if other not in reward_states:
+                reward_states[other] = (state, steps)
+                queue.append(other)
+
+        for index, switch in enumerate(switches):
+            if mask & (1 << index) or mask & switch_predecessors[index] != switch_predecessors[index]:
+                continue
+            hit = standing_hit(switch, surfaces[node], p)
+            if hit and walk_mask(x, hit['x'], node) & ~mask == 0:
+                remember((node, round(hit['x'], 4), mask | (1 << index)), [
+                    walk_step(x, hit['x'], node, switch['id']),
+                    {'kind': 'interact', 'target': hit, 'objective': switch['id'],
+                     'group': switch['properties'].get('group', ''), 'order': switch['properties'].get('order', 0)}])
+        for edge_id in adjacency[node]:
+            edge = edges[edge_id]
+            needed = edge_gate_masks[edge_id] | walk_mask(x, edge['runUpStart']['x'], node)
+            if needed & ~mask == 0:
+                remember((edge['to'], round(edge['landing']['x'], 4), mask),
+                         [walk_step(x, edge['runUpStart']['x'], node), public_edge(edge)])
+
+    def reward_path(state):
+        chunks = []
+        while reward_states[state] is not None:
+            previous, steps = reward_states[state]
+            chunks.append(steps)
+            state = previous
+        steps = [step for chunk in reversed(chunks) for step in chunk]
+        edge_ids = [step['id'] for step in steps if step['kind'] in ('jump', 'drop')]
+        return steps, edge_ids
+
+    def reward_route(target):
+        for state in reward_states:
+            node, x, mask = state
+            hit = standing_hit(target, surfaces[node], p)
+            if hit and walk_mask(x, hit['x'], node) & ~mask == 0:
+                steps, edge_ids = reward_path(state)
+                steps.append(walk_step(x, hit['x'], node, target['id']))
+                if target['kind'] == 'chest':
+                    steps.append({'kind': 'interact', 'target': hit, 'objective': target['id']})
+                return {**target, 'reachable': True, 'surface': node, 'hit': hit, 'edgeIds': edge_ids, 'steps': steps}
+        if target['kind'] == 'coin':
+            for state in reward_states:
+                node, x, mask = state
+                for edge_id in adjacency[node]:
+                    edge = edges[edge_id]
+                    if (edge_gate_masks[edge_id] | walk_mask(x, edge['runUpStart']['x'], node)) & ~mask:
+                        continue
+                    hit = next(({'x': px, 'y': py, 'time': t} for px, py, t in edge['_samples']
+                                if target_hit(target, px, py, p)), None)
+                    if hit:
+                        steps, edge_ids = reward_path(state)
+                        return {**target, 'reachable': True, 'surface': edge['to'], 'hit': hit,
+                                'edgeIds': [*edge_ids, edge_id],
+                                'steps': [*steps, walk_step(x, edge['runUpStart']['x'], node), public_edge(edge)]}
+        return {**target, 'reachable': False, 'edgeIds': [], 'steps': []}
+
     def target_route(target):
+        if target.get('clear') is False:
+            return {**target, 'reachable': False, 'edgeIds': [], 'steps': []}
+        if gate_rects and target['kind'] in ('coin', 'chest'):
+            return reward_route(target)
         for surface in surfaces:
             hit = standing_hit(target, surface, p)
             if surface.id in parents and hit:
                 path = node_path(surface.id)
                 return {**target, 'reachable': True, 'surface': surface.id, 'hit': hit, 'edgeIds': path,
-                        'steps': path_steps(path, target, hit)}
-        if target['kind'] != 'switch':
+                        'steps': path_steps(path, target, hit) + ([{'kind': 'interact', 'target': hit, 'objective': target['id']}] if target['kind'] == 'chest' else [])}
+        if target['kind'] not in ('switch', 'chest'):
             for edge in edges:
                 if edge['from'] in parents:
                     hit = next(({'x': x, 'y': y, 'time': t} for x, y, t in edge['_samples'] if target_hit(target, x, y, p)), None)
@@ -474,9 +603,10 @@ def audit_map(raw, level_id='test', physics=None):
         return {**target, 'reachable': False, 'edgeIds': [], 'steps': []}
 
     routes = {'goal': target_route(goal), 'shards': [target_route(t) for t in shards],
-              'checkpoints': [target_route(t) for t in checkpoints], 'switches': [target_route(t) for t in switches]}
+              'checkpoints': [target_route(t) for t in checkpoints], 'switches': [target_route(t) for t in switches],
+              'coins': [target_route(t) for t in coins], 'chests': [target_route(t) for t in chests]}
     labelled = [(routes['goal'], '终点')]
-    for name, label in (('shards', '碎片'), ('checkpoints', '检查点'), ('switches', '开关')):
+    for name, label in (('shards', '碎片'), ('checkpoints', '检查点'), ('switches', '开关'), ('coins', '金币'), ('chests', '宝箱')):
         labelled += [(r, f"{label} {r['id']}") for r in routes[name]]
     errors += [f'{label} 不可达' for route, label in labelled if not route['reachable']]
     node_masks = {s.id: sum(1 << i for i, t in enumerate(required) if standing_hit(t, s, p)) for s in surfaces}
@@ -519,11 +649,11 @@ def audit_map(raw, level_id='test', physics=None):
             'spawn': {'sprite': {'x': sx, 'y': sy}, 'foot': {'x': sx, 'y': spawn_foot}, 'surface': spawn_surface},
             'surfaces': [asdict(s) for s in surfaces], 'edges': [public_edge(e) for e in edges],
             'reachableSurfaces': sorted(parents), 'routes': routes,
-            'mechanisms': {'gates': gates, 'gateStateMode': 'metadata_only',
+            'mechanisms': {'gates': gates, 'gateStateMode': 'reward_routes_checked',
                            'crumble': [{'id': o.get('name', ''), 'bounds': rect_of(o),
                                         'note': '静态顶面；坍塌计时与快速通过须浏览器验证'} for o in g.crumble]},
             'limitations': ['静态几何不包含敌人、战斗伤害和机关计时',
-                            '独立 gate 未作瓦片阻挡，须实测按序开关后开门',
+                            '奖励路线按关闭门体积和有序开关校验；主路线机关时序仍须实测',
                             '连续加速模型近似实际逐帧输入，须浏览器验证窄边缘和落地']}
 
 

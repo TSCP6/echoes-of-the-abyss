@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from audit_reach import audit_map, load_physics
+from audit_reach import audit_map, load_physics, make_target, target_hit
 
 
 def fixture(width=30, height=20):
@@ -43,6 +43,113 @@ def objectives(raw, goal_x=800, floor_y=512, shards=None):
 
 
 class AuditReachTests(unittest.TestCase):
+    def reward_map(self, name, x, y, count=5):
+        raw = fixture()
+        rect(raw, 0, 16, 29, 19)
+        objectives(raw)
+        raw["layers"].append({"name": "pickups", "type": "objectgroup", "objects": [
+            {"name": name, "x": x, "y": y,
+             "properties": [{"name": "count", "value": str(count)}]}]})
+        return raw
+
+    def test_chest_requires_reachable_standing_interaction(self):
+        report = audit_map(self.reward_map("chest_1", 400, 100))
+        self.assertFalse(report["ok"])
+        self.assertFalse(report["routes"]["chests"][0]["reachable"])
+
+    def test_chest_embedded_in_solid_fails_even_if_interaction_is_close(self):
+        report = audit_map(self.reward_map("chest_1", 400, 520))
+        self.assertTrue(any("嵌入" in error for error in report["errors"]))
+
+    def test_coins_check_all_spawn_offsets_including_upper_row(self):
+        raw = self.reward_map("coin_cluster_1", 400, 480)
+        rect(raw, 12, 14, 12, 14)
+        report = audit_map(raw)
+        self.assertTrue(any("金币" in error and "嵌入" in error for error in report["errors"]))
+        self.assertEqual(len(report["routes"]["coins"]), 5)
+
+    def test_coin_magnet_rejects_square_corner_and_uses_sprite_foot_offset(self):
+        physics = load_physics()
+        target = make_target({"name": "coin_cluster_1/1", "x": 300, "y": 300}, "coin")
+        self.assertTrue(target_hit(target, 390, 332, physics))
+        self.assertFalse(target_hit(target, 390, 422, physics))
+        self.assertFalse(target_hit(target, 396, 332, physics))
+
+    def test_coin_magnet_is_a_circle_in_sprite_coordinates(self):
+        raw = self.reward_map("coin_cluster_1", 400, 300, 1)
+        rect(raw, 0, 13, 29, 13)
+        report = audit_map(raw)
+        self.assertFalse(report["routes"]["coins"][0]["reachable"])
+        self.assertFalse(report["ok"])
+
+    def test_clear_rewards_have_routes_and_standing_chest_interaction_step(self):
+        raw = self.reward_map("chest_1", 400, 480)
+        layer(raw, "pickups")["objects"].append({"name": "coin_cluster_1", "x": 450, "y": 480})
+        report = audit_map(raw)
+        self.assertTrue(report["ok"], report["errors"])
+        self.assertTrue(all(route["reachable"] for route in report["routes"]["coins"]))
+        chest = report["routes"]["chests"][0]
+        self.assertEqual(chest["steps"][-1]["kind"], "interact")
+
+    def gate_reward_map(self, switch_x=200, switch_y=480):
+        raw = self.reward_map("chest_1", 800, 480)
+        layer(raw, "pickups")["objects"].append({"name": "coin_cluster_1", "x": 760, "y": 480})
+        raw["layers"].append({"name": "mechanisms", "type": "objectgroup", "objects": [
+            {"name": "rune_1", "type": "switch", "x": switch_x, "y": switch_y,
+             "properties": [{"name": "group", "value": "test"}]},
+            {"name": "gate_1", "type": "gate", "x": 480, "y": 128, "width": 32, "height": 384,
+             "properties": [{"name": "group", "value": "test"}]}]})
+        return raw
+
+    def test_reward_route_opens_gate_before_walking_on_same_long_surface(self):
+        report = audit_map(self.gate_reward_map())
+        for route in [*report["routes"]["chests"], *report["routes"]["coins"]]:
+            self.assertTrue(route["reachable"])
+            interactions = [step["objective"] for step in route["steps"] if step["kind"] == "interact"]
+            self.assertEqual(interactions[0], "rune_1")
+            if route["kind"] == "chest": self.assertEqual(interactions[-1], "chest_1")
+
+    def test_rewards_behind_gate_fail_when_the_switch_is_unreachable(self):
+        report = audit_map(self.gate_reward_map(switch_y=64))
+        self.assertFalse(report["routes"]["chests"][0]["reachable"])
+        self.assertFalse(report["routes"]["coins"][0]["reachable"])
+
+    def test_switch_behind_its_own_gate_cannot_unlock_reward_route(self):
+        report = audit_map(self.gate_reward_map(switch_x=650))
+        self.assertFalse(report["routes"]["chests"][0]["reachable"])
+
+    def test_reward_route_obeys_ordered_switch_interactions(self):
+        raw = self.gate_reward_map(switch_x=300)
+        switch = layer(raw, "mechanisms")["objects"][0]
+        switch["properties"].append({"name": "order", "value": "1"})
+        layer(raw, "mechanisms")["objects"].insert(0, {"name": "rune_2", "type": "switch", "x": 150, "y": 480,
+            "properties": [{"name": "group", "value": "test"}, {"name": "order", "value": "2"}]})
+        route = audit_map(raw)["routes"]["chests"][0]
+        self.assertEqual([step["objective"] for step in route["steps"] if step["kind"] == "interact"],
+                         ["rune_1", "rune_2", "chest_1"])
+
+    def test_gate_blocks_flight_between_separate_platforms_until_switch_is_reachable(self):
+        raw = self.gate_reward_map(switch_y=64)
+        data = layer(raw, "collision")["data"]
+        for y in range(16, 20):
+            for x in range(10, 14): data[y * raw["width"] + x] = 0
+        gate = layer(raw, "mechanisms")["objects"][1]
+        gate["x"] = 400
+        closed = audit_map(raw)
+        self.assertTrue(closed["routes"]["goal"]["reachable"])
+        self.assertFalse(closed["routes"]["chests"][0]["reachable"])
+        layer(raw, "mechanisms")["objects"][0]["y"] = 480
+        opened = audit_map(raw)["routes"]["chests"][0]
+        self.assertTrue(opened["reachable"])
+        self.assertEqual(next(step["objective"] for step in opened["steps"] if step["kind"] == "interact"), "rune_1")
+
+    def test_reward_before_gate_does_not_require_unrelated_switch(self):
+        raw = self.gate_reward_map(switch_y=64)
+        layer(raw, "pickups")["objects"][0]["x"] = 200
+        route = audit_map(raw)["routes"]["chests"][0]
+        self.assertTrue(route["reachable"])
+        self.assertEqual([step["objective"] for step in route["steps"] if step["kind"] == "interact"], ["chest_1"])
+
     def test_motion_and_body_numbers_come_from_the_config_not_comments(self):
         with TemporaryDirectory(dir=Path(__file__).parent) as directory:
             path = Path(directory) / "defaults.ts"

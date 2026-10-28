@@ -21,6 +21,8 @@ import { sceneDirector } from '../systems/sceneDirector';
 import { hudViewModel } from '../domain/hudViewModel';
 import { resourceSystem } from '../domain/resourceSystem';
 import { economyService } from '../domain/economyService';
+import { enemyRewardItems, grantChestReward } from '../domain/rewardService';
+import { ENEMY_MATERIAL_COUNTS } from '../data/rewardDefaults';
 import { progressService } from '../domain/progressService';
 import { weaponService } from '../domain/weaponService';
 import { skillService } from '../domain/skillService';
@@ -130,6 +132,14 @@ export class LevelScene extends Scene {
         recordStore.addKill();
         resourceSystem.notifyKill(); // FR-06 规则 5
         this.pickups.spawnCoinBurst(p.position, p.coins); // FR-09 掉落
+        const guaranteed = ENEMY_MATERIAL_COUNTS[p.enemyId] ?? 0;
+        if (guaranteed > 0) {
+            economyService.addMaterial('itm_relic_shard', guaranteed);
+            this.fx.message(p.position.x, p.position.y - 48, `强化残片 +${guaranteed}`);
+        }
+        for (const item of enemyRewardItems(p.enemyId, Math.random)) {
+            this.pickups.spawnItemDrop(p.position, item.itemId, item.count);
+        }
     };
 
     /** NF-03：地图按关懒加载（进关时 load，不随首屏） */
@@ -301,7 +311,12 @@ export class LevelScene extends Scene {
                 skillService.grantShardSkp(); // 1 枚 = 1 SKP（附录 A）
                 audioDirector.playSfx('pickup_item');
             },
-            onChest: () => { audioDirector.playSfx('pickup_item'); },
+            onChest: (id) => {
+                const reward = grantChestReward(this.levelId, id);
+                this.fx.message(this.player.sprite.x, this.player.sprite.y - 48,
+                    `金币 +${reward.coins} · 强化残片 +${reward.materials.itm_relic_shard ?? 0}`);
+                audioDirector.playSfx('pickup_item');
+            },
             onGoal: () => this.onGoalReached(),
             onHint: (id, action) => {
                 this.tutorial?.onHintEnter(id, action, this.hintText(action));
@@ -314,7 +329,7 @@ export class LevelScene extends Scene {
         this.player.onJumped = () => { prevJump?.(); audioDirector.playSfx('jump'); };
         this.player.onLanded = () => { this.cameraRig.onLanded(); audioDirector.playSfx('land'); };
         const prevCoin = this.pickups.onCoinPicked;
-        this.pickups.onCoinPicked = () => { prevCoin?.(); audioDirector.playSfx('coin'); };
+        this.pickups.onCoinPicked = (amount) => { prevCoin?.(amount); audioDirector.playSfx('coin'); };
         const prevChest = this.pickups.onChestOpened;
         this.pickups.onChestOpened = () => { prevChest?.(); audioDirector.playSfx('buy'); };
         audioDirector.playBgm('level');

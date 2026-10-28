@@ -45,7 +45,7 @@ export class TutorialDirector {
         const prevAttack = combat.onAttackBegan;
         combat.onAttackBegan = (type) => { prevAttack?.(type); this.complete('attack'); };
         const prevCoin = pickups.onCoinPicked;
-        pickups.onCoinPicked = () => { prevCoin?.(); this.complete('pickup'); };
+        pickups.onCoinPicked = (amount) => { prevCoin?.(amount); this.complete('pickup'); };
         const prevChest = pickups.onChestOpened;
         pickups.onChestOpened = () => { prevChest?.(); this.complete('interact'); };
     }

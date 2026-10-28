@@ -11,6 +11,10 @@ import type { PlayerController } from './playerController';
 import { economyService } from '../domain/economyService';
 import { progressService } from '../domain/progressService';
 import { PICKUP_TEXTURES } from './pickupVisuals';
+import { grantRewardItem } from '../domain/rewardService';
+import { CHEST_MATERIAL_COUNTS } from '../data/rewardDefaults';
+import { ConfigRegistry } from '../domain/configRegistry';
+import { saveSystem } from '../domain/saveSystem';
 
 const MAGNET_DELAY_SEC = 0.15;
 const MAGNET_PX = 96;
@@ -21,6 +25,7 @@ interface Coin {
     sprite: GameObjects.Sprite;
     age: number;
     active: boolean;
+    value: number;
 }
 
 export interface PickupEvents {
@@ -35,11 +40,12 @@ export interface PickupEvents {
 export class PickupSystem {
     private coins: Coin[] = [];
     private activatedCheckpoints = new Set<string>();
-    private openedChests = new Set<string>();
+    private chestVisuals = new Map<string, { sprite: GameObjects.Sprite; label: GameObjects.Text }>();
+    private itemDrops: Array<{ sprite: GameObjects.Sprite; label: GameObjects.Text; itemId: string; count: number; retry: number }> = [];
     private goalFired = false;
     private firedHints = new Set<string>();
     /** TutorialDirector / 拾取音效钩子（场景内直调，6.2.3） */
-    onCoinPicked: (() => void) | null = null;
+    onCoinPicked: ((amount: number) => void) | null = null;
     onChestOpened: (() => void) | null = null;
 
     constructor(
@@ -54,7 +60,7 @@ export class PickupSystem {
             sprite.setDepth(5);
             sprite.setScale(0.5); // 64px 帧 → 32px 世界（2x 素材约定，DD-11）
             sprite.setVisible(false);
-            this.coins.push({ sprite, age: 0, active: false });
+            this.coins.push({ sprite, age: 0, active: false, value: 0 });
         }
         // 预置金币堆（FR-09 规则 5 的关卡采集点）
         for (const cluster of ctx.coinClusters) {
@@ -64,14 +70,25 @@ export class PickupSystem {
 
     /** enemy:killed 掉落入口（IF-M18）；preplaced = 预置金币立即允许吸附。 */
     spawnCoinBurst(pos: { x: number; y: number }, count: number, preplaced = false): void {
-        for (let i = 0; i < count; i++) {
-            const coin = this.coins.find((c) => !c.active);
-            if (coin === undefined) { return; } // 池耗尽：视觉降级不阻塞（DD-13）
+        if (!Number.isSafeInteger(count) || count <= 0 || this.coins.length === 0) { return; }
+        // 金额与显示数量分离：每次最多 8 枚，Boss 奖励仍完整保存。
+        const free = this.coins.filter((coin) => !coin.active);
+        const visibleCount = Math.min(count, 8, free.length);
+        if (visibleCount === 0) {
+            // 池满时合并到距离掉落点最近的实体，避免吞掉后生成的奖励。
+            const target = this.coins.reduce((nearest, coin) =>
+                Math.hypot(coin.sprite.x - pos.x, coin.sprite.y - pos.y)
+                    < Math.hypot(nearest.sprite.x - pos.x, nearest.sprite.y - pos.y) ? coin : nearest);
+            target.value += count;
+            return;
+        }
+        for (let i = 0; i < visibleCount; i++) {
+            const coin = free[i];
             coin.active = true;
-            coin.age = 0;
+            coin.value = Math.floor(count / visibleCount) + (i < count % visibleCount ? 1 : 0);
+            coin.age = preplaced ? MAGNET_DELAY_SEC : 0;
             coin.sprite.setVisible(true);
             coin.sprite.setPosition(pos.x + (i % 4) * 10 - 15, pos.y - Math.floor(i / 4) * 10);
-            if (preplaced) { coin.age = MAGNET_DELAY_SEC; }
         }
     }
 
@@ -80,10 +97,34 @@ export class PickupSystem {
         this.scene.tweens.add({ targets: t, y: y - 24, alpha: 0, duration: 600, onComplete: () => t.destroy() });
     }
 
+    spawnItemDrop(pos: { x: number; y: number }, itemId: string, count: number): void {
+        const sprite = this.scene.add.sprite(pos.x, pos.y, PICKUP_TEXTURES.loot).setDepth(6);
+        const label = this.scene.add.text(pos.x, pos.y - 24, `${ConfigRegistry.items()[itemId]?.name ?? itemId} ×${count}`,
+            { fontSize: '14px', color: '#e9acff', stroke: '#101827', strokeThickness: 3 }).setDepth(30).setOrigin(0.5, 1);
+        this.itemDrops.push({ sprite, label, itemId, count, retry: 0 });
+    }
+
     /** 管线阶段 7（dt 单位 s） */
     update(dt: number, interactPressed = false): void {
         const px = this.player.sprite.x;
         const py = this.player.sprite.y;
+        for (const item of [...this.itemDrops]) {
+            item.retry = Math.max(0, item.retry - dt);
+            if (item.retry > 0 || Math.hypot(item.sprite.x - px, item.sprite.y - py) > 64) { continue; }
+            const granted = grantRewardItem(item.itemId, item.count);
+            if (granted.added > 0) {
+                this.floatText(item.sprite.x, item.sprite.y - 36, `${ConfigRegistry.items()[item.itemId]?.name} +${granted.added}`, '#e9acff');
+                saveSystem.markDirty(); saveSystem.queueWrite();
+            }
+            item.count = granted.remaining;
+            if (item.count === 0) {
+                item.sprite.destroy(); item.label.destroy();
+                this.itemDrops.splice(this.itemDrops.indexOf(item), 1);
+            } else {
+                item.label.setText(`背包已满 · ${ConfigRegistry.items()[item.itemId]?.name} ×${item.count}`);
+                item.retry = 1;
+            }
+        }
 
         // 接触拾取与掉落动画分开：散开期也可立即捡起。
         for (const coin of this.coins) {
@@ -102,10 +143,12 @@ export class PickupSystem {
             const dy = py - coin.sprite.y;
             const dist = Math.hypot(dx, dy);
             if (dist < 20) {
-                const r = economyService.addCoins(1);
-                if (r.ok && !r.value.rejected) {
-                    this.floatText(coin.sprite.x, coin.sprite.y - 10, '+1 金币');
-                    this.onCoinPicked?.();
+                const before = economyService.getCoins();
+                economyService.addCoins(coin.value);
+                const added = economyService.getCoins() - before;
+                if (added > 0) {
+                    this.floatText(coin.sprite.x, coin.sprite.y - 10, `+${added} 金币`);
+                    this.onCoinPicked?.(added);
                 } else {
                     this.floatText(coin.sprite.x, coin.sprite.y - 10, '金币已满');
                 }
@@ -136,13 +179,24 @@ export class PickupSystem {
                 this.events.onShard(sh.id);
             }
         }
-        // 宝箱（E 交互，本次尝试内保持开启）
+        // 宝箱（E 交互，跨死亡、重进与存档保持开启）
         for (const ch of this.ctx.chests) {
-            if (!interactPressed) { break; }
-            if (this.openedChests.has(ch.id)) { continue; }
-            if (Math.abs(px - ch.x) < 44 && Math.abs(py - ch.y) < 56) {
-                this.openedChests.add(ch.id);
-                this.spawnCoinBurst({ x: ch.x, y: ch.y - 20 }, 12);
+            let visual = this.chestVisuals.get(ch.id);
+            if (visual === undefined) {
+                visual = { sprite: this.scene.add.sprite(ch.x, ch.y + 8, PICKUP_TEXTURES.chest).setDepth(6),
+                    label: this.scene.add.text(ch.x, ch.y - 24, '', { fontSize: '14px', color: '#ffe0a1', stroke: '#101827', strokeThickness: 3 }).setDepth(30).setOrigin(0.5, 1) };
+                this.chestVisuals.set(ch.id, visual);
+            }
+            const near = Math.abs(px - ch.x) < 44 && Math.abs(py - ch.y) < 56;
+            const opened = progressService.isChestOpened(this.ctx.levelId, ch.id);
+            const chapter = Number(this.ctx.levelId.split('-')[0]);
+            const text = opened ? '已开启' : near ? `E 开启 · 强化残片 +${CHEST_MATERIAL_COUNTS[chapter as 1 | 2 | 3]}` : '补给宝箱';
+            if (visual.label.text !== text) { visual.label.setText(text); }
+            visual.sprite.setTexture(opened ? PICKUP_TEXTURES.chestOpen : PICKUP_TEXTURES.chest);
+            if (interactPressed && near && !opened) {
+                if (!progressService.openChest(this.ctx.levelId, ch.id)) { continue; }
+                visual.sprite.setTexture(PICKUP_TEXTURES.chestOpen);
+                visual.label.setText('已开启');
                 this.events.onChest(ch.id);
                 this.onChestOpened?.();
             }
@@ -166,6 +220,10 @@ export class PickupSystem {
     get goalReached(): boolean { return this.goalFired; }
 
     destroy(): void {
+        for (const visual of this.chestVisuals.values()) { visual.sprite.destroy(); visual.label.destroy(); }
+        this.chestVisuals.clear();
+        for (const item of this.itemDrops) { item.sprite.destroy(); item.label.destroy(); }
+        this.itemDrops = [];
         for (const coin of this.coins) { coin.sprite.destroy(); }
         this.coins = [];
     }
