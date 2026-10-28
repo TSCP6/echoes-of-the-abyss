@@ -13,6 +13,7 @@ import type {
 import { BOSS_SKILL_KINDS } from './types';
 import { WEAPONS, INITIAL_WEAPONS, INITIAL_EQUIP } from '../data/weapons';
 import { ENEMIES } from '../data/enemies';
+import { NORMAL_ENEMY_COMBAT } from '../data/normalEnemyCombat';
 import { SKILLS, SKP_TOTAL_COST } from '../data/skills';
 import { ITEMS } from '../data/items';
 import { LEVELS, LEVEL_ORDER, BOSS_SKP_REWARD } from '../data/levels';
@@ -119,6 +120,38 @@ function validateBossSkill(enemyId: string, skill: BossSkillDef): void {
     }
     if (skill.kind === 'spiderEggs' && !isInt(skill.params.count)) {
         push('enemies', enemyId, 'skill.params.count', '蛛卵数量须为整数', skill.params.count);
+    }
+}
+
+function validateNormalEnemyCombat(): void {
+    const table = 'normalEnemyCombat';
+    const expected = { enm_patrol: 'ranged', enm_chaser: 'melee', enm_flyer: 'dive' };
+    for (const [id, kind] of Object.entries(expected)) {
+        const c = NORMAL_ENEMY_COMBAT[id];
+        if (c === undefined) { push(table, id, 'id', '三类普通敌人须有主动攻击配置', id); continue; }
+        if (c.kind !== kind) { push(table, id, 'kind', `须为 ${kind}`, c.kind); }
+    }
+    for (const [id, c] of Object.entries(NORMAL_ENEMY_COMBAT)) {
+        if (!(id in expected) || !ENEMIES.some(e => e.id === id && e.kind !== 'boss')) {
+            push(table, id, 'id', '须引用三类普通敌人', id);
+        }
+        checkRange(table, id, 'damage', c.damage, 5, 30);
+        if (!isInt(c.damage)) { push(table, id, 'damage', '须为整数', c.damage); }
+        for (const field of ['windupSec', 'activeSec', 'recoverySec', 'cooldownSec', 'lostSec'] as const) {
+            checkRange(table, id, field, c[field], 0.05, 8);
+        }
+        checkRange(table, id, 'leashRange', c.leashRange, 100, 1000);
+        const fields = c.kind === 'melee' ? ['attackRange', 'reach', 'height', 'lungeSpeed']
+            : c.kind === 'ranged' ? ['minRange', 'maxRange', 'retreatDistance', 'projectileSpeed', 'projectileRange']
+                : ['trackSpeed', 'hoverHeight', 'attackRange', 'diveSpeed', 'diveDistance', 'cruiseRadius'];
+        for (const field of fields) {
+            const value = (c as unknown as Record<string, number>)[field];
+            checkRange(table, id, field, value, 1, 600);
+        }
+        if (c.kind === 'dive') { checkRange(table, id, 'lockSec', c.lockSec, 0.05, c.windupSec); }
+        if (c.kind === 'ranged' && !(c.minRange < c.maxRange && c.maxRange <= c.projectileRange)) {
+            push(table, id, 'minRange', 'minRange < maxRange ≤ projectileRange', c.minRange);
+        }
     }
 }
 
@@ -375,6 +408,7 @@ export function validateAll(): Result<void, 'CONFIG_INVALID'> & { errors?: Confi
 
     validateWeapons(itemIdSet);
     validateEnemies(lootIdSet);
+    validateNormalEnemyCombat();
     validateSkills();
     validateItems();
     validateLevels(enemyIdSet);

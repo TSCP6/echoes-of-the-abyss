@@ -151,7 +151,19 @@ export class CombatResolver {
         const pm = this.player.getMotionState();
         if (pm.state !== 'dead' && !this.playerIsInvincible()) {
             for (const enemy of this.enemies.getEntities()) {
-                if (enemy.dead || enemy.sleeping || enemy.abilityContactSuppressed) { continue; }
+                if (enemy.dead || enemy.sleeping) { continue; }
+                const attack = enemy.getNormalAttack?.();
+                if (attack !== undefined && attack !== null) {
+                    const r = attack.rect;
+                    const pb = this.player.body;
+                    if (Geom.Rectangle.Overlaps(new Geom.Rectangle(pb.x, pb.y, pb.width, pb.height),
+                        new Geom.Rectangle(r.x, r.y, r.width, r.height))) {
+                        enemy.consumeNormalAttack();
+                        this.hitPlayer(attack.damage, enemy.def.id, enemy.sprite.x);
+                        break;
+                    }
+                }
+                if (enemy.suppressesContactDamage?.() || enemy.abilityContactSuppressed) { continue; }
                 const hb = enemy.getHurtbox();
                 const pb = this.player.body;
                 if (Geom.Rectangle.Overlaps(new Geom.Rectangle(pb.x, pb.y, pb.width, pb.height),

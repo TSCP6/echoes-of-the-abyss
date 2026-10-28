@@ -203,3 +203,34 @@ describe('攻击等级来源', () => {
         expect(f.enemy.hp).toBe(81); // round(12 * 1.6)
     });
 });
+
+describe('普通敌人主动攻击结算', () => {
+    it('前摇和后摇关闭接触伤害，攻击范围命中只消费一次', () => {
+        const f = duel('enm_chaser');
+        let attack: { rect: { x: number; y: number; width: number; height: number }; damage: number } | null = null;
+        f.enemy.suppressesContactDamage = () => true;
+        f.enemy.getNormalAttack = () => attack;
+        f.enemy.consumeNormalAttack = () => { attack = null; };
+        f.combat.update(1 / 60);
+        expect(resourceSystem.getSnapshot().hp).toBe(100);
+        attack = { rect: { x: 80, y: 70, width: 50, height: 50 }, damage: 12 };
+        f.combat.update(1 / 60);
+        expect(resourceSystem.getSnapshot().hp).toBe(88);
+        expect(attack).toBeNull();
+        f.player.iFrameUntil = 0;
+        f.combat.update(1 / 60);
+        expect(resourceSystem.getSnapshot().hp).toBe(88);
+    });
+
+    it('主动攻击先致死时遵守 K7，取消本帧玩家攻击', () => {
+        const f = duel('enm_chaser');
+        resourceSystem.applyDamage(90);
+        f.enemy.suppressesContactDamage = () => true;
+        f.enemy.getNormalAttack = () => ({ rect: { x: 80, y: 70, width: 50, height: 50 }, damage: 12 });
+        f.enemy.consumeNormalAttack = () => {};
+        f.combat.beginMelee(ConfigRegistry.weapons().wpn_shortsword);
+        f.combat.update(1 / 60);
+        expect(f.deaths()).toBe(1);
+        expect(f.enemy.dead).toBe(false);
+    });
+});

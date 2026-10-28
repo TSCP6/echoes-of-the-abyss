@@ -1,7 +1,7 @@
 /**
  * DR-01 EnemyDef ×4（巡逻/追击/飞行/精英）+ BossDef ×3（DD-06 三阶段）。
  * HP/接触伤害/移动速度/金币掉落 = SRS 附录 A 敌人表；detectRange/hurtboxSize 在 SRS 5.1 范围内取值。
- * 飞行型 moveSpeed=50（巡航），俯冲 240 px/s 为 FlyerBrain 行为常量（附录 A，不占 moveSpeed 字段）。
+ * 普通敌人主动攻击与飞行追踪参数集中在 normalEnemyCombat.ts；moveSpeed=50 为紫鹰巡航速度上限。
  * Boss 技能脚本为配置数据（DD-06），数值域受 V2/V4 校验（damage 5~30、cooldownSec 0.5~8）。
  */
 import type { EnemyDef } from '../domain/types';
@@ -9,17 +9,17 @@ import type { EnemyDef } from '../domain/types';
 export const ENEMIES: EnemyDef[] = [
     {
         id: 'enm_patrol', kind: 'patrol', hp: 30, contactDamage: 5,
-        moveSpeed: 60, detectRange: 160, coinsDrop: [3, 6],
+        moveSpeed: 60, detectRange: 300, coinsDrop: [3, 6],
         lootTableId: 'loot_patrol', hurtboxSize: { w: 40, h: 36 }, phases: []
     },
     {
         id: 'enm_chaser', kind: 'chaser', hp: 45, contactDamage: 5,
-        moveSpeed: 130, detectRange: 220, coinsDrop: [6, 10],
+        moveSpeed: 160, detectRange: 220, coinsDrop: [6, 10],
         lootTableId: 'loot_chaser', hurtboxSize: { w: 28, h: 34 }, phases: []
     },
     {
         id: 'enm_flyer', kind: 'flyer', hp: 25, contactDamage: 5,
-        moveSpeed: 50, detectRange: 220, coinsDrop: [5, 8],
+        moveSpeed: 50, detectRange: 300, coinsDrop: [5, 8],
         lootTableId: 'loot_flyer', hurtboxSize: { w: 28, h: 24 }, phases: []
     },
     {

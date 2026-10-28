@@ -14,6 +14,7 @@ import { PickupSystem } from '../systems/pickupSystem';
 import { EnemyAI, type ArenaHazard } from '../systems/enemyAI';
 import { ProjectilePool } from '../systems/projectilePool';
 import { CombatResolver } from '../systems/combatResolver';
+import { NormalEnemyFx } from '../systems/normalEnemyFx';
 import { WorldFxLayer } from '../systems/worldFxLayer';
 import { sceneDirector } from '../systems/sceneDirector';
 import { hudViewModel } from '../domain/hudViewModel';
@@ -50,6 +51,7 @@ export class LevelScene extends Scene {
     private cameraRig!: CameraRig;
     private pickups!: PickupSystem;
     private enemies!: EnemyAI;
+    private normalEnemyFx!: NormalEnemyFx;
     private projectiles!: ProjectilePool;
     private combat!: CombatResolver;
     private fx!: WorldFxLayer;
@@ -200,6 +202,7 @@ export class LevelScene extends Scene {
         this.fx = new WorldFxLayer(this);
         this.dangerFx = new BossDangerFx(this);
         this.enemies = new EnemyAI(this, this.ctx, this.player, groundProbe);
+        this.normalEnemyFx = new NormalEnemyFx(this);
         this.projectiles = new ProjectilePool(this, this.ctx);
         this.enemies.projectiles = this.projectiles;
         this.enemies.events = {
@@ -487,6 +490,7 @@ export class LevelScene extends Scene {
 
         // 阶段 6：敌人
         this.enemies.update(dt, this.time.now);
+        this.normalEnemyFx.render(this.enemies.getEntities());
         this.mark();
 
         // Boss 血条（FR-14 规则 5）
@@ -578,6 +582,7 @@ export class LevelScene extends Scene {
         this.arena?.destroy();
         this.arena = null;
         this.enemies?.destroy();
+        this.normalEnemyFx?.destroy();
         this.fx?.destroy();
         this.dangerFx?.destroy();
         this.pickups?.destroy();

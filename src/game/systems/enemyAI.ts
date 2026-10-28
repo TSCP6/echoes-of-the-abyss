@@ -1,9 +1,9 @@
 /**
  * MOD-03 EnemyAI（Phaser 呈现层，管线阶段 6）—— FR-03 全部行为。
- * 组合式 brain：EnemyEntity 持有 PatrolBrain/ChaserBrain/FlyerBrain/BossBrain 之一。
- * 巡逻：±128 px 往返 + 边缘/墙体转向（AT-08）；玩家 160 px 水平 + 落差 ≤48 → 追击。
- * 追击：def.moveSpeed、视线丢失 2.5 s 返回（AT-09）；v1 不跳跃。
- * 飞行：忽略重力、锚点半径 96 正弦巡航、220 px 俯冲、俯冲后硬直 1.0 s（AT-10）。
+ * 普通敌人使用 NormalEnemyBrain；精英与特殊召唤物、Boss 保留专用分支。
+ * 巡逻型：慢速单发远程；追击型：快速近战扑击；攻击与后摇读 normalEnemyCombat。
+ * 追踪：短暂丢失保留最后可见位置，2.5 s 后归巢（AT-09）；地面不跳跃。
+ * 飞行：范围内追踪、前摇末锁定、有限时距俯冲、后摇 1.0 s 后升空或归巢（AT-10）。
  * Boss：三阶段（HP 100/66/33% 切换，AT-11）、切换 1.5 s 无敌 + 特效事件、每阶段循环 2~3 技能（DD-06）。
  * 受击 0.15 s 硬直 + 60 px 击退；死亡时长随角色动画配置。
  * 同屏预算 >24 最远冻结（FR-03 边界）。巡逻兵、三个 Boss 与召唤物接入动画。
@@ -17,6 +17,8 @@ import type { ProjectilePool } from './projectilePool';
 import { EnemyVisual, enemyTexture } from './enemyVisuals';
 import { beginBossAttack, tickBossAttack, type BossAttack } from './bossAttack';
 import { bossProjectileAngles } from './bossSkillPresentation';
+import { NormalEnemyBrain, type NormalEnemyAttack, type NormalEnemySnapshot } from '../domain/normalEnemyBrain';
+import { NORMAL_ENEMY_COMBAT } from '../data/normalEnemyCombat';
 
 const PATROL_SPAN = 128;
 const CHASE_LOST_SEC = 2.5;
@@ -61,6 +63,7 @@ export class EnemyEntity {
     private skillCooldown = 0;
     private readonly visual: EnemyVisual;
     private bossAttack: BossAttack | null = null;
+    private normalBrain: NormalEnemyBrain | null = null;
 
     constructor(scene: Scene, def: EnemyDef, x: number, y: number,
         private groundProbe: (x: number, y: number) => boolean, visualId = def.id) {
@@ -83,6 +86,10 @@ export class EnemyEntity {
         body.setCollideWorldBounds(false);
         if (def.kind === 'flyer' || def.kind === 'boss') { body.setAllowGravity(false); }
         this.sprite.setDepth(6);
+        const combat = NORMAL_ENEMY_COMBAT[def.id];
+        if (combat !== undefined && visualId === def.id) {
+            this.normalBrain = new NormalEnemyBrain(def, combat, { x, y: y + 24 - def.hurtboxSize.h / 2 });
+        }
     }
 
     get body(): Physics.Arcade.Body { return this.sprite.body as Physics.Arcade.Body; }
@@ -96,10 +103,28 @@ export class EnemyEntity {
 
     getBossAttack(): BossAttack | null { return this.dead ? null : this.bossAttack; }
 
+    getNormalCombatState(): NormalEnemySnapshot | null {
+        if (this.dead || this.sleeping || this.normalBrain === null) { return null; }
+        this.normalBrain.syncPosition(this.body.center);
+        return this.normalBrain.snapshot;
+    }
+
+    getNormalAttack(): NormalEnemyAttack | null {
+        return this.stagger > 0 ? null : this.getNormalCombatState()?.attack ?? null;
+    }
+
+    consumeNormalAttack(): void { this.normalBrain?.consumeAttack(); }
+
+    suppressesContactDamage(): boolean {
+        const state = this.getNormalCombatState();
+        return this.abilityContactSuppressed || state !== null && ['windup', 'active', 'recovery'].includes(state.stage);
+    }
+
     /** FR-03：受击硬直 + 击退；返回是否死亡 */
     applyHit(amount: number, fromX: number): boolean {
         if (this.dead) { return false; }
         this.hp -= amount;
+        this.normalBrain?.interrupt();
         // Boss施招计时与范围预警共用节奏，普通攻击不会把其中一方单独暂停。
         const casting = this.def.kind === 'boss' && this.bossAttack !== null;
         this.stagger = casting ? 0 : HIT_STAGGER_SEC;
@@ -124,14 +149,15 @@ export class EnemyEntity {
             if (this.deathTimer <= 0) { this.sprite.setVisible(false); return true; }
             return false;
         }
-        if (this.sleeping) { this.visual.update(0, 'idle', true); return false; }
+        if (this.sleeping) { this.body.setVelocity(0, 0); this.visual.update(0, 'idle', true); return false; }
         if (this.stagger > 0) {
             this.stagger -= dt;
             this.visual.update(dt, 'hit');
             return false;
         }
 
-        switch (this.def.kind) {
+        if (this.normalBrain !== null) { this.updateNormal(dt, player, projectiles); }
+        else switch (this.def.kind) {
             case 'patrol': this.updatePatrol(dt, player); break;
             case 'chaser': this.updateChaser(dt, player); break;
             case 'flyer': this.updateFlyer(dt, player); break;
@@ -142,6 +168,46 @@ export class EnemyEntity {
         }
         this.visual.update(dt, this.isInvincible(nowMs) ? 'phase' : this.body.velocity.length() > 1 ? 'move' : 'idle');
         return false;
+    }
+
+    private updateNormal(dt: number, player: PlayerController, projectiles: ProjectilePool | null): void {
+        const brain = this.normalBrain!;
+        const body = this.body;
+        const position = body.center;
+        const target = player.body.center;
+        const previous = brain.snapshot.stage;
+        const grounded = body.blocked.down || body.touching?.down;
+        const probe = this.def.hurtboxSize.w / 2 + Math.max(this.def.moveSpeed,
+            brain.combat.kind === 'melee' ? brain.combat.lungeSpeed : 0) * dt + EDGE_PROBE_PX;
+        let visible = true;
+        const length = Math.hypot(target.x - position.x, target.y - position.y);
+        for (let at = 16; at < length; at += 16) {
+            if (this.groundProbe(position.x + (target.x - position.x) * at / length,
+                position.y + (target.y - position.y) * at / length)) { visible = false; break; }
+        }
+        const motion = brain.tick(dt, {
+            x: position.x, y: position.y, player: target,
+            canMoveLeft: !!grounded && !body.blocked.left && this.groundProbe(position.x - probe, body.bottom + EDGE_PROBE_PX),
+            canMoveRight: !!grounded && !body.blocked.right && this.groundProbe(position.x + probe, body.bottom + EDGE_PROBE_PX),
+            blocked: body.blocked.left || body.blocked.right || body.blocked.up || body.blocked.down,
+            visible, playerAlive: player.getMotionState?.().state !== 'dead'
+        });
+        if (this.def.kind === 'flyer') { body.setVelocity(motion.vx, motion.vy); }
+        else { body.setVelocityX(motion.vx); }
+        const state = brain.snapshot;
+        this.visual.face(state.facing);
+        if (state.stage !== previous) {
+            // 当前素材缺少独立攻击帧：前摇停姿、释放时恢复运动动画；范围特效读同一快照。
+            this.visual.update(0, state.stage === 'active' ? 'move' : 'idle');
+        }
+        if (motion.fire && brain.combat.kind === 'ranged') {
+            projectiles?.spawn({
+                x: position.x + state.facing * (body.width / 2 + 10), y: position.y,
+                angleDeg: Math.atan2(state.target.y - position.y, state.target.x - position.x) * 180 / Math.PI,
+                speed: brain.combat.projectileSpeed, range: brain.combat.projectileRange,
+                damage: brain.combat.damage, side: 'enemy', sourceId: this.def.id
+            });
+        }
     }
 
     private updatePatrol(dt: number, player: PlayerController): void {
@@ -347,6 +413,10 @@ export class EnemyEntity {
         if (this.body.checkCollision) { this.body.checkCollision.none = false; }
         this.diving = false;
         this.diveStagger = 0;
+        this.flyT = 0;
+        if (this.normalBrain !== null) {
+            this.normalBrain = new NormalEnemyBrain(this.def, this.normalBrain.combat, { ...this.normalBrain.home });
+        }
         this.visual.reset();
         this.sprite.setPosition(this.spawnPos.x, this.spawnPos.y);
         this.sprite.setVisible(true);
