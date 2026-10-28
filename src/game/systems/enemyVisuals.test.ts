@@ -88,7 +88,7 @@ describe('敌人美术状态优先级', () => {
         expect(enemyTexture('enm_boss_guardian', 'boss')).toBe('guardian_idle');
         expect(enemyTexture('enm_boss_spider', 'boss')).toBe('spider_idle');
         expect(enemyTexture('enm_boss_echo', 'boss')).toBe('echo_idle');
-        expect(enemyTexture('enm_elite', 'patrol')).toBe('enemy_patrol');
+        expect(enemyTexture('enm_elite', 'patrol')).toBe('elite_move');
         expect(enemyTexture('enm_patrol', 'patrol')).toBe('ant_run');
     });
 

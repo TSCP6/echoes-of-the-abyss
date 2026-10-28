@@ -3,7 +3,8 @@ from pathlib import Path
 from PIL import Image
 
 root = Path(__file__).resolve().parents[1] / 'public/assets/art/enemies'
-checks = [('ant_run', 96, 8), ('guardian_idle', 200, 4), ('guardian_glow', 200, 8),
+checks = [('chaser_run', 128, 6), ('flyer_fly', 128, 4), ('elite_move', 128, 4), ('normal_enemy_death', 128, 6),
+          ('ant_run', 96, 8), ('guardian_idle', 200, 4), ('guardian_glow', 200, 8),
           ('guardian_shoot', 200, 9), ('guardian_immune', 200, 8),
           ('guardian_melee', 200, 7), ('guardian_death', 200, 14),
           ('spider_idle', 160, 4), ('spider_move', 160, 4), ('spider_cast', 160, 3), ('spider_death', 160, 4),

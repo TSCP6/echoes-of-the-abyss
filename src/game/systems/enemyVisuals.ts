@@ -1,6 +1,8 @@
 import type { Physics, Scene } from 'phaser';
+import { NORMAL_ENEMY_PROFILES, NORMAL_ENEMY_SHEETS } from './normalEnemyArt';
 
 const SHEETS = [
+    ...NORMAL_ENEMY_SHEETS,
     { texture: 'ant_run', animation: 'ant-run', size: 96, frames: 8, fps: 6, repeat: -1 },
     { texture: 'ant_run', animation: 'ant-idle', size: 96, frames: 1, fps: 1, repeat: -1 },
     { texture: 'guardian_idle', animation: 'guardian-idle', size: 200, frames: 4, fps: 8, repeat: -1 },
@@ -66,6 +68,7 @@ export function registerEnemyAnimations(scene: Scene): void {
 }
 
 export function enemyTexture(id: string, kind: string): string {
+    if (id in NORMAL_ENEMY_PROFILES) { return NORMAL_ENEMY_PROFILES[id as keyof typeof NORMAL_ENEMY_PROFILES].texture; }
     if (id === 'enm_patrol') { return 'ant_run'; }
     if (id === 'enm_boss_guardian') { return 'guardian_idle'; }
     if (id === 'enm_boss_spider') { return 'spider_idle'; }
@@ -82,9 +85,12 @@ interface VisualProfile {
     skills: Record<string, { key: string; duration: number; windup?: string }>;
     windup: string;
     appear?: string;
+    deathKey?: string;
+    facesLeft?: boolean;
 }
 
 const PROFILES: Record<string, VisualProfile> = {
+    ...NORMAL_ENEMY_PROFILES,
     enm_boss_guardian: {
         size: 200, death: 1.4, idle: 'guardian-idle', move: 'guardian-idle', hit: 'guardian-immune', phase: 'guardian-glow', windup: 'guardian-glow',
         skills: {
@@ -149,7 +155,7 @@ export class EnemyVisual {
     }
 
     face(direction: 1 | -1): void {
-        this.sprite.setFlipX(this.ant ? direction > 0 : direction < 0);
+        this.sprite.setFlipX((this.profile?.facesLeft ?? this.ant) ? direction > 0 : direction < 0);
     }
 
     /** 视觉保持时间由实际技能窗口提供；省略时使用素材本身的播放长度。 */
@@ -178,7 +184,7 @@ export class EnemyVisual {
         if (state === 'dead') {
             this.actionRemaining = 0;
             if (this.profile !== undefined) {
-                this.play(this.id === 'echo_spirit' ? 'echo-spirit-death' : `${this.id.replace('enm_boss_', '')}-death`);
+                this.play(this.profile.deathKey ?? (this.id === 'echo_spirit' ? 'echo-spirit-death' : `${this.id.replace('enm_boss_', '')}-death`));
             } else {
                 this.sprite.anims.stop();
                 this.deathElapsed += dt;

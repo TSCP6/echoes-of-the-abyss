@@ -137,6 +137,9 @@ export class EnemyEntity {
             case 'flyer': this.updateFlyer(dt, player); break;
             case 'boss': this.updateBoss(dt, player, nowMs, events, projectiles); break;
         }
+        if (this.def.kind === 'flyer' && Math.abs(this.body.velocity.x) > 1) {
+            this.visual.face(this.body.velocity.x > 0 ? 1 : -1);
+        }
         this.visual.update(dt, this.isInvincible(nowMs) ? 'phase' : this.body.velocity.length() > 1 ? 'move' : 'idle');
         return false;
     }
