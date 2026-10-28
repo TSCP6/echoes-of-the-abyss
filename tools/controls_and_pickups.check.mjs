@@ -32,9 +32,13 @@ export async function checkControlsAndPickups(chromium, url = 'http://localhost:
             add(`${width}×${height} 技能树无横向溢出且关闭按钮可见`, fits && await p.getByRole('button', { name: '关闭（Y）', exact: true }).isVisible());
         }
         await p.setViewportSize({ width: 1280, height: 800 });
-        await p.locator('[data-skill=sk_whirlwind]').hover();
+        await p.locator('[data-skill=sk_whirlwind]').click();
         let text = await p.locator('#skill-details').innerText();
-        add('悬停显示真实伤害范围、消耗冷却和中文前置', ['25', '80px', '20 SP', '6 秒', '刃影专注'].every(t => text.includes(t)), text);
+        add('点击显示真实伤害范围、消耗冷却和中文前置', ['25', '80px', '20 SP', '6 秒', '刃影专注'].every(t => text.includes(t)), text);
+        await p.locator('[data-skill=sk_dash]').hover();
+        add('移过其他技能不改变已选详情', await p.locator('#skill-details').innerText() === text);
+        await p.locator('[data-skill=sk_heal]').focus();
+        add('仅聚焦其他技能不改变已选详情', await p.locator('#skill-details').innerText() === text);
         const learn = async id => { await p.locator(`[data-skill=${id}]`).click(); await p.locator('#skill-details .btn').first().click(); };
         await learn('sk_dash');
         add('学习主动技能后自动填入第一个空槽', await p.evaluate(() => window.__SEAPP_DOMAIN__.skills.getLoadout()[0] === 'sk_dash'));

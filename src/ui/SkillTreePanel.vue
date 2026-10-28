@@ -66,8 +66,8 @@ function unequip(): void {
             <section v-for="br in branches" :key="br.branch" class="col">
                 <h3>{{ br.label }}</h3>
                 <button v-for="n in br.nodes" :key="n.id" class="node" :class="[stateOf(n.id), { selected: selectedId === n.id }]"
-                    :data-skill="n.id" :title="n.name + '：' + describeSkill(n)" aria-describedby="skill-details"
-                    @mouseenter="selectedId = n.id" @focus="selectedId = n.id" @click="selectedId = n.id">
+                    :data-skill="n.id" :aria-pressed="selectedId === n.id" aria-describedby="skill-details"
+                    @click="selectedId = n.id">
                     <CombatIcon :id="n.id" :label="n.name" :size="36" /><div class="node-copy"><b>{{ n.name }}</b><span>{{ n.kind === 'active' ? '主动' : '被动' }} · {{ n.skpCost }} 点</span></div>
                 </button>
             </section>
