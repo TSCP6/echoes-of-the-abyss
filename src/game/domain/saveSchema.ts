@@ -20,6 +20,8 @@ export interface SaveProgressSection {
     unlockedLevels: string[];       // 必须是关卡顺序表连续前缀（FR-12 边界）
     clearedLevels: string[];
     collectedShards: string[];      // 全局唯一 shard id（"1-1-a" 形式）
+    /** 已领取宝箱，格式为 关卡id:对象名；旧档缺失按空集合恢复。 */
+    openedChests?: string[];
     tutorialDone: boolean;
     /** 设计层补充字段（7.3.2）：旧档缺失时回退"最后解锁关卡的入口检查点"，向后兼容 */
     currentLevelId?: string | null;

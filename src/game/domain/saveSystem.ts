@@ -14,8 +14,11 @@ import {
     type SaveData
 } from './saveSchema';
 import { emitEvent } from '../events';
+import { validPortableSave } from './saveValidation';
 
 export type LoadErrorCode = 'CORRUPT' | 'MIGRATION_FAILED' | 'SCHEMA_NEWER' | 'STORAGE_UNAVAILABLE';
+export type ImportErrorCode = 'INVALID_SAVE' | 'MIGRATION_FAILED' | 'SCHEMA_NEWER';
+export interface SaveSummary { savedAt: string; levelId: string | null; checkpointId: string | null; playTimeSec: number }
 
 export interface SaveParticipant<K extends keyof SaveData> {
     readonly key: K;
@@ -30,17 +33,28 @@ const MIGRATIONS: Record<number, (old: unknown) => unknown> = {
 export class SaveSystem {
     private participants: SaveParticipant<keyof SaveData>[] = [];
     private memoryOnly = false;
-    private memorySnapshot: SaveData | null = null;
     private dirty = false;
     private writeQueued = false;
+    private lastSnapshot: SaveData | null = null;
+    private applying = false;
+    private timer: ReturnType<typeof setTimeout> | null = null;
 
     register<K extends keyof SaveData>(p: SaveParticipant<K>): void {
         this.participants.push(p as SaveParticipant<keyof SaveData>);
     }
 
-    markDirty(): void { this.dirty = true; }
+    markDirty(): void { if (!this.applying) { this.dirty = true; } }
+
+    getSummary(): SaveSummary | null {
+        const s = this.lastSnapshot;
+        return s === null ? null : { savedAt: s.savedAt, levelId: s.progress?.currentLevelId ?? null,
+            checkpointId: s.progress?.lastCheckpointId ?? null, playTimeSec: s.records?.totalPlaySec ?? 0 };
+    }
 
     isMemoryOnlyMode(): boolean { return this.memoryOnly; }
+
+    /** 页面隐藏/退出时将合并窗口中的脏状态同步写完；无变化不重复写。 */
+    flushPending(): void { if (this.dirty) { this.write(); } }
 
     /** 聚合八 store 快照（K4：同一帧管线外一次性采集） */
     private aggregate(): SaveData {
@@ -60,6 +74,8 @@ export class SaveSystem {
 
     /** FR-13：双键原子写（DD-10）。成功 save:written；失败 save:failed + MemoryOnly（EX-01） */
     write(slot: 0 = 0): Result<void, 'QUOTA' | 'UNAVAILABLE'> {
+        if (this.timer !== null) { clearTimeout(this.timer); this.timer = null; }
+        this.writeQueued = false;
         this.dirty = false;
         const snapshot = this.aggregate();
         const text = JSON.stringify(snapshot);
@@ -72,26 +88,33 @@ export class SaveSystem {
         if (!wMain.ok) { return this.onWriteFail(wMain.code, slot); }
         storageAdapter.remove(pending);
         this.memoryOnly = false;
+        this.lastSnapshot = snapshot;
         emitEvent('save:written', { slot, at: snapshot.savedAt });
         return ok(undefined);
     }
 
     private onWriteFail(code: 'QUOTA' | 'UNAVAILABLE', slot: 0): Result<void, 'QUOTA' | 'UNAVAILABLE'> {
         this.memoryOnly = true;
-        this.memorySnapshot = this.aggregate();
         emitEvent('save:failed', { slot, reason: code });
         return fail(code, code === 'QUOTA' ? '存储配额已满' : '存储不可用');
     }
 
     /** 管线外排队：同帧多次脏标记合并为一次写入（4.3.8） */
-    queueWrite(): void {
-        if (!this.dirty || this.writeQueued) { return; }
+    queueWrite(delayMs = 0): void {
+        if (!this.dirty) { return; }
+        if (this.writeQueued) {
+            if (delayMs > 0 || this.timer === null) { return; }
+            clearTimeout(this.timer); this.timer = null;
+        }
         this.writeQueued = true;
         // 微任务即"管线外"（帧 update 已结束）；写入同步完成 ≤50ms 预算（NFR-05）
-        queueMicrotask(() => {
+        const flush = (): void => {
+            this.timer = null;
             this.writeQueued = false;
             if (this.dirty) { this.write(0); }
-        });
+        };
+        if (delayMs > 0) { this.timer = setTimeout(flush, delayMs); }
+        else { queueMicrotask(flush); }
     }
 
     /** EX-01 降级：用户手动重试（恢复权限后） */
@@ -101,8 +124,41 @@ export class SaveSystem {
 
     /** EX-01 降级：导出 JSON 下载 */
     exportJson(): void {
-        const snapshot = this.memorySnapshot ?? this.aggregate();
+        const snapshot = this.aggregate();
         storageAdapter.exportAsDownload(`echoes-save-${Date.now()}.json`, JSON.stringify(snapshot, null, 2));
+    }
+
+    inspectJson(text: string): Result<SaveData, ImportErrorCode> {
+        if (text.length > 2 * 1024 * 1024) { return fail('INVALID_SAVE', '存档文件超过 2 MB'); }
+        try {
+            const data = JSON.parse(text) as SaveData;
+            if (data === null || typeof data !== 'object') { return fail('INVALID_SAVE', '存档格式不正确'); }
+            if (data.schemaVersion > CURRENT_SCHEMA_VERSION) { return fail('SCHEMA_NEWER', '存档来自更新版本的游戏'); }
+            if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) { return fail('MIGRATION_FAILED', '不支持此存档版本'); }
+            if (computeChecksum(data as unknown as Record<string, unknown>) !== data.checksum || !validPortableSave(data)) {
+                return fail('INVALID_SAVE', '存档校验或内容检查失败，当前存档未改变');
+            }
+            return ok(data);
+        } catch { return fail('INVALID_SAVE', '无法读取存档文件，当前存档未改变'); }
+    }
+
+    /** 先验证和写盘，再应用到运行状态；任何验证/写盘失败都保留现有状态。 */
+    importJson(text: string): Result<void, ImportErrorCode | 'QUOTA' | 'UNAVAILABLE'> {
+        const checked = this.inspectJson(text);
+        if (!checked.ok) { return checked; }
+        const snapshot = checked.value;
+        const normalized = JSON.stringify(snapshot);
+        const pending = storageAdapter.writeAtomic(pendingKey(0), normalized);
+        if (!pending.ok) { return this.onWriteFail(pending.code, 0); }
+        const main = storageAdapter.writeAtomic(saveKey(0), normalized);
+        if (!main.ok) { return this.onWriteFail(main.code, 0); }
+        storageAdapter.remove(pendingKey(0));
+        if (this.timer !== null) { clearTimeout(this.timer); this.timer = null; }
+        this.dirty = false; this.writeQueued = false;
+        this.applyToParticipants(snapshot);
+        this.lastSnapshot = snapshot; this.memoryOnly = false;
+        emitEvent('save:written', { slot: 0, at: snapshot.savedAt });
+        return ok(undefined);
     }
 
     /** FLOW-R1：读档 + 校验 + 迁移 + 损坏处置（EX-02）。null = 无存档 */
@@ -145,6 +201,7 @@ export class SaveSystem {
             return this.handleCorrupt(slot, text);
         }
         this.applyToParticipants(finalData);
+        this.lastSnapshot = finalData;
         return ok(finalData);
     }
 
@@ -156,13 +213,14 @@ export class SaveSystem {
     }
 
     private applyToParticipants(data: SaveData): void {
+        this.applying = true;
         const record = data as unknown as Record<string, unknown>;
-        for (const p of this.participants) {
+        try { for (const p of this.participants) {
             const section = record[p.key as string];
             if (section !== undefined) {
                 p.fromSnapshot(section as SaveData[typeof p.key]);
             }
-        }
+        } } finally { this.applying = false; }
     }
 
 }

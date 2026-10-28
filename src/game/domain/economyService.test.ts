@@ -1,7 +1,7 @@
 /**
  * TT-01：EconomyService 单测（FR-09/10/11 经济规则 + AT-33/36/40）。
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { EconomyService } from './economyService';
 import { resetWarnThrottle } from './warn';
 
@@ -48,16 +48,28 @@ describe('EconomyService', () => {
         expect(ec.upgradeCost(4).coins).toBe(480);
     });
 
-    it('applyDeathPenalty：20% 向下取整、上限 200、不超持有（AT-40/附录A）', () => {
-        ec.addCoins(100);
-        expect(ec.applyDeathPenalty().lostCoins).toBe(20);
-        expect(ec.getCoins()).toBe(80);
-        ec.addCoins(99899); // 99999
-        expect(ec.applyDeathPenalty().lostCoins).toBe(200); // 上限
-        const poor = new EconomyService();
-        poor.addCoins(3);
-        expect(poor.applyDeathPenalty().lostCoins).toBe(0); // floor(0.6)=0
-        expect(poor.getCoins()).toBe(3);
+    it('死亡不扣金币，包括低余额和上限余额', () => {
+        for (const balance of [3, 100, 99999]) {
+            ec.fromSnapshot({ coins: balance, materials: {} });
+            expect(ec.applyDeathPenalty().lostCoins).toBe(0);
+            expect(ec.getCoins()).toBe(balance);
+        }
+    });
+
+    it('真实余额变更通知保存，失败、封顶与读档不通知', () => {
+        const dirty = vi.fn();
+        ec.onDirty(dirty);
+        ec.fromSnapshot({ coins: 99998, materials: {} });
+        expect(dirty).not.toHaveBeenCalled();
+        ec.addCoins(2);
+        expect(dirty).toHaveBeenCalledTimes(1);
+        ec.addCoins(1);
+        ec.addMaterial('itm_relic_shard', 0);
+        ec.spend({ coins: 100000 });
+        expect(dirty).toHaveBeenCalledTimes(1);
+        ec.addMaterial('itm_relic_shard', 2);
+        ec.spend({ coins: 60, materials: { itm_relic_shard: 1 } });
+        expect(dirty).toHaveBeenCalledTimes(3);
     });
 
     it('rollLoot：rng 注入确定性（权重命中首条/末条）', () => {

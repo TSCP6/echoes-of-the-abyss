@@ -20,6 +20,9 @@ export class WeaponService {
     private levels = new Map<string, number>();
     private switchLock = 0;
     private activeHand: 'main' | 'sub' = 'main';
+    private dirty: (() => void) | null = null;
+
+    onDirty(fn: () => void): void { this.dirty = fn; }
 
     private key(itemId: string, hand: 'main' | 'sub'): string { return `${itemId}#${hand}`; }
 
@@ -64,6 +67,7 @@ export class WeaponService {
             return fail(spend.code === 'COINS_INSUFFICIENT' ? 'COINS_INSUFFICIENT' : 'MATERIAL_INSUFFICIENT', spend.message);
         }
         this.levels.set(k, level + 1);
+        this.dirty?.();
         return ok({ itemId, level: level + 1, hand });
     }
 

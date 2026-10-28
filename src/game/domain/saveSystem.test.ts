@@ -9,6 +9,8 @@ import { SaveSystem, type SaveParticipant } from './saveSystem';
 import { validateAll, markValidated } from './configRegistry';
 import type { SaveData } from './saveSchema';
 import { InventoryStore } from './inventoryStore';
+import { ProgressService } from './progressService';
+import { computeChecksum } from './checksum';
 
 class MemStorage implements Storage {
     map = new Map<string, string>();
@@ -158,5 +160,101 @@ describe('SaveSystem（FR-13/DR-02）', () => {
         // 重复启动不应触发脏标记；真实写回已由上面的重新加载验证。
         restored.onDirty(() => { throw new Error('没有修复时不应再次标脏'); });
         expect(restored.restoreMissingInitialWeapons(['wpn_shortsword', 'wpn_crossbow'])).toBe(false);
+    });
+    it('宝箱进度经双键保存并读回，旧版可选字段缺失仍可正常加载', () => {
+        const ps = new ProgressService();
+        ps.reset();
+        ps.collectChest('1-1', 'chest_a');
+        const ss = new SaveSystem();
+        ss.register({ key: 'progress', toSnapshot: () => ps.toSnapshot(), fromSnapshot: (d) => ps.fromSnapshot(d) });
+        expect(ss.write().ok).toBe(true);
+        ps.reset();
+        expect(ss.load().ok).toBe(true);
+        expect(ps.isChestOpened('1-1', 'chest_a')).toBe(true);
+        expect(ps.collectChest('1-1', 'chest_a')).toBe(false);
+
+        const old = JSON.parse(mem.getItem('seapp.echoes.save.slot0')!) as SaveData;
+        delete old.progress.openedChests;
+        old.checksum = computeChecksum(old as unknown as Record<string, unknown>);
+        mem.setItem('seapp.echoes.save.slot0', JSON.stringify(old));
+        expect(ss.load().ok).toBe(true);
+        expect(ps.isChestOpened('1-1', 'chest_a')).toBe(false);
+        expect([...mem.map.keys()].some((key) => key.includes('.corrupt.'))).toBe(false);
+    });
+
+    it('已开宝箱字段被篡改时仍拒绝并备份原始存档', () => {
+        const ps = new ProgressService();
+        ps.reset();
+        ps.collectChest('1-1', 'chest_a');
+        const ss = new SaveSystem();
+        ss.register({ key: 'progress', toSnapshot: () => ps.toSnapshot(), fromSnapshot: (d) => ps.fromSnapshot(d) });
+        ss.write();
+        const tampered = mem.getItem('seapp.echoes.save.slot0')!.replace('1-1:chest_a', '1-1:chest_b');
+        mem.setItem('seapp.echoes.save.slot0', tampered);
+        expect(ss.load()).toMatchObject({ ok: false, code: 'CORRUPT' });
+        const backup = [...mem.map.keys()].find((key) => key.includes('.corrupt.'));
+        expect(backup).toBeDefined();
+        expect(mem.getItem(backup!)).toBe(tampered);
+    });
+
+});
+
+function portableSave(): SaveData {
+    return { schemaVersion: 1, savedAt: new Date().toISOString(), checksum: '',
+        player: { hp: 100, hpMax: 100, sp: 50, spMax: 50, coins: 123, skillPoints: 0, materials: {} },
+        progress: { unlockedLevels: ['1-1'], clearedLevels: [], collectedShards: [], tutorialDone: false, currentLevelId: '1-1', lastCheckpointId: 'cp_1' },
+        inventory: { capacity: 20, slots: [], equipped: { main: null, sub: null } }, weapons: {}, skills: { unlocked: [], loadout: [null,null,null,null] },
+        settings: { masterVolume: 80, musicVolume: 60, sfxVolume: 90, screenShake: true, fullscreen: false, keymap: null },
+        records: { bestTimeSec: {}, bestShards: {}, totalDeaths: 0, totalKills: 0, totalPlaySec: 90 } };
+}
+async function encodeSave(data: SaveData): Promise<string> {
+    const { computeChecksum } = await import('./checksum');
+    data.checksum = computeChecksum(data as unknown as Record<string, unknown>);
+    return JSON.stringify(data);
+}
+
+describe('存档管理和导入事务', () => {
+    it('旧版完整存档可预览与导入，缺少宝箱字段不拒绝', async () => {
+        const s = new SaveSystem(); let received = 0;
+        s.register({ key: 'player', toSnapshot: () => portableSave().player, fromSnapshot: p => { received = p.coins; } });
+        const text = await encodeSave(portableSave());
+        expect(s.inspectJson(text).ok).toBe(true); expect(received).toBe(0);
+        expect(s.importJson(text).ok).toBe(true); expect(received).toBe(123);
+        expect(s.getSummary()).toMatchObject({ levelId: '1-1', checkpointId: 'cp_1', playTimeSec: 90 });
+        expect(mem.map.has('seapp.echoes.save.slot0')).toBe(true);
+    });
+    it('非法文件及有合法校验但结构损坏的文件，不覆盖当前档或修改当前状态', async () => {
+        const s = new SaveSystem(); s.register(counter); s.write(); const original = mem.getItem('seapp.echoes.save.slot0');
+        for (const value of ['{bad', await encodeSave({ ...portableSave(), inventory: null } as unknown as SaveData),
+            await encodeSave({ ...portableSave(), player: { ...portableSave().player, coins: -1 } })]) {
+            expect(s.importJson(value).ok).toBe(false);
+            expect(mem.getItem('seapp.echoes.save.slot0')).toBe(original);
+        }
+    });
+    it('写盘失败时导入不应用参与者，保留原档', async () => {
+        const s = new SaveSystem(); let received = false;
+        s.register({ ...counter, fromSnapshot: () => { received = true; } }); s.write();
+        const original = mem.getItem('seapp.echoes.save.slot0'); mem.failSet = true;
+        expect(s.importJson(await encodeSave(portableSave())).ok).toBe(false);
+        expect(received).toBe(false); expect(mem.getItem('seapp.echoes.save.slot0')).toBe(original);
+    });
+});
+
+describe('存档跨字段一致性',()=>{
+    it('合法校验和也不能导入无来源技能点的技能、重复进度或错误余额',async()=>{
+        const s=new SaveSystem();s.register(counter);s.write();const original=mem.getItem('seapp.echoes.save.slot0');
+        const impossible=portableSave();impossible.skills.unlocked=['sk_blade_focus'];
+        const duplicate=portableSave();duplicate.progress.collectedShards=['1-1-a','1-1-a'];duplicate.player.skillPoints=2;
+        const badBalance=portableSave();badBalance.player.skillPoints=5;
+        for(const data of [impossible,duplicate,badBalance]) {
+            expect(s.importJson(await encodeSave(data)).ok).toBe(false);
+            expect(mem.getItem('seapp.echoes.save.slot0')).toBe(original);
+        }
+    });
+    it('页面退出前flush兑现延迟窗口，后续排队不会写回过期数据',async()=>{
+        const s=new SaveSystem();let n=8;s.register({...counter,toSnapshot:()=>({n} as unknown as SaveData['player'])});
+        s.markDirty();s.queueWrite(400);n=9;s.flushPending();
+        expect(JSON.parse(mem.getItem('seapp.echoes.save.slot0')!).player.n).toBe(9);
+        await Promise.resolve();expect(s.getSummary()).not.toBeNull();
     });
 });

@@ -22,15 +22,30 @@ export class ProgressService {
     private unlocked: string[] = [];
     private cleared: string[] = [];
     private shards: string[] = []; // 全局 shard id："1-1-a"
+    private openedChests: string[] = []; // 关卡 id + 宝箱对象名，独立于成长碎片
     private tutorialDone = false;
     private currentLevelId: string | null = null;
     private lastCheckpointId: string | null = null;
+    private dirty: (() => void) | null = null;
+
+    onDirty(fn: () => void): void { this.dirty = fn; }
+
+    /** 明确区分续关与重玩；检查点只能属于同一关卡且必须存在于实际地图。 */
+    beginLevel(levelId: string, resume: boolean, checkpointIds: readonly string[]): string | null {
+        const checkpoint = resume && this.currentLevelId === levelId && this.lastCheckpointId !== null
+            && checkpointIds.includes(this.lastCheckpointId) ? this.lastCheckpointId : null;
+        this.currentLevelId = levelId;
+        this.lastCheckpointId = checkpoint;
+        this.dirty?.();
+        return checkpoint;
+    }
 
     reset(): void {
         const order = ConfigRegistry.levelOrder();
         this.unlocked = order.length > 0 ? [order[0]] : [];
         this.cleared = [];
         this.shards = [];
+        this.openedChests = [];
         this.tutorialDone = false;
         this.currentLevelId = null;
         this.lastCheckpointId = null;
@@ -65,25 +80,42 @@ export class ProgressService {
             this.unlocked.push(next);
             newly.push(next);
         }
+        this.currentLevelId = next ?? null;
+        this.lastCheckpointId = null;
+        this.dirty?.();
         return { firstClear, unlocked: newly };
     }
 
     /** FR-11 规则 5：碎片采集幂等（跨死亡/重进保持） */
     collectShard(levelId: string, shardKey: string): void {
         const gid = `${levelId}-${shardKey.replace(/^shard_/, '')}`;
-        if (!this.shards.includes(gid)) { this.shards.push(gid); }
+        if (!this.shards.includes(gid)) { this.shards.push(gid); this.dirty?.(); }
     }
 
     isShardCollected(levelId: string, shardKey: string): boolean {
         return this.shards.includes(`${levelId}-${shardKey.replace(/^shard_/, '')}`);
     }
 
-    markTutorialDone(): void { this.tutorialDone = true; }
+    /** FR-11：同一关卡宝箱跨死亡、重进和存档保持幂等。 */
+    collectChest(levelId: string, chestId: string): boolean {
+        if (!chestId || !ConfigRegistry.levelOrder().includes(levelId) || this.isChestOpened(levelId, chestId)) { return false; }
+        this.openedChests.push(`${levelId}:${chestId}`);
+        this.dirty?.();
+        return true;
+    }
+
+    openChest(levelId: string, chestId: string): boolean { return this.collectChest(levelId, chestId); }
+
+    isChestOpened(levelId: string, chestId: string): boolean {
+        return this.openedChests.includes(`${levelId}:${chestId}`);
+    }
+
+    markTutorialDone(): void { this.tutorialDone = true; this.dirty?.(); }
     isTutorialDone(): boolean { return this.tutorialDone; }
 
-    setCurrentLevel(levelId: string | null): void { this.currentLevelId = levelId; }
+    setCurrentLevel(levelId: string | null): void { this.currentLevelId = levelId; this.dirty?.(); }
     getCurrentLevel(): string | null { return this.currentLevelId; }
-    setLastCheckpoint(id: string | null): void { this.lastCheckpointId = id; }
+    setLastCheckpoint(id: string | null): void { this.lastCheckpointId = id; this.dirty?.(); }
     getLastCheckpoint(): string | null { return this.lastCheckpointId; }
 
     toSnapshot(): SaveProgressSection {
@@ -91,6 +123,7 @@ export class ProgressService {
             unlockedLevels: [...this.unlocked],
             clearedLevels: [...this.cleared],
             collectedShards: [...this.shards],
+            openedChests: [...this.openedChests],
             tutorialDone: this.tutorialDone,
             currentLevelId: this.currentLevelId,
             lastCheckpointId: this.lastCheckpointId
@@ -111,6 +144,8 @@ export class ProgressService {
         this.unlocked = prefix.length > 0 ? prefix : (order[0] !== undefined ? [order[0]] : []);
         this.cleared = (d.clearedLevels ?? []).filter((id) => valid.has(id) && this.unlocked.includes(id));
         this.shards = [...new Set(d.collectedShards ?? [])];
+        this.openedChests = [...new Set((Array.isArray(d.openedChests) ? d.openedChests : [])
+            .filter((id): id is string => typeof id === 'string' && order.some((levelId) => id.startsWith(`${levelId}:`) && id.length > levelId.length + 1)))];
         this.tutorialDone = d.tutorialDone === true;
         this.currentLevelId = typeof d.currentLevelId === 'string' && valid.has(d.currentLevelId) ? d.currentLevelId : null;
         this.lastCheckpointId = typeof d.lastCheckpointId === 'string' ? d.lastCheckpointId : null;

@@ -36,9 +36,9 @@ export const OUT_OF_COMBAT_DELAY_SEC = 3;
 export const BASE_HP_MAX = 100;
 export const BASE_SP_MAX = 50;
 
-/** 死亡金币损失（附录 A：持有量 20%，向下取整，上限 200） */
-export const DEATH_COIN_LOSS_RATIO = 0.2;
-export const DEATH_COIN_LOSS_CAP = 200;
+/** 2026-10-28 用户确认：死亡保留金币；常量保留以兼容既有调用。 */
+export const DEATH_COIN_LOSS_RATIO = 0;
+export const DEATH_COIN_LOSS_CAP = 0;
 
 /** 金币持有上限（DR-02 / FR-09 规则 6） */
 export const COINS_CAP = 99999;

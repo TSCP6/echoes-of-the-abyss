@@ -15,6 +15,7 @@ import { inventoryStore } from './inventoryStore';
 import { weaponService } from './weaponService';
 import { settingsStore } from './settingsStore';
 import { recordStore } from './recordStore';
+import { shopService } from './shopService';
 
 interface PlayerSection {
     hp: number; hpMax: number; sp: number; spMax: number;
@@ -95,9 +96,14 @@ export function bootstrapSave(): void {
         saveSystem.markDirty();
         saveSystem.queueWrite();
     };
+    const delayed = (): void => { saveSystem.markDirty(); saveSystem.queueWrite(400); };
     settingsStore.onDirty(mark);
-    inventoryStore.onDirty(mark);
+    inventoryStore.onDirty(delayed);
     skillService.onDirty(mark);
+    progressService.onDirty(mark);
+    economyService.onDirty(delayed);
+    weaponService.onDirty(mark);
+    shopService.onDirty(mark);
 }
 
 /** 读档成功后同步 SKP 累计获得（碎片数 + Boss 首通×2，附录 A） */

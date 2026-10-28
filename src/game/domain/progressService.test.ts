@@ -63,3 +63,32 @@ describe('ProgressService（FR-12）', () => {
         expect(ps.isTutorialDone()).toBe(true);
     });
 });
+
+describe('检查点续关与永久宝箱', () => {
+    it('旧档缺少宝箱字段仍能恢复；首开一次，读档及重玩不重领', () => {
+        const p = new ProgressService(); p.reset();
+        expect(p.openChest('1-1', 'chest_1')).toBe(true);
+        expect(p.openChest('1-1', 'chest_1')).toBe(false);
+        const restored = new ProgressService(); restored.fromSnapshot(p.toSnapshot());
+        expect(restored.isChestOpened('1-1', 'chest_1')).toBe(true);
+        restored.beginLevel('1-1', false, ['cp_1']);
+        expect(restored.openChest('1-1', 'chest_1')).toBe(false);
+        restored.fromSnapshot({ unlockedLevels: ['1-1'], clearedLevels: [], collectedShards: [], tutorialDone: false });
+        expect(restored.isChestOpened('1-1', 'chest_1')).toBe(false);
+    });
+    it('只有明确续关恢复同关有效检查点，重玩/换关/非法检查点回出生点', () => {
+        const p = new ProgressService(); p.reset(); p.setCurrentLevel('1-1'); p.setLastCheckpoint('cp_2');
+        expect(p.beginLevel('1-1', true, ['cp_1','cp_2'])).toBe('cp_2');
+        expect(p.beginLevel('1-1', false, ['cp_1','cp_2'])).toBeNull();
+        p.setLastCheckpoint('cp_2');
+        expect(p.beginLevel('1-2', true, ['cp_2'])).toBeNull();
+        p.setLastCheckpoint('cp_missing');
+        expect(p.beginLevel('1-2', true, ['cp_1'])).toBeNull();
+    });
+    it('通关把继续目标推进到下一关且清掉旧检查点，重复结算不重复首通', () => {
+        const p = new ProgressService(); p.reset(); p.beginLevel('1-1', false, []); p.setLastCheckpoint('cp_1');
+        expect(p.completeLevel('1-1').firstClear).toBe(true);
+        expect(p.getCurrentLevel()).toBe('1-2'); expect(p.getLastCheckpoint()).toBeNull();
+        expect(p.completeLevel('1-1').firstClear).toBe(false);
+    });
+});

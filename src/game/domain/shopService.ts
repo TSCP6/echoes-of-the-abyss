@@ -23,6 +23,8 @@ export interface GoodsView {
 }
 
 export class ShopService {
+    private dirty: (() => void) | null = null;
+    onDirty(fn: () => void): void { this.dirty = fn; }
     listGoods(sceneId: 1 | 2 | 3): GoodsView[] {
         const coins = economyService.getCoins();
         return ConfigRegistry.goods()
@@ -63,6 +65,7 @@ export class ShopService {
         const spend = economyService.spend({ coins: def.price });
         if (!spend.ok) { return fail('COINS_INSUFFICIENT', spend.message); }
         inventoryStore.addItem(def.refId, count);
+        this.dirty?.();
         return ok(undefined);
     }
 

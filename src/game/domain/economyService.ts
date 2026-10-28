@@ -1,12 +1,12 @@
 /**
- * MOD-17 EconomyService（领域层，IF-M07）—— FR-09 金币/材料、FR-11 死亡损失、掉落表掷点。
+ * MOD-17 EconomyService（领域层，IF-M07）—— FR-09 金币/材料、FR-11 死亡保留、掉落表掷点。
  * 金币上限 99999（AT-33）；spend 为事务（任一不足整体不扣，K3）；
  * upgradeCost = round(60×n^1.5) 金币 + n 遗迹残片（FR-10 规则 3 / AT-36）；
  * rollLoot 权重随机，rng 注入可测（TT-01）。
  */
 import { ok, fail, type Result } from './result';
 import { warnThrottled } from './warn';
-import { COINS_CAP, DEATH_COIN_LOSS_RATIO, DEATH_COIN_LOSS_CAP } from '../data/playerDefaults';
+import { COINS_CAP } from '../data/playerDefaults';
 import { LOOT_TABLES } from '../data/lootTables';
 import type { SavePlayerSection } from './saveSchema';
 export interface LootRollItem { itemId: string; count: number }
@@ -15,6 +15,9 @@ export type LootRoll = LootRollItem[];
 export class EconomyService {
     private coins = 0;
     private materials: Record<string, number> = {};
+    private dirty: (() => void) | null = null;
+
+    onDirty(fn: () => void): void { this.dirty = fn; }
 
     getCoins(): number { return this.coins; }
     getMaterials(): Readonly<Record<string, number>> { return this.materials; }
@@ -27,13 +30,16 @@ export class EconomyService {
         }
         const before = this.coins;
         this.coins = Math.min(COINS_CAP, this.coins + n);
+        if (this.coins !== before) { this.dirty?.(); }
         return ok({ coins: this.coins, rejected: this.coins === COINS_CAP && before + n > COINS_CAP });
     }
 
     addMaterial(itemId: string, n: number): void {
         const safe = Number.isFinite(n) && n > 0 ? Math.floor(n) : 0;
         if (safe !== n) { warnThrottled('economy.addMaterial', `材料增量非法 ${n}`); }
+        if (safe === 0) { return; }
         this.materials[itemId] = (this.materials[itemId] ?? 0) + safe;
+        this.dirty?.();
     }
 
     /** 事务：任一不足整体不扣（K3 / FLOW-S4） */
@@ -57,6 +63,7 @@ export class EconomyService {
             this.materials[itemId] -= need;
             if (this.materials[itemId] <= 0) { delete this.materials[itemId]; }
         }
+        this.dirty?.();
         return ok(undefined);
     }
 
@@ -68,11 +75,9 @@ export class EconomyService {
         };
     }
 
-    /** FR-11 规则 7 / 附录 A：损失 min(floor(coins×0.2), 200, coins) */
+    /** 死亡只重置本次尝试状态，已获得的金币完整保留。 */
     applyDeathPenalty(): { lostCoins: number } {
-        const lost = Math.min(Math.floor(this.coins * DEATH_COIN_LOSS_RATIO), DEATH_COIN_LOSS_CAP, this.coins);
-        this.coins -= lost;
-        return { lostCoins: lost };
+        return { lostCoins: 0 };
     }
 
     /** 掉落表权重掷点：rng 注入；权重和为 0 或表不存在 → 空掉落 */
