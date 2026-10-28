@@ -7,6 +7,7 @@
 import { Physics, type Scene } from 'phaser';
 import type { LevelContext } from './levelLoader';
 import { bossProjectileTexture } from './bossSkillPresentation';
+import { playerProjectileTexture, playerProjectileTint, registerPlayerProjectiles } from './playerProjectileArt';
 
 const POOL = 32;
 
@@ -20,6 +21,7 @@ export interface ProjectileSpec {
     sourceId: string;
     /** 玩家发射时记录武器实例等级，命中时不串用后来活动的武器。 */
     weaponLevelFactor?: number;
+    visualSkillId?: string;
 }
 
 export interface Projectile {
@@ -33,6 +35,7 @@ export class ProjectilePool {
     private pool: Projectile[] = [];
 
     constructor(scene: Scene, ctx: LevelContext) {
+        registerPlayerProjectiles(scene);
         // Enemy shots read as danger rather than collectible fruit.
         for (const [key, color, size] of [['projectile_enemy', 0xff653f, 24]] as const) {
             if (scene.textures.exists(key)) { continue; }
@@ -100,7 +103,8 @@ export class ProjectilePool {
         slot.active = true;
         slot.traveled = 0;
         slot.spec = spec;
-        slot.sprite.setTexture(bossProjectileTexture(spec.sourceId, spec.side));
+        slot.sprite.setTexture(spec.side === 'player' ? playerProjectileTexture(spec.sourceId) : bossProjectileTexture(spec.sourceId, spec.side));
+        slot.sprite.setTint(spec.side === 'player' ? playerProjectileTint(spec.visualSkillId) : 0xffffff);
         (slot.sprite.body as Physics.Arcade.Body).setSize(12, 12, true);
         slot.sprite.setVisible(true);
         slot.sprite.setPosition(spec.x, spec.y);

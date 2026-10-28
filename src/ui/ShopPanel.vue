@@ -10,6 +10,7 @@ import { onEvent, offEvent } from '../game/events';
 import { audioDirector } from '../game/systems/audioDirector';
 import { UI_TEXT } from './i18n';
 import { ammoWeaponNames } from './ammoPresentation';
+import CombatIcon from './CombatIcon.vue';
 
 const props = defineProps<{ sceneId: 1 | 2 | 3 }>();
 const emit = defineEmits<{ close: [] }>();
@@ -53,6 +54,7 @@ function upgrade(itemId: string, hand: 'main' | 'sub'): void {
             <p class="guide">{{ UI_TEXT.inventory.ammoRule }}</p>
             <div class="list">
                 <div v-for="g in goods" :key="g.goodsId" class="row" :class="{ dim: g.owned || !g.affordable }">
+                    <CombatIcon :id="g.refId" :label="itemName(g.refId)" :size="36" />
                     <span class="name">{{ itemName(g.refId) }}<i v-if="g.count > 1"> ×{{ g.count }}</i>
                         <small v-if="ammoWeaponNames(g.refId)" class="usage">用于{{ ammoWeaponNames(g.refId) }}</small>
                     </span>
@@ -65,6 +67,7 @@ function upgrade(itemId: string, hand: 'main' | 'sub'): void {
             <h3>武器升级</h3>
             <div class="list">
                 <div v-for="w in ownedWeapons" :key="`${w.itemId}#${w.hand}`" class="row">
+                    <CombatIcon :id="w.itemId" :label="itemName(w.itemId)" :size="36" />
                     <span class="name">{{ itemName(w.itemId) }}（{{ w.hand === 'main' ? '主手' : '副手' }}） Lv{{ w.level }}</span>
                     <span v-if="w.level >= 5" class="state">已满级</span>
                     <button v-else class="btn" @click="upgrade(w.itemId, w.hand)">

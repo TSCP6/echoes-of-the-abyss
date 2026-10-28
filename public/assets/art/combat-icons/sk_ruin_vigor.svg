@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+    <title id="title">遗迹活力</title>
+    <rect x="2" y="2" width="60" height="60" rx="10" fill="#151d2b"/>
+    <path d="M16 3h32M3 16v32m13 13h32m13-45v32" fill="none" stroke="#7ee0bd" stroke-opacity=".35"/>
+    <g fill="none" stroke="#7ee0bd" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path fill="#386759" d="M32 51C3 33 9 14 22 17l10 8 10-8c13-3 19 16-10 34Z"/><path stroke="#cbfff0" fill="none" d="M12 33h11l5-9 6 18 5-9h13"/><path d="M32 7v7m-17-3 4 5m30-5-4 5"/></g>
+</svg>

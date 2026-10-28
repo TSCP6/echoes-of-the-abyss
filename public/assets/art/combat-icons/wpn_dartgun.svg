@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+    <title id="title">飞镖枪</title>
+    <rect x="2" y="2" width="60" height="60" rx="10" fill="#151d2b"/>
+    <path d="M16 3h32M3 16v32m13 13h32m13-45v32" fill="none" stroke="#8bcdf3" stroke-opacity=".35"/>
+    <g fill="none" stroke="#8bcdf3" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path fill="#688ca5" d="M10 25h37v14H29l-6 15-10-4 5-14h-8Z"/><path fill="#dceaf0" d="M35 22h18v9H35Z"/><path d="M32 39v6h-7m19-10h9M11 18h14m-9-6h9m23 9 6-3"/><circle cx="24" cy="29" r="3" fill="#8bcdf3"/></g>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+    <title id="title">遗迹坚韧</title>
+    <rect x="2" y="2" width="60" height="60" rx="10" fill="#151d2b"/>
+    <path d="M16 3h32M3 16v32m13 13h32m13-45v32" fill="none" stroke="#7ee0bd" stroke-opacity=".35"/>
+    <g fill="none" stroke="#7ee0bd" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path fill="#386759" d="m32 9 20 8-3 24-17 15-17-15-3-24Z"/><path fill="#cbfff0" d="m32 21 8 10-8 14-8-14Z"/><path d="M20 20v13m24-13v13"/></g>
+</svg>

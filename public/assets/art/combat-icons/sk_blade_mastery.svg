@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+    <title id="title">刃术精通</title>
+    <rect x="2" y="2" width="60" height="60" rx="10" fill="#151d2b"/>
+    <path d="M16 3h32M3 16v32m13 13h32m13-45v32" fill="none" stroke="#ffd766" stroke-opacity=".35"/>
+    <g fill="none" stroke="#ffd766" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path fill="none" d="M14 45Q5 28 17 15M50 45q9-17-3-30M13 36l9 2m-8-11 8 4m28 5-9 2m9-11-8 4"/><path fill="#fff0c5" d="m32 10 6 21-6 12-6-12Z"/><path d="M23 41h18m-9 0v13m-6 0h12"/></g>
+</svg>

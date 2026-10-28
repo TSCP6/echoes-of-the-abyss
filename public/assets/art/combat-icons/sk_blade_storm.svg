@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+    <title id="title">剑刃风暴</title>
+    <rect x="2" y="2" width="60" height="60" rx="10" fill="#151d2b"/>
+    <path d="M16 3h32M3 16v32m13 13h32m13-45v32" fill="none" stroke="#ffd766" stroke-opacity=".35"/>
+    <g fill="none" stroke="#ffd766" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path fill="none" d="M10 25Q32 3 54 25M10 39q22 22 44 0"/><path fill="#fff0c5" d="m14 16 15 7 3 9-9-3Zm36 0-7 13-11 3 4-11ZM32 32l6 13-6 12-6-12Z"/><path d="m11 32 8 3m34-3-8 3"/></g>
+</svg>

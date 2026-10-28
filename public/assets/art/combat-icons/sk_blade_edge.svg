@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+    <title id="title">锋刃磨砺</title>
+    <rect x="2" y="2" width="60" height="60" rx="10" fill="#151d2b"/>
+    <path d="M16 3h32M3 16v32m13 13h32m13-45v32" fill="none" stroke="#ffd766" stroke-opacity=".35"/>
+    <g fill="none" stroke="#ffd766" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path fill="#fff0c5" d="m45 9-1 20-22 21-8-8 22-22Z"/><path stroke="#7e8d9e" d="m22 43 18-20"/><path d="m43 39 3 5 6 2-6 2-3 6-2-6-5-2 5-2ZM14 14v10m-5-5h10"/></g>
+</svg>

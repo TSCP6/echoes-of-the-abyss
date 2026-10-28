@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+    <title id="title">刃影宗师</title>
+    <rect x="2" y="2" width="60" height="60" rx="10" fill="#151d2b"/>
+    <path d="M16 3h32M3 16v32m13 13h32m13-45v32" fill="none" stroke="#ffd766" stroke-opacity=".35"/>
+    <g fill="none" stroke="#ffd766" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path fill="#c38c49" d="m13 19 9 6 10-13 10 13 9-6-4 19H17Z"/><path fill="#fff0c5" d="m32 22 5 12-5 16-5-16Z"/><path d="M18 44q14 15 28 0M32 8v3m-21 3 4 3m38-3-4 3"/></g>
+</svg>

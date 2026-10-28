@@ -11,6 +11,7 @@ import { onEvent, offEvent } from '../game/events';
 import { UI_TEXT } from './i18n';
 import { ConfigRegistry } from '../game/domain/configRegistry';
 import { ammoGuide } from './ammoPresentation';
+import CombatIcon from './CombatIcon.vue';
 
 const emit = defineEmits<{ close: [] }>();
 
@@ -66,14 +67,15 @@ function drop(slot: number): void {
     <div class="inv">
         <div class="panel">
             <h2>背包</h2>
-            <p class="equipped-summary">主手：{{ itemName(snap.equipped.main) }} ｜ 副手：{{ itemName(snap.equipped.sub) }}</p>
+            <p class="equipped-summary">主手：<CombatIcon :id="snap.equipped.main" :label="itemName(snap.equipped.main) ?? ''" :size="24" /> {{ itemName(snap.equipped.main) }} ｜ 副手：<CombatIcon :id="snap.equipped.sub" :label="itemName(snap.equipped.sub) ?? ''" :size="24" /> {{ itemName(snap.equipped.sub) }}</p>
             <div class="grid">
                 <div v-for="(slot, i) in snap.slots" :key="i" class="cell"
                     :class="{ equipped: slot !== null && (snap.equipped.main === slot.itemId || snap.equipped.sub === slot.itemId) }"
                     @mouseenter="hoverSlot = i" @mouseleave="hoverSlot = null"
                     @click="leftClick(i)" @contextmenu.prevent="rightClick(i, 'main')"
                     @dblclick="rightClick(i, 'sub')">
-                    <span v-if="slot" class="icon" :class="{ material: slot.itemId.includes('shard') }">{{ slot.itemId.startsWith('wpn_') ? '⚔' : slot.itemId.includes('potion') ? '🧪' : slot.itemId.includes('shard') ? '◆' : '➶' }}</span>
+                    <CombatIcon v-if="slot?.itemId.startsWith('wpn_')" :id="slot.itemId" :label="itemName(slot.itemId) ?? slot.itemId" :size="40" />
+                    <span v-else-if="slot" class="icon" :class="{ material: slot.itemId.includes('shard') }">{{ slot.itemId.includes('potion') ? '🧪' : slot.itemId.includes('shard') ? '◆' : '➶' }}</span>
                     <span v-if="slot && slot.count > 1" class="count">{{ slot.count }}</span>
                     <button v-if="slot" class="drop" @click.stop="drop(i)">
                         {{ confirmDrop === i ? '确认?' : '×' }}

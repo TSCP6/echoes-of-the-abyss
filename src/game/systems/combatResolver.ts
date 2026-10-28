@@ -55,6 +55,7 @@ export class CombatResolver {
     /** TutorialDirector / 挥击音效：攻击发起（场景内直调，6.2.3） */
     onAttackBegan: ((type: WeaponDef['type']) => void) | null = null;
     onAttackRejected: ((message: string) => void) | null = null;
+    onWeaponVisual: ((def: WeaponDef, rect?: { x: number; y: number; width: number; height: number }) => void) | null = null;
     /** 命中敌人音效/教学钩子（场景内直调，6.2.3） */
     onEnemyHit: (() => void) | null = null;
 
@@ -92,18 +93,20 @@ export class CombatResolver {
         this.swings.push({ rect, life: MELEE_LIFETIME_SEC, hitSet: new Set(), objectHitSet: new Set(), def, facing: p.facing,
             weaponLevelFactor: weaponService.getLevelFactor(def.id, hand) });
         this.onAttackBegan?.('melee');
+        this.onWeaponVisual?.(def, rect);
     }
 
     /** FR-04 规则 2：远程弹丸（弹药校验由调用方 WeaponService.consumeAmmo 完成） */
-    spawnProjectile(def: WeaponDef, angleDeg: number, hand: 'main' | 'sub' = 'main'): void {
+    spawnProjectile(def: WeaponDef, angleDeg: number, hand: 'main' | 'sub' = 'main', visualSkillId?: string): void {
         const p = this.player.getMotionState();
         this.projectiles.spawn({
             x: p.x + p.facing * 20, y: p.y - 6,
             angleDeg: (p.facing === 1 ? 0 : 180) + angleDeg, speed: def.projectileSpeed ?? 520,
             range: def.range, damage: def.baseDamage,
-            side: 'player', sourceId: def.id, weaponLevelFactor: weaponService.getLevelFactor(def.id, hand)
+            side: 'player', sourceId: def.id, weaponLevelFactor: weaponService.getLevelFactor(def.id, hand), visualSkillId
         });
         this.onAttackBegan?.('ranged');
+        this.onWeaponVisual?.(def);
     }
 
     /** 范围伤害（旋风斩等技能执行器调用，FR-07 规则 4） */

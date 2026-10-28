@@ -6,6 +6,7 @@ import { useDomainStore } from './useDomainStore';
 import { onEvent, offEvent } from '../game/events';
 import { describeSkill } from './skillPresentation';
 import { UI_TEXT } from './i18n';
+import CombatIcon from './CombatIcon.vue';
 
 const emit = defineEmits<{ close: [] }>();
 let refresh = (): void => {};
@@ -58,7 +59,7 @@ function unequip(): void {
         <div class="loadout" aria-label="技能快捷栏">
             <button v-for="(id, i) in tree.loadout" :key="i" class="slot" :class="{ selected: selectedSlot === i }"
                 :aria-pressed="selectedSlot === i" @click="selectedSlot = i as 0 | 1 | 2 | 3">
-                <b>{{ i + 1 }}</b> {{ id ? defs[id]?.name : UI_TEXT.skillTree.empty }}
+                <b>{{ i + 1 }}</b><CombatIcon v-if="id" :id="id" :label="defs[id]?.name ?? id" :size="28" /> {{ id ? defs[id]?.name : UI_TEXT.skillTree.empty }}
             </button>
         </div>
         <div class="cols">
@@ -67,12 +68,12 @@ function unequip(): void {
                 <button v-for="n in br.nodes" :key="n.id" class="node" :class="[stateOf(n.id), { selected: selectedId === n.id }]"
                     :data-skill="n.id" :title="n.name + '：' + describeSkill(n)" aria-describedby="skill-details"
                     @mouseenter="selectedId = n.id" @focus="selectedId = n.id" @click="selectedId = n.id">
-                    <b>{{ n.name }}</b><span>{{ n.kind === 'active' ? '主动' : '被动' }} · {{ n.skpCost }} 点</span>
+                    <CombatIcon :id="n.id" :label="n.name" :size="36" /><div class="node-copy"><b>{{ n.name }}</b><span>{{ n.kind === 'active' ? '主动' : '被动' }} · {{ n.skpCost }} 点</span></div>
                 </button>
             </section>
         </div>
         <section id="skill-details" class="details" aria-label="技能介绍">
-            <h3>{{ selected.name }} · {{ selected.kind === 'active' ? '主动技能' : '被动技能' }}</h3>
+            <h3><CombatIcon :id="selected.id" :label="selected.name" :size="36" /> {{ selected.name }} · {{ selected.kind === 'active' ? '主动技能' : '被动技能' }}</h3>
             <p>{{ describeSkill(selected) }}</p><p class="requirement">{{ requirement }}</p>
             <div class="actions">
                 <button class="btn" :disabled="!canLearn" @click="learn">学习 {{ selected.skpCost }} 技能点</button>
@@ -95,11 +96,14 @@ h2 { margin: 0 0 10px; font-size: 22px; }
 .hint { color: var(--muted); font-size: 14px; line-height: 1.5; }
 .loadout { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 14px 0; }
 .slot, .node, .btn { background: var(--surface); color: var(--fg); border: 2px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 14px; padding: 8px; }
+.slot { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px; }
 .slot b { color: var(--accent); margin-right: 6px; }
 .cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 .col { display: flex; flex-direction: column; gap: 6px; }
 h3 { margin: 0 0 6px; font-size: 16px; }
-.node { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px; text-align: left; }
+.node { display: flex; align-items: center; gap: 8px; text-align: left; }
+.node-copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.node.locked .combat-icon { opacity: .55; }
 .node span { color: var(--muted); }
 .node.available { border-color: var(--accent); }
 .node.unlocked { border-color: var(--gold); }

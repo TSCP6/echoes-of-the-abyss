@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+    <title id="title">火杖</title>
+    <rect x="2" y="2" width="60" height="60" rx="10" fill="#151d2b"/>
+    <path d="M16 3h32M3 16v32m13 13h32m13-45v32" fill="none" stroke="#ffb467" stroke-opacity=".35"/>
+    <g fill="none" stroke="#ffb467" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path stroke="#b38b65" stroke-width="6" d="m17 53 20-29"/><path fill="#ff845d" d="M39 7c2 8 13 10 12 19-1 10-17 12-22 3-5-7 3-10 4-18l5 8Z"/><path fill="#ffe4a1" d="M39 20c6 7 7 12 1 13-7 0-6-5-1-13"/><path d="m24 36 7 5m-12 3 7 5"/></g>
+</svg>

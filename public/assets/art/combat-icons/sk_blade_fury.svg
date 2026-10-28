@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+    <title id="title">狂刃爆发</title>
+    <rect x="2" y="2" width="60" height="60" rx="10" fill="#151d2b"/>
+    <path d="M16 3h32M3 16v32m13 13h32m13-45v32" fill="none" stroke="#ffd766" stroke-opacity=".35"/>
+    <g fill="none" stroke="#ffd766" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path fill="#d28045" d="m32 7 5 15 16-8-7 17 11 8-18 2-7 16-6-15-17 2 10-14-7-14 15 5Z"/><path fill="#fff0c5" d="m42 14-3 18-16 13-5-6 13-17Z"/><path d="m18 38 12 10"/></g>
+</svg>

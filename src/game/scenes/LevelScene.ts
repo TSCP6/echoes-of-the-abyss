@@ -8,6 +8,7 @@
 import { Geom, Scene, Scenes, Tilemaps } from 'phaser';
 import { LevelLoader, type LevelContext } from '../systems/levelLoader';
 import { PlayerController } from '../systems/playerController';
+import { PlayerCombatFx } from '../systems/playerCombatFx';
 import { CameraRig } from '../systems/cameraRig';
 import { InputGateway } from '../systems/inputGateway';
 import { PickupSystem } from '../systems/pickupSystem';
@@ -48,6 +49,7 @@ export class LevelScene extends Scene {
     private ctx!: LevelContext;
     private gateway!: InputGateway;
     private player!: PlayerController;
+    private playerCombatFx!: PlayerCombatFx;
     private cameraRig!: CameraRig;
     private pickups!: PickupSystem;
     private enemies!: EnemyAI;
@@ -252,6 +254,8 @@ export class LevelScene extends Scene {
             }
         };
         this.combat = new CombatResolver(this, this.player, this.enemies, this.projectiles, this.fx);
+        this.playerCombatFx = new PlayerCombatFx(this, this.player);
+        this.combat.onWeaponVisual = (def, rect) => this.playerCombatFx.weapon(def, rect);
         this.bossAbilities = this.ctx.bossArena === null ? null
             : new BossAbilitySystem(this, this.ctx, this.enemies, this.player, this.combat);
         this.combat.onPlayerDied = () => this.onPlayerDeath();
@@ -315,6 +319,7 @@ export class LevelScene extends Scene {
         this.pickups.onChestOpened = () => { prevChest?.(); audioDirector.playSfx('buy'); };
         audioDirector.playBgm('level');
         onEvent('player:damaged', this.onPlayerDamaged);
+        onEvent('skill:unlocked', this.onSkillUnlocked);
 
         this.hud.setContext(this.levelId, 0);
         this.elapsedSec = 0;
@@ -355,6 +360,7 @@ export class LevelScene extends Scene {
         if (!decision.ok) { this.combat.onAttackRejected?.(decision.message); return; }
         const p = this.player.getMotionState();
         const ef = decision.value.effect;
+        this.playerCombatFx.skill(id, ef);
         audioDirector.playSfx(ef.heal !== undefined ? 'heal' : 'skill'); // AT-56 技能/治疗音效
         if (ef.damage !== undefined && ef.radius !== undefined) {
             this.combat.queueAreaDamage(p.x, p.y, ef.radius, ef.damage);
@@ -364,7 +370,7 @@ export class LevelScene extends Scene {
             for (let i = 0; i < count; i++) {
                 const angle = (i - (count - 1) / 2) * (spread / Math.max(1, count - 1));
                 if (def !== null && def.type === 'ranged') {
-                    this.combat.spawnProjectile({ ...def, baseDamage: ef.damage ?? def.baseDamage }, angle, rangedHand ?? 'main');
+                    this.combat.spawnProjectile({ ...def, baseDamage: ef.damage ?? def.baseDamage }, angle, rangedHand ?? 'main', id);
                 }
             }
         } else if (ef.dashDistance !== undefined) {
@@ -375,9 +381,14 @@ export class LevelScene extends Scene {
         }
     }
 
+    private onSkillUnlocked = ({ skillId }: { skillId: string }): void => {
+        if (ConfigRegistry.skills()[skillId]?.kind === 'passive') { this.playerCombatFx?.passive(skillId); }
+    };
+
     private onPlayerDeath(): void {
         if (this.dead) { return; }
         this.dead = true;
+        this.playerCombatFx.clear();
         this.bossAbilities?.reset();
         recordStore.addDeath();
         audioDirector.playSfx('death');
@@ -429,6 +440,7 @@ export class LevelScene extends Scene {
     }
 
     private respawn(): void {
+        this.playerCombatFx.clear();
         const point = this.respawnPoint();
         resourceSystem.refill(); // FR-11 规则 7
         this.arena?.release();
@@ -540,6 +552,8 @@ export class LevelScene extends Scene {
         skillService.tickCooldowns(dt);
         weaponService.tickSwitchLock(dt);
         this.fx.tick(dt);
+        this.playerCombatFx.setEquipped(weaponService.getEquippedDefs().main);
+        this.playerCombatFx.update(dt);
         this.bossAbilities?.render();
         this.dangerFx.render(this.hazards, this.elapsedSec, this.enemies.getBoss());
         this.mark();
@@ -571,6 +585,7 @@ export class LevelScene extends Scene {
         offEvent('ui:overlay', this.onOverlay);
         offEvent('enemy:killed', this.onEnemyKilled);
         offEvent('player:damaged', this.onPlayerDamaged);
+        offEvent('skill:unlocked', this.onSkillUnlocked);
         if (sceneDirector.isGameplay(this)) { sceneDirector.setActiveGameplay(null); }
         // 首次建关失败时，部分系统可能尚未创建。
         this.bossAbilities?.destroy();
@@ -584,6 +599,7 @@ export class LevelScene extends Scene {
         this.enemies?.destroy();
         this.normalEnemyFx?.destroy();
         this.fx?.destroy();
+        this.playerCombatFx?.destroy();
         this.dangerFx?.destroy();
         this.pickups?.destroy();
         this.tutorial = null;

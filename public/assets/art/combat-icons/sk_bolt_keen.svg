@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+    <title id="title">锐眼猎手</title>
+    <rect x="2" y="2" width="60" height="60" rx="10" fill="#151d2b"/>
+    <path d="M16 3h32M3 16v32m13 13h32m13-45v32" fill="none" stroke="#8bcdf3" stroke-opacity=".35"/>
+    <g fill="none" stroke="#8bcdf3" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path fill="#345e78" d="M7 32q25-29 50 0Q32 61 7 32Z"/><circle cx="32" cy="32" r="10" fill="#d8f7ff"/><path stroke="#1a1c2c" d="M32 25v14"/><path d="m10 15 9 3m35-3-9 3M32 8v6"/></g>
+</svg>

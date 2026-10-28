@@ -16,6 +16,7 @@ import { settingsStore } from '../game/domain/settingsStore';
 import { effectiveKeys } from '../game/domain/keymap';
 import { useDomainStore } from './useDomainStore';
 import { ConfigRegistry } from '../game/domain/configRegistry';
+import CombatIcon from './CombatIcon.vue';
 
 const hpText = ref('100/100');
 const spText = ref('50/50');
@@ -28,7 +29,7 @@ const settings = useDomainStore(() => settingsStore.getSnapshot(), onChange => {
     return () => offEvent('settings:changed', onChange);
 });
 const weaponSlots = computed(() => (['main', 'sub'] as const).map(hand => ({
-    hand, name: weapons.value?.[hand === 'main' ? 'mainName' : 'subName'] || UI_TEXT.hud.emptyHand,
+    hand, id: weapons.value?.[hand], name: weapons.value?.[hand === 'main' ? 'mainName' : 'subName'] || UI_TEXT.hud.emptyHand,
     ammo: weapons.value?.[hand === 'main' ? 'mainAmmo' : 'subAmmo'] ?? null,
     keys: effectiveKeys(hand === 'main' ? 'attackMain' : 'attackSub', settings.value.keymap).join('/'),
     mouse: hand === 'main' ? '左键' : '右键',
@@ -148,7 +149,7 @@ onUnmounted(() => {
             <div class="weapons">
                 <div v-for="w in weaponSlots" :key="w.hand" class="wslot" :class="w.hand">
                     <span class="weapon-key">{{ w.keys }} / {{ w.mouse }} · {{ w.hand === 'main' ? UI_TEXT.hud.main : UI_TEXT.hud.sub }}</span>
-                    <b>{{ w.name }}</b>
+                    <b class="weapon-name"><CombatIcon :id="w.id" :label="w.name" :size="28" />{{ w.name }}</b>
                     <span v-if="w.ammo" class="ammo" :class="{ low: w.ammo.count <= 5 }">➶ {{ w.ammo.name }} {{ w.ammo.count }}</span>
                     <span v-else-if="w.equipped" class="muted">{{ UI_TEXT.hud.melee }}</span>
                 </div>
@@ -156,6 +157,7 @@ onUnmounted(() => {
             <div class="skills">
                 <div v-for="i in 4" :key="i" class="skill">
                     <span class="key">{{ i }}</span>
+                    <CombatIcon :id="loadout[i - 1]" :label="ConfigRegistry.skills()[loadout[i - 1] ?? '']?.name ?? ''" :size="28" />
                     <span class="skill-name">{{ loadout[i - 1] ? ConfigRegistry.skills()[loadout[i - 1] ?? '']?.name : UI_TEXT.skillTree.empty }}</span>
                     <div :ref="(el) => { cdMasks[i - 1] = el as HTMLElement | null; }" class="cdmask"></div>
                     <span class="cd">{{ cooldownTexts[i - 1] }}</span>
@@ -208,18 +210,19 @@ onUnmounted(() => {
 .wslot.main { border-color: var(--gold); }
 .wslot.sub { border-color: #8bcdf3; }
 .weapon-key { color: var(--muted); }
+.weapon-name { display: flex; align-items: center; gap: 6px; }
 .ammo { color: #e4f6ff; }
 .ammo.low, .ammo-warning { color: var(--warning); }
 .ammo-warning { display: flex; flex-direction: column; gap: 3px; font-size: 14px; padding: 7px 10px; background: rgba(12,20,32,0.9); border-radius: 4px; }
 .skills { display: flex; gap: 6px; }
 .skill {
-    position: relative; width: 78px; height: 56px;
+    position: relative; width: 78px; height: 72px;
     background: rgba(0,0,0,0.55); border: 1px solid var(--border); border-radius: 6px;
-    display: flex; align-items: center; justify-content: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
 }
 .key { position: absolute; top: 2px; left: 4px; font-size: 14px; color: var(--muted); }
 .icon { font-size: 20px; color: var(--accent); }
-.skill-name { padding-top: 10px; font-size: 14px; color: var(--accent); }
+.skill-name { font-size: 14px; color: var(--accent); }
 .cdmask { position: absolute; inset: 0; border-radius: 6px; }
 .cd { position: absolute; bottom: 2px; right: 4px; font-size: 14px; color: var(--warning); }
 @media (max-width: 1040px) {

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+    <title id="title">暴雨连射</title>
+    <rect x="2" y="2" width="60" height="60" rx="10" fill="#151d2b"/>
+    <path d="M16 3h32M3 16v32m13 13h32m13-45v32" fill="none" stroke="#8bcdf3" stroke-opacity=".35"/>
+    <g fill="none" stroke="#8bcdf3" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path fill="none" d="M13 15q1-9 11-5 9-8 16 1 11-2 12 9"/><path d="m15 25-5 18m-2-7 2 7 7-4m13-17-7 29m-2-8 2 8 7-5m16-23-7 29m-2-8 2 8 7-5m8-24-3 12m-3-5 3 5 5-2"/></g>
+</svg>

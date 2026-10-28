@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+    <title id="title">双匕首</title>
+    <rect x="2" y="2" width="60" height="60" rx="10" fill="#151d2b"/>
+    <path d="M16 3h32M3 16v32m13 13h32m13-45v32" fill="none" stroke="#ffd766" stroke-opacity=".35"/>
+    <g fill="none" stroke="#ffd766" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path fill="#dceaf0" d="m12 9 17 14 4 12-8-2-9-12Zm40 0-4 12-9 12-8 2 4-12Z"/><path d="m26 34 17 18M38 34 21 52m-1-18 13 7m11-7-13 7"/></g>
+</svg>

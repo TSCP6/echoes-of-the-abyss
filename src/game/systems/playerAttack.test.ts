@@ -41,14 +41,26 @@ function fixture() {
     const spawned: ProjectileSpec[] = [];
     const notices: string[] = [];
     const attacks: string[] = [];
+    const visuals: { id: string; rect?: { x: number; y: number; width: number; height: number } }[] = [];
     const combat = new CombatResolver(scene, player, {} as EnemyAI,
         { spawn: (spec: ProjectileSpec) => { spawned.push(spec); } } as unknown as ProjectilePool, {} as WorldFxLayer);
     combat.onAttackRejected = (message: string) => notices.push(message);
     combat.onAttackBegan = (type: string) => attacks.push(type);
-    return { player, combat, spawned, notices, attacks, keys, animation: () => animation };
+    combat.onWeaponVisual = (def, rect) => visuals.push({ id: def.id, rect });
+    return { player, combat, spawned, notices, attacks, visuals, keys, animation: () => animation };
 }
 
 describe('主副手攻击反馈', () => {
+    it('近战动画接收实际判定矩形，空仓不播放武器效果', () => {
+        const f = fixture();
+        f.combat.tryAttack('main');
+        expect(f.visuals[0]).toEqual({ id: 'wpn_shortsword', rect: expect.objectContaining({ x: 111, y: 82, width: 40, height: 36 }) });
+        const g = fixture();
+        inventoryStore.consumeItem('itm_arrow', 20);
+        g.combat.tryAttack('sub');
+        expect(g.visuals).toHaveLength(0);
+    });
+
     it('冲刺按配置距离保持速度，不被下一帧移动减速覆盖', () => {
         const f = fixture();
         f.player.startDash(240, 200);

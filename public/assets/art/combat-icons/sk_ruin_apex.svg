@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+    <title id="title">遗迹守护</title>
+    <rect x="2" y="2" width="60" height="60" rx="10" fill="#151d2b"/>
+    <path d="M16 3h32M3 16v32m13 13h32m13-45v32" fill="none" stroke="#7ee0bd" stroke-opacity=".35"/>
+    <g fill="none" stroke="#7ee0bd" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path fill="none" d="M11 40Q3 17 23 11m30 29Q61 17 41 11M12 32l9 4m31-4-9 4M19 16l6 5m20-5-6 5"/><path fill="#386759" d="m32 17 13 7-2 18-11 12-11-12-2-18Z"/><path fill="#cbfff0" d="m32 25 5 10-5 10-5-10Z"/><path d="M32 5v7m-4-4h8"/></g>
+</svg>

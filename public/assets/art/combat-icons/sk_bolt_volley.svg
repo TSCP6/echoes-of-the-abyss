@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+    <title id="title">扇形齐射</title>
+    <rect x="2" y="2" width="60" height="60" rx="10" fill="#151d2b"/>
+    <path d="M16 3h32M3 16v32m13 13h32m13-45v32" fill="none" stroke="#8bcdf3" stroke-opacity=".35"/>
+    <g fill="none" stroke="#8bcdf3" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 52 5-32m-5 5 5-5 4 6m-9 26 21-38m-8 3 8-3 1 8M12 52l36-29m-9 0h9v9M12 52l41-10m-7-4 7 4-4 6"/></g>
+</svg>

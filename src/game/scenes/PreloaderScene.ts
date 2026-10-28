@@ -164,46 +164,18 @@ export class PreloaderScene extends Scene {
         make('enemy_boss', 0x606080);
     }
 
-    /** 挥击 4 帧程序化纹理（64×64 网格，剑弧旋转；零许可风险） */
-    private registerSwingTexture(): void {
-        if (this.textures.exists('player_swing_0')) { return; }
-        for (let f = 0; f < 4; f++) {
-            const g = this.make.graphics();
-            g.fillStyle(0xf4f4f4, 1);
-            // 剑弧：随帧旋转的扇形近似（4 段矩形），-60° → 60°
-            const angle = -60 + f * 40;
-            for (let s = 0; s < 4; s++) {
-                const a = ((angle + s * 8) * Math.PI) / 180;
-                const r = 18 + s * 4;
-                g.fillRect(32 + Math.cos(a) * r - 2, 32 + Math.sin(a) * r - 2, 5, 5);
-            }
-            g.generateTexture(`player_swing_${f}`, 64, 64);
-            g.destroy();
-        }
-    }
-
-    /** 保留角色本体，叠加弩与短暂枪口闪光；和挥剑动作区分。 */
-    private registerShootTextures(): void {
-        if (this.textures.exists('player_shoot_0')) { return; }
+    /** 攻击时保留角色实体；武器与剑弧由 PlayerCombatFx 独立绘制。 */
+    private registerAttackPoses(prefix: string, count: number): void {
+        if (this.textures.exists(`${prefix}_0`)) { return; }
         const base = this.textures.getFrame('player_idle', 0);
-        for (let f = 0; f < 3; f++) {
-            const texture = this.textures.createCanvas(`player_shoot_${f}`, 64, 64);
+        for (let f = 0; f < count; f++) {
+            const texture = this.textures.createCanvas(`${prefix}_${f}`, 64, 64);
             if (texture === null) { continue; }
             const ctx = texture.getContext();
             ctx.imageSmoothingEnabled = false;
-            const recoil = f === 0 ? -2 : 0;
+            const lean = prefix === 'player_swing' ? [0, 2, 3, 0][f] : [-2, -1, 0][f];
             ctx.drawImage(base.source.image as HTMLImageElement,
-                base.cutX, base.cutY, base.cutWidth, base.cutHeight, recoil, 0, 64, 64);
-            ctx.fillStyle = '#75482e';
-            ctx.fillRect(38 + recoil, 30, 19, 5);
-            ctx.fillStyle = '#d8e4e8';
-            ctx.fillRect(49 + recoil, 23, 3, 19);
-            ctx.fillRect(39 + recoil, 32, 22, 2);
-            if (f === 0) {
-                ctx.fillStyle = '#ffe066';
-                ctx.fillRect(58, 28, 5, 9);
-                ctx.fillRect(55, 31, 9, 3);
-            }
+                base.cutX, base.cutY, base.cutWidth, base.cutHeight, lean, 0, 64, 64);
             texture.refresh();
         }
     }
@@ -229,15 +201,15 @@ export class PreloaderScene extends Scene {
         if (!a.exists('player-dead')) {
             a.create({ key: 'player-dead', frames: a.generateFrameNumbers('player_hit', { start: 0, end: 5 }), frameRate: 8, repeat: 0 });
         }
-        // FR-16 规则 3：挥击 4 帧（程序化剑弧，零许可风险）
-        this.registerSwingTexture();
+        // FR-16：保留角色实体的四帧攻击姿态；实体武器/剑弧由 PlayerCombatFx 绘制。
+        this.registerAttackPoses('player_swing', 4);
         if (!a.exists('player-swing')) {
             a.create({
                 key: 'player-swing', frameRate: 24, repeat: 0,
                 frames: [{ key: 'player_swing_0' }, { key: 'player_swing_1' }, { key: 'player_swing_2' }, { key: 'player_swing_3' }]
             });
         }
-        this.registerShootTextures();
+        this.registerAttackPoses('player_shoot', 3);
         if (!a.exists('player-shoot')) {
             a.create({
                 key: 'player-shoot', frameRate: 24, repeat: 0,

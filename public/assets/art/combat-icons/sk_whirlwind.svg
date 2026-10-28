@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+    <title id="title">旋风斩</title>
+    <rect x="2" y="2" width="60" height="60" rx="10" fill="#151d2b"/>
+    <path d="M16 3h32M3 16v32m13 13h32m13-45v32" fill="none" stroke="#ffd766" stroke-opacity=".35"/>
+    <g fill="none" stroke="#ffd766" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path fill="none" d="M13 31c0-21 38-22 39-2 1 17-29 25-35 11-4-10 13-18 22-12M12 23l1 9 9-3"/><path fill="#fff0c5" d="m44 35-3 10-14 6 7-11Z"/></g>
+</svg>

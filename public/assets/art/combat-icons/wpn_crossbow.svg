@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+    <title id="title">轻弩</title>
+    <rect x="2" y="2" width="60" height="60" rx="10" fill="#151d2b"/>
+    <path d="M16 3h32M3 16v32m13 13h32m13-45v32" fill="none" stroke="#8bcdf3" stroke-opacity=".35"/>
+    <g fill="none" stroke="#8bcdf3" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path fill="#966e50" d="m16 49 8 5 18-29-7-5Z"/><path fill="none" d="M11 19Q29 4 49 39M11 19l6 29 32-9M17 48 46 10m-9 4 9-4-1 10"/><path stroke="#effaff" d="m22 43 15-21"/></g>
+</svg>
