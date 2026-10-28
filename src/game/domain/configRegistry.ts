@@ -8,8 +8,9 @@
 import { ok, fail, type Result } from './result';
 import type {
     WeaponDef, EnemyDef, SkillDef, ItemDef, LevelDef,
-    ShopGoodsDef, LootTableDef, PlayerDefaults
+    ShopGoodsDef, LootTableDef, PlayerDefaults, BossSkillDef, BossSkillKind
 } from './types';
+import { BOSS_SKILL_KINDS } from './types';
 import { WEAPONS, INITIAL_WEAPONS, INITIAL_EQUIP } from '../data/weapons';
 import { ENEMIES } from '../data/enemies';
 import { SKILLS, SKP_TOTAL_COST } from '../data/skills';
@@ -83,6 +84,44 @@ function validateWeapons(itemIdSet: Set<string>): void {
     }
 }
 
+const BOSS_PARAM_RANGES: Partial<Record<BossSkillKind, Record<string, readonly [number, number]>>> = {
+    guardianHammer: { reach: [1, 600] },
+    guardianStomp: { waveSpeed: [1, 800], waveHeight: [1, 96] },
+    charge: { distance: [1, 2000] },
+    spiderWeb: { width: [1, 600], durationSec: [0.1, 10], slowFactor: [0.1, 1] },
+    spiderEggs: { count: [1, 2], hatchSec: [0.1, 10] },
+    spiderDrop: { liftHeight: [1, 600], width: [1, 600] },
+    echoStep: { shiftDistance: [1, 320] },
+    echoDance: { reach: [1, 600] },
+    echoReplay: { reach: [1, 600], echoDelaySec: [0.1, 3] }
+};
+
+function validateBossSkill(enemyId: string, skill: BossSkillDef): void {
+    if (!BOSS_SKILL_KINDS.includes(skill.kind)) {
+        push('enemies', enemyId, 'skill.kind', '枚举（V6）', skill.kind);
+    }
+    checkRange('enemies', enemyId, 'skill.damage', skill.damage, 5, 30);
+    checkRange('enemies', enemyId, 'skill.cooldownSec', skill.cooldownSec, 0.5, 8);
+    if (skill.params === null || typeof skill.params !== 'object' || Array.isArray(skill.params)) {
+        push('enemies', enemyId, 'skill.params', '须为数值参数对象', skill.params);
+        return;
+    }
+    for (const [name, value] of Object.entries(skill.params)) {
+        if (!Number.isFinite(value)) { push('enemies', enemyId, `skill.params.${name}`, '须为有限数值', value); }
+    }
+    const required = BOSS_PARAM_RANGES[skill.kind];
+    if (required === undefined) { return; } // 旧通用技能保留原有参数约定。
+    checkRange('enemies', enemyId, 'skill.params.windupSec', skill.params.windupSec, 0.6, 1);
+    checkRange('enemies', enemyId, 'skill.params.activeSec', skill.params.activeSec, 0.05, 3);
+    checkRange('enemies', enemyId, 'skill.params.recoverySec', skill.params.recoverySec, 0.1, 3);
+    for (const [name, [min, max]] of Object.entries(required)) {
+        checkRange('enemies', enemyId, `skill.params.${name}`, skill.params[name], min, max);
+    }
+    if (skill.kind === 'spiderEggs' && !isInt(skill.params.count)) {
+        push('enemies', enemyId, 'skill.params.count', '蛛卵数量须为整数', skill.params.count);
+    }
+}
+
 function validateEnemies(lootIdSet: Set<string>): void {
     const seen = new Set<string>();
     for (const e of ENEMIES) {
@@ -116,11 +155,7 @@ function validateEnemies(lootIdSet: Set<string>): void {
                     push('enemies', e.id, 'phase.skills', '每阶段 2~3 技能', p.skills.length);
                 }
                 for (const s of p.skills) {
-                    if (!['charge', 'summon', 'projectileSpread', 'arenaHazard'].includes(s.kind)) {
-                        push('enemies', e.id, 'skill.kind', '枚举（V6）', s.kind);
-                    }
-                    checkRange('enemies', e.id, 'skill.damage', s.damage, 5, 30);
-                    checkRange('enemies', e.id, 'skill.cooldownSec', s.cooldownSec, 0.5, 8);
+                    validateBossSkill(e.id, s);
                 }
             }
         } else if (e.phases.length !== 0) {

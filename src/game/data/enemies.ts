@@ -27,7 +27,7 @@ export const ENEMIES: EnemyDef[] = [
         moveSpeed: 90, detectRange: 200, coinsDrop: [25, 35],
         lootTableId: 'loot_elite', hurtboxSize: { w: 40, h: 48 }, phases: []
     },
-    // ---- Boss 1-4 石像守卫者（600 HP，冲撞型）----
+    // ---- Boss 1-4 石像守卫者（600 HP：重锤 / 震波 / 岩甲冲撞）----
     {
         id: 'enm_boss_guardian', kind: 'boss', hp: 600, contactDamage: 5,
         moveSpeed: 70, detectRange: 300, coinsDrop: [150, 150],
@@ -35,27 +35,27 @@ export const ENEMIES: EnemyDef[] = [
         phases: [
             {
                 hpThreshold: 1.0, invincibleMs: 1500, skills: [
-                    { kind: 'charge', damage: 25, cooldownSec: 3.0, params: { distance: 240, windupSec: 0.9 } },
-                    { kind: 'arenaHazard', damage: 20, cooldownSec: 5.0, params: { count: 3, durationSec: 2.0 } }
+                    { kind: 'guardianHammer', damage: 22, cooldownSec: 2.4, params: { windupSec: 0.95, activeSec: 0.25, recoverySec: 1.1, reach: 180 } },
+                    { kind: 'guardianStomp', damage: 18, cooldownSec: 2.6, params: { windupSec: 0.9, activeSec: 0.3, recoverySec: 0.9, waveSpeed: 230, waveHeight: 24 } }
                 ]
             },
             {
                 hpThreshold: 0.66, invincibleMs: 1500, skills: [
-                    { kind: 'charge', damage: 25, cooldownSec: 2.4, params: { distance: 300, windupSec: 0.8 } },
-                    { kind: 'projectileSpread', damage: 18, cooldownSec: 3.5, params: { count: 3, spreadDeg: 30, speed: 260 } },
-                    { kind: 'arenaHazard', damage: 20, cooldownSec: 5.0, params: { count: 4, durationSec: 2.0 } }
+                    { kind: 'guardianHammer', damage: 24, cooldownSec: 2.1, params: { windupSec: 0.9, activeSec: 0.25, recoverySec: 1.1, reach: 180 } },
+                    { kind: 'guardianStomp', damage: 20, cooldownSec: 2.3, params: { windupSec: 0.85, activeSec: 0.3, recoverySec: 0.9, waveSpeed: 230, waveHeight: 24 } },
+                    { kind: 'charge', damage: 25, cooldownSec: 2.7, params: { windupSec: 0.8, activeSec: 2.4, recoverySec: 1.4, distance: 1600 } }
                 ]
             },
             {
                 hpThreshold: 0.33, invincibleMs: 1500, skills: [
-                    { kind: 'charge', damage: 25, cooldownSec: 1.8, params: { distance: 360, windupSec: 0.7 } },
-                    { kind: 'projectileSpread', damage: 18, cooldownSec: 2.8, params: { count: 5, spreadDeg: 40, speed: 300 } },
-                    { kind: 'arenaHazard', damage: 22, cooldownSec: 4.0, params: { count: 5, durationSec: 2.5 } }
+                    { kind: 'guardianHammer', damage: 26, cooldownSec: 1.9, params: { windupSec: 0.85, activeSec: 0.25, recoverySec: 1.1, reach: 180 } },
+                    { kind: 'guardianStomp', damage: 22, cooldownSec: 2.1, params: { windupSec: 0.8, activeSec: 0.3, recoverySec: 0.9, waveSpeed: 230, waveHeight: 24 } },
+                    { kind: 'charge', damage: 25, cooldownSec: 2.4, params: { windupSec: 0.7, activeSec: 2.4, recoverySec: 1.4, distance: 1600 } }
                 ]
             }
         ]
     },
-    // ---- Boss 2-4 深渊蛛后（900 HP，召唤型）----
+    // ---- Boss 2-4 深渊蛛后（900 HP：减速蛛网 / 吊顶俯袭 / 可破坏蛛卵）----
     {
         id: 'enm_boss_spider', kind: 'boss', hp: 900, contactDamage: 5,
         moveSpeed: 110, detectRange: 300, coinsDrop: [220, 220],
@@ -63,27 +63,27 @@ export const ENEMIES: EnemyDef[] = [
         phases: [
             {
                 hpThreshold: 1.0, invincibleMs: 1500, skills: [
-                    { kind: 'summon', damage: 10, cooldownSec: 4.0, params: { count: 2, enemyRef: 0 } },
-                    { kind: 'projectileSpread', damage: 16, cooldownSec: 3.0, params: { count: 3, spreadDeg: 24, speed: 240 } }
+                    { kind: 'spiderWeb', damage: 12, cooldownSec: 2.4, params: { windupSec: 0.85, activeSec: 0.25, recoverySec: 0.8, width: 150, durationSec: 5, slowFactor: 0.65 } },
+                    { kind: 'spiderDrop', damage: 20, cooldownSec: 2.8, params: { windupSec: 1, activeSec: 0.4, recoverySec: 1.2, liftHeight: 260, width: 140 } }
                 ]
             },
             {
                 hpThreshold: 0.66, invincibleMs: 1500, skills: [
-                    { kind: 'summon', damage: 10, cooldownSec: 3.2, params: { count: 3, enemyRef: 0 } },
-                    { kind: 'projectileSpread', damage: 16, cooldownSec: 2.6, params: { count: 5, spreadDeg: 36, speed: 280 } },
-                    { kind: 'arenaHazard', damage: 14, cooldownSec: 5.0, params: { count: 2, durationSec: 3.0 } }
+                    { kind: 'spiderWeb', damage: 14, cooldownSec: 2.2, params: { windupSec: 0.8, activeSec: 0.25, recoverySec: 0.8, width: 150, durationSec: 5, slowFactor: 0.65 } },
+                    { kind: 'spiderDrop', damage: 22, cooldownSec: 2.6, params: { windupSec: 0.95, activeSec: 0.4, recoverySec: 1.2, liftHeight: 260, width: 140 } },
+                    { kind: 'spiderEggs', damage: 10, cooldownSec: 2.8, params: { windupSec: 1, activeSec: 0.3, recoverySec: 0.8, count: 2, hatchSec: 3 } }
                 ]
             },
             {
                 hpThreshold: 0.33, invincibleMs: 1500, skills: [
-                    { kind: 'summon', damage: 12, cooldownSec: 2.6, params: { count: 4, enemyRef: 1 } },
-                    { kind: 'projectileSpread', damage: 18, cooldownSec: 2.2, params: { count: 6, spreadDeg: 45, speed: 320 } },
-                    { kind: 'arenaHazard', damage: 16, cooldownSec: 4.0, params: { count: 3, durationSec: 3.0 } }
+                    { kind: 'spiderWeb', damage: 16, cooldownSec: 2, params: { windupSec: 0.75, activeSec: 0.25, recoverySec: 0.8, width: 150, durationSec: 5, slowFactor: 0.65 } },
+                    { kind: 'spiderDrop', damage: 24, cooldownSec: 2.4, params: { windupSec: 0.9, activeSec: 0.4, recoverySec: 1.2, liftHeight: 260, width: 140 } },
+                    { kind: 'spiderEggs', damage: 10, cooldownSec: 2.6, params: { windupSec: 0.95, activeSec: 0.3, recoverySec: 0.8, count: 2, hatchSec: 3 } }
                 ]
             }
         ]
     },
-    // ---- Boss 3-4 回响之影（1400 HP，复用玩家技能的多阶段 AI）----
+    // ---- Boss 3-4 回响之影（1400 HP：标记换位 / 三段剑舞 / 延迟回响）----
     {
         id: 'enm_boss_echo', kind: 'boss', hp: 1400, contactDamage: 5,
         moveSpeed: 130, detectRange: 300, coinsDrop: [320, 320],
@@ -91,22 +91,22 @@ export const ENEMIES: EnemyDef[] = [
         phases: [
             {
                 hpThreshold: 1.0, invincibleMs: 1500, skills: [
-                    { kind: 'charge', damage: 28, cooldownSec: 2.8, params: { distance: 260, windupSec: 0.45 } },
-                    { kind: 'projectileSpread', damage: 20, cooldownSec: 3.2, params: { count: 3, spreadDeg: 20, speed: 300 } }
+                    { kind: 'echoStep', damage: 14, cooldownSec: 2, params: { windupSec: 0.75, activeSec: 0.8, recoverySec: 0.7, shiftDistance: 180 } },
+                    { kind: 'echoDance', damage: 20, cooldownSec: 2.6, params: { windupSec: 0.95, activeSec: 1.85, recoverySec: 1, reach: 130 } }
                 ]
             },
             {
                 hpThreshold: 0.66, invincibleMs: 1500, skills: [
-                    { kind: 'charge', damage: 28, cooldownSec: 2.2, params: { distance: 320, windupSec: 0.4 } },
-                    { kind: 'projectileSpread', damage: 22, cooldownSec: 2.6, params: { count: 5, spreadDeg: 30, speed: 340 } },
-                    { kind: 'summon', damage: 14, cooldownSec: 5.0, params: { count: 2, enemyRef: 2 } }
+                    { kind: 'echoStep', damage: 16, cooldownSec: 1.8, params: { windupSec: 0.7, activeSec: 0.8, recoverySec: 0.7, shiftDistance: 180 } },
+                    { kind: 'echoDance', damage: 22, cooldownSec: 2.4, params: { windupSec: 0.9, activeSec: 1.85, recoverySec: 1, reach: 130 } },
+                    { kind: 'echoReplay', damage: 20, cooldownSec: 2.8, params: { windupSec: 1, activeSec: 0.25, recoverySec: 1.25, reach: 130, echoDelaySec: 0.95 } }
                 ]
             },
             {
                 hpThreshold: 0.33, invincibleMs: 1500, skills: [
-                    { kind: 'charge', damage: 30, cooldownSec: 1.6, params: { distance: 380, windupSec: 0.35 } },
-                    { kind: 'projectileSpread', damage: 24, cooldownSec: 2.0, params: { count: 7, spreadDeg: 50, speed: 380 } },
-                    { kind: 'summon', damage: 14, cooldownSec: 4.5, params: { count: 3, enemyRef: 2 } }
+                    { kind: 'echoStep', damage: 18, cooldownSec: 1.6, params: { windupSec: 0.65, activeSec: 0.8, recoverySec: 0.7, shiftDistance: 180 } },
+                    { kind: 'echoDance', damage: 24, cooldownSec: 2.2, params: { windupSec: 0.85, activeSec: 1.85, recoverySec: 1, reach: 130 } },
+                    { kind: 'echoReplay', damage: 22, cooldownSec: 2.5, params: { windupSec: 0.95, activeSec: 0.25, recoverySec: 1.25, reach: 130, echoDelaySec: 0.95 } }
                 ]
             }
         ]

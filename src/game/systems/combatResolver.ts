@@ -26,13 +26,17 @@ interface MeleeSwing {
     rect: Geom.Rectangle;
     life: number;
     hitSet: Set<EnemyEntity>;
+    objectHitSet: Set<string>;
     def: WeaponDef;
     facing: 1 | -1;
     weaponLevelFactor: number;
 }
 
 export class CombatResolver {
+    /** 可破坏场景对象（蛛卵）；使用稳定id保证同挥击去重。 */
+    destructibleTargets: (() => Array<{ id: string; rect: { x: number; y: number; width: number; height: number }; hit: (damage: number) => void }>) | null = null;
     private swings: MeleeSwing[] = [];
+    private pendingAreas: Array<{ x: number; y: number; radius: number; damage: number }> = [];
     private rng: () => number = Math.random;
 
     constructor(
@@ -82,7 +86,7 @@ export class CombatResolver {
             def.hitboxSize.w,
             def.hitboxSize.h
         );
-        this.swings.push({ rect, life: MELEE_LIFETIME_SEC, hitSet: new Set(), def, facing: p.facing,
+        this.swings.push({ rect, life: MELEE_LIFETIME_SEC, hitSet: new Set(), objectHitSet: new Set(), def, facing: p.facing,
             weaponLevelFactor: weaponService.getLevelFactor(def.id, hand) });
         this.onAttackBegan?.('melee');
     }
@@ -100,7 +104,17 @@ export class CombatResolver {
     }
 
     /** 范围伤害（旋风斩等技能执行器调用，FR-07 规则 4） */
+    queueAreaDamage(x: number, y: number, radius: number, damage: number): void {
+        this.pendingAreas.push({ x, y, radius, damage });
+    }
+
     areaDamage(x: number, y: number, radius: number, damage: number): void {
+        for (const target of this.destructibleTargets?.() ?? []) {
+            const r = target.rect;
+            if (Math.hypot(r.x + r.width / 2 - x, r.y + r.height / 2 - y) <= radius) {
+                this.hitDestructible(target, damage, 1);
+            }
+        }
         for (const enemy of this.enemies.getEntities()) {
             if (enemy.dead) { continue; }
             const dist = Math.hypot(enemy.sprite.x - x, enemy.sprite.y - y);
@@ -137,7 +151,7 @@ export class CombatResolver {
         const pm = this.player.getMotionState();
         if (pm.state !== 'dead' && !this.playerIsInvincible()) {
             for (const enemy of this.enemies.getEntities()) {
-                if (enemy.dead || enemy.sleeping) { continue; }
+                if (enemy.dead || enemy.sleeping || enemy.abilityContactSuppressed) { continue; }
                 const hb = enemy.getHurtbox();
                 const pb = this.player.body;
                 if (Geom.Rectangle.Overlaps(new Geom.Rectangle(pb.x, pb.y, pb.width, pb.height),
@@ -151,7 +165,12 @@ export class CombatResolver {
         // K7：本帧死亡优先，死亡等待期间也不再结算残留攻击。
         if (this.player.getMotionState().state === 'dead' || resourceSystem.getSnapshot().hp <= 0) {
             this.swings.length = 0;
+            this.pendingAreas.length = 0;
             return;
+        }
+
+        for (const area of this.pendingAreas.splice(0)) {
+            this.areaDamage(area.x, area.y, area.radius, area.damage);
         }
 
         // 挥击生命周期
@@ -170,6 +189,13 @@ export class CombatResolver {
                     this.hitEnemy(enemy, swing.def.baseDamage, this.player.sprite.x, swing.weaponLevelFactor);
                 }
             }
+            for (const target of this.destructibleTargets?.() ?? []) {
+                const r = target.rect;
+                if (!swing.objectHitSet.has(target.id) && Geom.Rectangle.Overlaps(swing.rect, new Geom.Rectangle(r.x, r.y, r.width, r.height))) {
+                    swing.objectHitSet.add(target.id);
+                    this.hitDestructible(target, swing.def.baseDamage, swing.weaponLevelFactor);
+                }
+            }
         }
 
         // 弹丸 vs 敌人
@@ -177,17 +203,36 @@ export class CombatResolver {
             if (proj.spec === null || proj.spec.side !== 'player') { continue; }
             const pb = proj.sprite.body as Physics.Arcade.Body;
             const prect = new Geom.Rectangle(pb.x, pb.y, pb.width, pb.height);
+            let consumed = false;
             for (const enemy of this.enemies.getEntities()) {
                 if (enemy.dead) { continue; }
                 const hb = enemy.getHurtbox();
                 if (Geom.Rectangle.Overlaps(prect, new Geom.Rectangle(hb.x, hb.y, hb.w, hb.h))) {
                     this.hitEnemy(enemy, proj.spec.damage, proj.sprite.x, proj.spec.weaponLevelFactor ?? 1);
                     this.projectiles.release(proj);
+                    consumed = true;
+                    break;
+                }
+            }
+            if (consumed) { continue; }
+            for (const target of this.destructibleTargets?.() ?? []) {
+                const r = target.rect;
+                if (Geom.Rectangle.Overlaps(prect, new Geom.Rectangle(r.x, r.y, r.width, r.height))) {
+                    this.hitDestructible(target, proj.spec.damage, proj.spec.weaponLevelFactor ?? 1);
+                    this.projectiles.release(proj);
                     break;
                 }
             }
         }
 
+    }
+
+    private hitDestructible(target: { rect: { x: number; y: number; width: number; height: number }; hit: (damage: number) => void },
+        damage: number, weaponLevelFactor: number): void {
+        const amount = calcDamage({ baseDamage: damage, weaponLevelFactor, skillFactor: this.skillFactor() }, this.rng).amount;
+        target.hit(amount);
+        this.fx.damageNumber(target.rect.x + target.rect.width / 2, target.rect.y, amount);
+        this.onEnemyHit?.();
     }
 
     private playerIsInvincible(): boolean {
@@ -258,6 +303,7 @@ export class CombatResolver {
         this.blinkTimer?.remove();
         this.blinkTimer = null;
         this.swings = [];
+        this.pendingAreas = [];
     }
 }
 void ConfigRegistry; // 保留引用（iFrameMs 读取点已在方法内）

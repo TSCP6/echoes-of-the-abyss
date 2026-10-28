@@ -3,7 +3,7 @@ import { beginBossAttack, tickBossAttack } from './bossAttack';
 import { ENEMIES } from '../data/enemies';
 
 describe('Boss 攻击时序', () => {
-    it.each([{ phase: 0, seconds: 0.9 }, { phase: 1, seconds: 0.8 }, { phase: 2, seconds: 0.7 }])(
+    it.each([{ phase: 1, seconds: 0.8 }, { phase: 2, seconds: 0.7 }])(
         '石像守卫者第 $phase 阶段冲刺保留 $seconds 秒判断时间', ({ phase, seconds }) => {
             const skill = ENEMIES.find(e => e.id === 'enm_boss_guardian')!.phases[phase].skills.find(s => s.kind === 'charge')!;
             const attack = beginBossAttack(skill, -1);

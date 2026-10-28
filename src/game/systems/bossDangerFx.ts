@@ -118,7 +118,12 @@ export class BossDangerFx {
         const dir = attack.direction;
         this.label.setPosition(x, body.y - 16).setVisible(true);
         if (attack.stage === 'recovery') {
-            this.label.setText('收招 · 可以反击').setColor('#9de5b0');
+            this.label.setText(attack.skill.kind === 'echoReplay' ? '收招 · 留意延迟剑痕' : '收招 · 可以反击').setColor('#9de5b0');
+            return;
+        }
+        // 新技能的可见范围由 BossAbilityFx 直接读取实际判定几何；这里仅保留护盾和收招。
+        if (attack.skill.params.activeSec !== undefined) {
+            this.label.setVisible(false);
             return;
         }
         if (attack.stage === 'active') {

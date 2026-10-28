@@ -12,7 +12,8 @@
 > 2026-10-27 重生修复：未激活检查点时死亡或掉图救援回 ctx.spawn，激活后回实际检查点；重进/切关清除旧状态，见 `docs/出生点与检查点重生修复.md`。
 > 2026-10-27 技能与操作修复：技能树中文介绍、1–4 显式绑定与存档、主副手远程技能、生存被动和冲刺执行；补齐飞镖枪装备指引、S/↓+跳跃下穿单向平台，金币改为无刚体悬浮拾取。见 `docs/技能装备与平台拾取修复.md`。
 
-> 2026-10-27 接触伤害调整：所有敌人（含 Boss）接触伤害统一为 5，玩家受击击退强度由 120 降至 60，并改为读取 playerDefaults；第一个 Boss 三阶段冲刺前摇各延长 0.3 秒至 0.9/0.8/0.7 秒；见 `docs/敌人接触伤害与击退调整.md`。
+> 2026-10-27 接触伤害调整：所有敌人（含 Boss）接触伤害统一为 5，玩家受击击退强度由 120 降至 60，并改为读取 playerDefaults；当时第一个 Boss 三阶段冲刺前摇延长至 0.9/0.8/0.7 秒。后续独立技能方案改为第一阶段不冲撞，后两阶段保留 0.8/0.7 秒；见 `docs/敌人接触伤害与击退调整.md`。
+> 2026-10-28 Boss 差异化：守卫重锤/震波/撞墙收招，蛛后减速网/可破坏卵/锁定俯袭，回响之影换位/三段剑舞/固定延迟剑痕。预警与伤害共用领域几何；阶段转换、死亡与切场景清理，玩家范围技能排队遵循 K7。入口见 `domain/bossAbilities.ts`、`systems/bossAbilitySystem.ts`，数值和本次验证见 `docs/Boss技能差异化配置.md`、`docs/Boss技能差异化改造.md`。
 
 ## 1. 项目概述
 
@@ -39,7 +40,8 @@ src/game/
     levelLoader.ts        Tiled JSON → LevelContext + 进关校验；onewayProcess 委托 onewaySeparation
     onewaySeparation.ts   ★单向平台扫掠分离纯函数（prevBottom <= top+2；含单测 levelLoader.test.ts）
     enemyAI.ts            4 brain（patrol/chaser/flyer/boss 三阶段+DD-06 技能循环）
-    combatResolver.ts     命中/击退/i-frame/areaDamage；钩子 onAttackBegan/onEnemyHit
+    combatResolver.ts     命中/击退/i-frame/queueAreaDamage、蛛卵破坏；钩子 onAttackBegan/onEnemyHit
+    bossAbilitySystem.ts / bossAbilityFx.ts  独立 Boss 技能桥接及共享几何预警，规则在 domain/bossAbilities.ts
     cameraRig.ts          插值跟随/沉降/lockTo/shake（震屏开关旁路）
     pickupSystem.ts       金币三阶段/检查点/碎片/宝箱/hints 触发区；钩子 onCoinPicked/onChestOpened
     audioDirector.ts      MOD-08：50ms 合并/0.8s 交叉淡化(tick 驱动)/Boss 变体/三路音量/EX-08 挂起队列
@@ -93,7 +95,7 @@ docs/                     SRS / SDD / M4验收记录 / 素材许可清单 / AI�
 ## 5. 调参/改图操作手册
 
 - 手感：改 `src/game/data/playerDefaults.ts`（±20% 内无需动校验）；重力只改这一处。
-- 敌人/Boss：`src/game/data/enemies.ts`（校验仅 kind 枚举/id 前缀/Boss 技能 damage 5~30、cooldown 0.5~8）。
+- 敌人/Boss：`src/game/data/enemies.ts`（校验 kind/id、伤害、冷却及专属技能的有限数值与必需参数；见 `docs/Boss技能差异化配置.md`）。
 - 地图：Tiled 打开 `public/assets/levels/<id>.json` 保存；或改 `tools/gen_levels.py` 后
   `python tools/gen_levels.py [id]` + `python tools/audit_reach.py`（必须 0 违规）。
   图层/对象命名规则见 levelLoader 校验：player_spawn 恰 1、goal 恰 1、cp_N（常规 ≥2）、碎片恰 3 唯一、

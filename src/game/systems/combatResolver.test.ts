@@ -47,6 +47,39 @@ function duel(enemyId = 'enm_patrol') {
 }
 
 describe('同帧致死结算', () => {
+    it('范围技能排队到敌方伤害之后，玩家同帧死亡时取消范围伤害', () => {
+        const f = duel();
+        resourceSystem.applyDamage(99);
+        f.combat.queueAreaDamage(100, 100, 128, 1000);
+        f.combat.update(1 / 60);
+        expect(f.deaths()).toBe(1);
+        expect(f.enemy.dead).toBe(false);
+    });
+    it('同次挥击只命中同一蛛卵一次，下一次挥击可继续破坏', () => {
+        const f = duel();
+        f.enemy.dead = true;
+        const hit = vi.fn();
+        f.combat.destructibleTargets = () => [{ id: 'egg', rect: { x: 115, y: 90, width: 30, height: 30 }, hit }];
+        f.combat.beginMelee(ConfigRegistry.weapons().wpn_shortsword);
+        f.combat.update(1 / 60); f.combat.update(1 / 60);
+        expect(hit).toHaveBeenCalledTimes(1);
+        expect(hit).toHaveBeenCalledWith(12);
+        f.combat.beginMelee(ConfigRegistry.weapons().wpn_shortsword);
+        f.combat.update(1 / 60);
+        expect(hit).toHaveBeenCalledTimes(2);
+    });
+    it('玩家弹丸命中蛛卵后消耗，范围技能也可伤害蛛卵', () => {
+        const f = duel();
+        f.enemy.dead = true;
+        const hit = vi.fn();
+        f.combat.destructibleTargets = () => [{ id: 'egg', rect: { x: 110, y: 90, width: 30, height: 30 }, hit }];
+        f.combat.spawnProjectile(ConfigRegistry.weapons().wpn_crossbow, 0);
+        f.combat.update(1 / 60);
+        expect(hit).toHaveBeenCalledWith(9);
+        expect(f.active[0].active).toBe(false);
+        f.combat.areaDamage(120, 100, 64, 25);
+        expect(hit).toHaveBeenLastCalledWith(25);
+    });
     it.each(['enm_patrol', 'enm_chaser', 'enm_flyer', 'enm_elite',
         'enm_boss_guardian', 'enm_boss_spider', 'enm_boss_echo'])('%s 接触只扣 5 点生命，持续重叠不重复扣血', id => {
         const f = duel(id);

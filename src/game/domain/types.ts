@@ -20,8 +20,17 @@ export interface WeaponDef {
 }
 
 /** BossPhaseDef / BossSkillDef —— DD-06（SRS 5.1 EnemyDef.phases 取值结构） */
+export const BOSS_SKILL_KINDS = [
+    'guardianHammer', 'guardianStomp', 'charge',
+    'spiderWeb', 'spiderEggs', 'spiderDrop',
+    'echoStep', 'echoDance', 'echoReplay',
+    // 保留旧调用与历史测试所用枚举，当前三个 Boss 不再配置这三种通用技能。
+    'summon', 'projectileSpread', 'arenaHazard'
+] as const;
+export type BossSkillKind = typeof BOSS_SKILL_KINDS[number];
+
 export interface BossSkillDef {
-    kind: 'charge' | 'summon' | 'projectileSpread' | 'arenaHazard';
+    kind: BossSkillKind;
     damage: number;               // @range 5~30
     cooldownSec: number;          // @range 0.5~8（设计参数域）
     params: Record<string, number>;

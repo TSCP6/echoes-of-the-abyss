@@ -37,6 +37,7 @@ import { bindViewportLayout } from '../systems/viewportLayout';
 import { BossDangerFx } from '../systems/bossDangerFx';
 import { bossPalette, bossSummonPositions } from '../systems/bossSkillPresentation';
 import { BossArena } from '../systems/bossArena';
+import { BossAbilitySystem } from '../systems/bossAbilitySystem';
 import { PICKUP_TEXTURES } from '../systems/pickupVisuals';
 
 const DEATH_PAUSE_MS = 800; // FR-16 规则 3
@@ -54,6 +55,7 @@ export class LevelScene extends Scene {
     private fx!: WorldFxLayer;
     private dangerFx!: BossDangerFx;
     private arena: BossArena | null = null;
+    private bossAbilities: BossAbilitySystem | null = null;
     private devices: LevelDeviceSystem | null = null;
     private hud = hudViewModel;
     private elapsedSec = 0;
@@ -202,6 +204,7 @@ export class LevelScene extends Scene {
         this.enemies.projectiles = this.projectiles;
         this.enemies.events = {
             onBossPhase: (enemy, phaseIndex) => {
+                this.bossAbilities?.reset();
                 // FR-02 规则 5：Boss 战锁相机至场地；FR-14 规则 5 血条由每帧 setBossBar 驱动
                 if (this.ctx.bossArena !== null) {
                     this.arena?.activate([this.player.body, enemy.body]);
@@ -209,6 +212,7 @@ export class LevelScene extends Scene {
                 }
                 audioDirector.setBossPhase(phaseIndex); // FR-16 规则 1：紧张变体
             },
+            onBossAttackBegan: (enemy, attack) => { if (!this.dead) { this.bossAbilities?.begin(enemy, attack); } },
             onBossSkill: (enemy, kind, params) => {
                 if (kind === 'summon') {
                     const count = Math.floor(params.count ?? 2);
@@ -245,6 +249,8 @@ export class LevelScene extends Scene {
             }
         };
         this.combat = new CombatResolver(this, this.player, this.enemies, this.projectiles, this.fx);
+        this.bossAbilities = this.ctx.bossArena === null ? null
+            : new BossAbilitySystem(this, this.ctx, this.enemies, this.player, this.combat);
         this.combat.onPlayerDied = () => this.onPlayerDeath();
         this.combat.onEnemyHit = () => audioDirector.playSfx('hit_melee'); // AT-56 命中音效
         // 攻击发起音效（TutorialDirector 在其后链式追加完成判定，6.2.3）
@@ -348,7 +354,7 @@ export class LevelScene extends Scene {
         const ef = decision.value.effect;
         audioDirector.playSfx(ef.heal !== undefined ? 'heal' : 'skill'); // AT-56 技能/治疗音效
         if (ef.damage !== undefined && ef.radius !== undefined) {
-            this.combat.areaDamage(p.x, p.y, ef.radius, ef.damage);
+            this.combat.queueAreaDamage(p.x, p.y, ef.radius, ef.damage);
         } else if (ef.projectileCount !== undefined) {
             const count = ef.projectileCount;
             const spread = ef.spreadDeg ?? 15;
@@ -369,6 +375,7 @@ export class LevelScene extends Scene {
     private onPlayerDeath(): void {
         if (this.dead) { return; }
         this.dead = true;
+        this.bossAbilities?.reset();
         recordStore.addDeath();
         audioDirector.playSfx('death');
         this.player.die(this.activeCheckpoint ?? 'player_spawn', this.levelId);
@@ -422,6 +429,7 @@ export class LevelScene extends Scene {
         const point = this.respawnPoint();
         resourceSystem.refill(); // FR-11 规则 7
         this.arena?.release();
+        this.bossAbilities?.reset();
         this.enemies.resetAll();
         this.projectiles.clear();
         this.dangerFx.clear();
@@ -461,6 +469,7 @@ export class LevelScene extends Scene {
         }
 
         // 阶段 2：玩家
+        this.bossAbilities?.preparePlayer();
         this.player.update(deltaMs);
         if (!this.dead) { this.devices?.update(dt, this.gateway.justPressed('interact')); }
         this.mark();
@@ -472,6 +481,7 @@ export class LevelScene extends Scene {
         this.mark();
 
         // 阶段 5：战斗
+        if (!this.dead) { this.bossAbilities?.update(dt); }
         this.combat.update(dt);
         this.mark();
 
@@ -526,6 +536,7 @@ export class LevelScene extends Scene {
         skillService.tickCooldowns(dt);
         weaponService.tickSwitchLock(dt);
         this.fx.tick(dt);
+        this.bossAbilities?.render();
         this.dangerFx.render(this.hazards, this.elapsedSec, this.enemies.getBoss());
         this.mark();
 
@@ -558,6 +569,8 @@ export class LevelScene extends Scene {
         offEvent('player:damaged', this.onPlayerDamaged);
         if (sceneDirector.isGameplay(this)) { sceneDirector.setActiveGameplay(null); }
         // 首次建关失败时，部分系统可能尚未创建。
+        this.bossAbilities?.destroy();
+        this.bossAbilities = null;
         this.combat?.destroy();
         this.projectiles?.destroy();
         this.devices?.destroy();

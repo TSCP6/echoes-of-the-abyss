@@ -8,12 +8,19 @@ const SHEETS = [
     { texture: 'guardian_shoot', animation: 'guardian-shoot', size: 200, frames: 9, fps: 10, repeat: 0 },
     { texture: 'guardian_immune', animation: 'guardian-immune', size: 200, frames: 8, fps: 12, repeat: 0 },
     { texture: 'guardian_melee', animation: 'guardian-melee', size: 200, frames: 7, fps: 10, repeat: 0 },
+    { texture: 'guardian_melee', animation: 'guardian-hammer', size: 200, frames: 7, fps: 12, repeat: 0 },
+    { texture: 'guardian_shoot', animation: 'guardian-stomp', size: 200, frames: 9, fps: 14, repeat: 0 },
+    { texture: 'guardian_immune', animation: 'guardian-charge', size: 200, frames: 8, fps: 14, repeat: -1 },
     { texture: 'guardian_death', animation: 'guardian-death', size: 200, frames: 14, fps: 10, repeat: 0 },
     { texture: 'spider_idle', animation: 'spider-idle', size: 160, frames: 4, fps: 6, repeat: -1 },
     { texture: 'spider_move', animation: 'spider-move', size: 160, frames: 4, fps: 8, repeat: -1 },
     { texture: 'spider_cast', animation: 'spider-summon', size: 160, frames: 3, fps: 8, repeat: 0 },
     { texture: 'spider_cast', animation: 'spider-shoot', size: 160, frames: 3, fps: 10, repeat: 0 },
     { texture: 'spider_cast', animation: 'spider-hazard', size: 160, frames: 3, fps: 8, repeat: 0 },
+    { texture: 'spider_cast', animation: 'spider-web', size: 160, frames: 3, fps: 10, repeat: 0 },
+    { texture: 'spider_cast', animation: 'spider-eggs', size: 160, frames: 3, fps: 6, repeat: 0 },
+    { texture: 'spider_cast', animation: 'spider-hang', size: 160, frames: 3, fps: 6, repeat: 0 },
+    { texture: 'spider_move', animation: 'spider-drop', size: 160, frames: 4, fps: 14, repeat: 0 },
     { texture: 'spider_idle', animation: 'spider-phase', size: 160, frames: 4, fps: 12, repeat: -1 },
     { texture: 'spider_cast', animation: 'spider-hit', size: 160, frames: 1, fps: 1, repeat: 0 },
     { texture: 'spider_death', animation: 'spider-death', size: 160, frames: 4, fps: 8, repeat: 0 },
@@ -26,6 +33,9 @@ const SHEETS = [
     { texture: 'echo_charge', animation: 'echo-charge', size: 200, frames: 12, fps: 18, repeat: 0 },
     { texture: 'echo_shoot', animation: 'echo-shoot', size: 200, frames: 13, fps: 20, repeat: 0 },
     { texture: 'echo_summon', animation: 'echo-summon', size: 200, frames: 5, fps: 8, repeat: 0 },
+    { texture: 'echo_charge', animation: 'echo-step', size: 200, frames: 12, fps: 20, repeat: 0 },
+    { texture: 'echo_shoot', animation: 'echo-dance', size: 200, frames: 13, fps: 16, repeat: 1 },
+    { texture: 'echo_shoot', animation: 'echo-replay', size: 200, frames: 13, fps: 20, repeat: 0 },
     { texture: 'echo_idle', animation: 'echo-hit', size: 200, frames: 1, fps: 1, repeat: 0 },
     { texture: 'echo_death', animation: 'echo-death', size: 200, frames: 18, fps: 10, repeat: 0 },
     { texture: 'echo_spirit_idle', animation: 'echo-spirit-idle', size: 150, frames: 4, fps: 8, repeat: -1 },
@@ -69,7 +79,7 @@ type VisualState = 'idle' | 'move' | 'hit' | 'phase' | 'dead';
 
 interface VisualProfile {
     size: number; death: number; idle: string; move: string; hit: string; phase: string;
-    skills: Record<string, { key: string; duration: number }>;
+    skills: Record<string, { key: string; duration: number; windup?: string }>;
     windup: string;
     appear?: string;
 }
@@ -77,15 +87,30 @@ interface VisualProfile {
 const PROFILES: Record<string, VisualProfile> = {
     enm_boss_guardian: {
         size: 200, death: 1.4, idle: 'guardian-idle', move: 'guardian-idle', hit: 'guardian-immune', phase: 'guardian-glow', windup: 'guardian-glow',
-        skills: { charge: { key: 'guardian-melee', duration: 0.7 }, projectileSpread: { key: 'guardian-shoot', duration: 0.9 }, arenaHazard: { key: 'guardian-glow', duration: 0.8 } }
+        skills: {
+            guardianHammer: { key: 'guardian-hammer', duration: 0.6, windup: 'guardian-glow' },
+            guardianStomp: { key: 'guardian-stomp', duration: 0.65, windup: 'guardian-immune' },
+            charge: { key: 'guardian-charge', duration: 0.6, windup: 'guardian-glow' },
+            projectileSpread: { key: 'guardian-shoot', duration: 0.9 }, arenaHazard: { key: 'guardian-glow', duration: 0.8 }
+        }
     },
     enm_boss_spider: {
         size: 160, death: 0.5, idle: 'spider-idle', move: 'spider-move', hit: 'spider-hit', phase: 'spider-phase', windup: 'spider-summon',
-        skills: { summon: { key: 'spider-summon', duration: 0.5 }, projectileSpread: { key: 'spider-shoot', duration: 0.4 }, arenaHazard: { key: 'spider-hazard', duration: 0.5 } }
+        skills: {
+            spiderWeb: { key: 'spider-web', duration: 0.35, windup: 'spider-hazard' },
+            spiderEggs: { key: 'spider-eggs', duration: 0.5, windup: 'spider-summon' },
+            spiderDrop: { key: 'spider-drop', duration: 0.4, windup: 'spider-hang' },
+            summon: { key: 'spider-summon', duration: 0.5 }, projectileSpread: { key: 'spider-shoot', duration: 0.4 }, arenaHazard: { key: 'spider-hazard', duration: 0.5 }
+        }
     },
     enm_boss_echo: {
         size: 200, death: 1.8, idle: 'echo-idle', move: 'echo-idle', hit: 'echo-hit', phase: 'echo-phase', windup: 'echo-phase',
-        skills: { charge: { key: 'echo-charge', duration: 0.7 }, projectileSpread: { key: 'echo-shoot', duration: 0.65 }, summon: { key: 'echo-summon', duration: 0.65 } }
+        skills: {
+            echoStep: { key: 'echo-step', duration: 0.6, windup: 'echo-phase' },
+            echoDance: { key: 'echo-dance', duration: 13 / 16 * 2, windup: 'echo-summon' },
+            echoReplay: { key: 'echo-replay', duration: 0.65, windup: 'echo-phase' },
+            charge: { key: 'echo-charge', duration: 0.7 }, projectileSpread: { key: 'echo-shoot', duration: 0.65 }, summon: { key: 'echo-summon', duration: 0.65 }
+        }
     },
     echo_spirit: {
         size: 150, death: 0.5, idle: 'echo-spirit-idle', move: 'echo-spirit-idle', hit: 'echo-spirit-idle', phase: 'echo-spirit-idle', windup: 'echo-spirit-idle',
@@ -127,11 +152,13 @@ export class EnemyVisual {
         this.sprite.setFlipX(this.ant ? direction > 0 : direction < 0);
     }
 
-    skill(kind: string): void {
+    /** 视觉保持时间由实际技能窗口提供；省略时使用素材本身的播放长度。 */
+    skill(kind: string, activeDuration?: number): void {
         if (this.state === 'dead') { return; }
         const clip = this.profile?.skills[kind];
         if (clip === undefined) { return; }
-        this.actionRemaining = clip.duration;
+        this.actionRemaining = activeDuration !== undefined && Number.isFinite(activeDuration) && activeDuration >= 0
+            ? activeDuration : clip.duration;
         this.currentKey = ''; // A release can reuse the windup sheet; restart it once.
         this.play(clip.key);
     }
@@ -139,7 +166,8 @@ export class EnemyVisual {
     windup(kind = ''): void {
         if (this.profile === undefined || this.state === 'dead') { return; }
         this.actionRemaining = Number.POSITIVE_INFINITY;
-        this.play(kind === 'summon' ? this.profile.skills.summon?.key ?? this.profile.windup : this.profile.windup);
+        this.play(this.profile.skills[kind]?.windup
+            ?? (kind === 'summon' ? this.profile.skills.summon?.key ?? this.profile.windup : this.profile.windup));
     }
 
     update(dt: number, state: VisualState, sleeping = false): void {

@@ -22,6 +22,61 @@ function fixture(id = 'enm_boss_guardian') {
 }
 
 describe('敌人美术状态优先级', () => {
+    it.each([
+        ['enm_boss_guardian', 'charge', 'guardian-charge', 2.4],
+        ['enm_boss_echo', 'echoDance', 'echo-dance', 1.85]
+    ])('%s 的 %s 按调用方传入的实际窗口保持施招态，窗口结束恢复待机', (id, kind, clip, duration) => {
+        const { visual, played } = fixture(id as string);
+        visual.skill(kind as string, duration as number);
+        visual.update((duration as number) - 0.1, 'move');
+        expect(played.at(-1)).toBe(clip);
+        visual.update(0.11, 'idle');
+        expect(played.at(-1)).toBe(id === 'enm_boss_echo' ? 'echo-idle' : 'guardian-idle');
+    });
+
+    it('传入较短窗口也不会把历史视觉时长附加到实际动作之后', () => {
+        const { visual, played } = fixture();
+        visual.skill('charge', 0.2);
+        visual.update(0.21, 'idle');
+        expect(played.at(-1)).toBe('guardian-idle');
+    });
+
+    it.each([
+        ['enm_boss_guardian', 'guardianHammer', 'guardian-hammer'],
+        ['enm_boss_guardian', 'guardianStomp', 'guardian-stomp'],
+        ['enm_boss_guardian', 'charge', 'guardian-charge'],
+        ['enm_boss_spider', 'spiderWeb', 'spider-web'],
+        ['enm_boss_spider', 'spiderEggs', 'spider-eggs'],
+        ['enm_boss_spider', 'spiderDrop', 'spider-drop'],
+        ['enm_boss_echo', 'echoStep', 'echo-step'],
+        ['enm_boss_echo', 'echoDance', 'echo-dance'],
+        ['enm_boss_echo', 'echoReplay', 'echo-replay']
+    ])('%s 的 %s 使用对应独立动作，普通移动不提前覆盖', (id, kind, clip) => {
+        const { visual, played } = fixture(id);
+        visual.skill(kind);
+        expect(played.at(-1)).toBe(clip);
+        visual.update(0.1, 'move');
+        expect(played.at(-1)).toBe(clip);
+    });
+
+    it.each([
+        ['enm_boss_guardian', 'guardianHammer', 'guardian-glow'],
+        ['enm_boss_guardian', 'guardianStomp', 'guardian-immune'],
+        ['enm_boss_guardian', 'charge', 'guardian-glow'],
+        ['enm_boss_spider', 'spiderWeb', 'spider-hazard'],
+        ['enm_boss_spider', 'spiderEggs', 'spider-summon'],
+        ['enm_boss_spider', 'spiderDrop', 'spider-hang'],
+        ['enm_boss_echo', 'echoStep', 'echo-phase'],
+        ['enm_boss_echo', 'echoDance', 'echo-summon'],
+        ['enm_boss_echo', 'echoReplay', 'echo-phase']
+    ])('%s 的 %s 前摇使用可辨认的准备动作且保持到释放', (id, kind, clip) => {
+        const { visual, played } = fixture(id);
+        visual.windup(kind);
+        expect(played.at(-1)).toBe(clip);
+        visual.update(0.6, 'idle');
+        expect(played.at(-1)).toBe(clip);
+    });
+
     it('蚂蚁源图朝左，移动朝向应与源图一致', () => {
         const { visual, sprite } = fixture('enm_patrol');
         visual.face(-1);
