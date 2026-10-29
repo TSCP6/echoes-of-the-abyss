@@ -11,6 +11,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { EventBus } from '../game/EventBus';
 import { AppBoot } from '../game/domain/appBoot';
 import { progressService } from '../game/domain/progressService';
+import { campaignSummary } from '../game/domain/campaignVictory';
 import { saveSystem } from '../game/domain/saveSystem';
 import { sceneDirector } from '../game/systems/sceneDirector';
 import { emitEvent, onEvent, offEvent, type UiState, type EventPayloads } from '../game/events';
@@ -20,6 +21,7 @@ import MainMenuView from './MainMenuView.vue';
 import LevelSelectView from './LevelSelectView.vue';
 import PauseOverlay from './PauseOverlay.vue';
 import ResultView from './ResultView.vue';
+import VictoryView from './VictoryView.vue';
 import HelpView from './HelpView.vue';
 import HudOverlay from './HudOverlay.vue';
 import InventoryPanel from './InventoryPanel.vue';
@@ -36,6 +38,9 @@ const booted = ref(false);
 const hasSave = ref(false);
 const sceneKey = ref('');
 const resultData = ref<EventPayloads['level:cleared'] | null>(null);
+const hasVictory = ref(false);
+const victoryFirstClear = ref(false);
+const victoryIntro = ref(true);
 const shopSceneId = ref<1 | 2 | 3>(1);
 const history: UiState[] = [];
 let requestedGameplay: 'Level' | 'Camp' | null = null;
@@ -48,6 +53,7 @@ let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 function refreshSave(): void {
     saveSummary.value = saveSystem.getSummary();
     hasSave.value = saveSummary.value !== null;
+    hasVictory.value = campaignSummary().completed;
 }
 
 function showSaveManager(): void {
@@ -184,10 +190,24 @@ const onLevelSelectRequest = (): void => {
 };
 const onLevelCleared = (p: EventPayloads['level:cleared']): void => {
     resultData.value = p;
+    hasVictory.value = campaignSummary().completed;
+    victoryFirstClear.value = p.campaignVictory?.firstClear ?? false;
+    victoryIntro.value = true;
     history.length = 0;
-    uiState.value = 'result';
-    emitEvent('ui:overlay', { name: 'result', open: true });
+    uiState.value = p.campaignVictory && hasVictory.value ? 'victory' : 'result';
+    emitEvent('ui:overlay', { name: uiState.value, open: true });
 };
+function replayEnding(): void {
+    if (!campaignSummary().completed) { return; }
+    resultData.value = null;
+    victoryFirstClear.value = true;
+    victoryIntro.value = true;
+    goto('victory');
+}
+function victoryInventory(): void {
+    victoryIntro.value = false;
+    open('inventory');
+}
 /** Phaser.Scene 无直接 .key 属性（键在 ScenePlugin/sys.settings 上，模板 App.vue 同用法）；命名 const 窄化读取 */
 function sceneKeyOf(s: unknown): string {
     if (s === null || typeof s !== 'object') { return ''; }
@@ -215,6 +235,8 @@ const onKeyup = (e: KeyboardEvent): void => {
 };
 const onBlur = (): void => { consumedKeys.clear(); };
 const onKeydown = (e: KeyboardEvent): void => {
+    // 终章的 Esc 只跳过演出/聚焦导航，不能关闭到空菜单。
+    if (uiState.value === 'victory') { return; }
     if (saveManagerOpen.value) {
         if (e.key === 'Escape') {
             consumedKeys.add(e.code || e.key);
@@ -292,6 +314,7 @@ onMounted(() => {
     AppBoot.ready.then((r) => {
         hasSave.value = r.save !== null;
         saveSummary.value = saveSystem.getSummary();
+        hasVictory.value = campaignSummary().completed;
         booted.value = true;
         if (sceneKey.value === 'Menu') { uiState.value = 'mainMenu'; }
     }).catch(() => {
@@ -323,10 +346,10 @@ defineExpose({ open, close, enterLevel, enterCamp, backToMenu, goto, hasSave });
         <TutorialHints v-if="showTutorial" />
         <Transition name="fade">
             <div v-if="!booted" class="overlay loading">加载中…</div>
-            <MainMenuView v-else-if="uiState === 'mainMenu'" :has-save="hasSave"
+            <MainMenuView v-else-if="uiState === 'mainMenu'" :has-save="hasSave" :has-victory="hasVictory"
                 @start="goto('levelSelect')" @continue="continueGame"
                 @levels="goto('levelSelect')" @settings="open('settings')" @help="open('help')"
-                @records="open('records')" @saves="showSaveManager" />
+                @records="open('records')" @saves="showSaveManager" @ending="replayEnding" />
             <LevelSelectView v-else-if="uiState === 'levelSelect'" @enter="enterLevel" @back="backToMenu"
                 @camp="enterCamp" />
             <PauseOverlay v-else-if="uiState === 'paused'" @resume="close" @help="open('help')"
@@ -334,6 +357,9 @@ defineExpose({ open, close, enterLevel, enterCamp, backToMenu, goto, hasSave });
                 @save-quit="saveAndQuit" @saves="showSaveManager" />
             <ResultView v-else-if="uiState === 'result'" :data="resultData"
                 @next="enterLevel" @retry="enterLevel" @levels="goto('levelSelect')" />
+            <VictoryView v-else-if="uiState === 'victory'" :data="resultData" :first-clear="victoryFirstClear"
+                :intro-on-mount="victoryIntro" @camp="enterCamp(3)" @levels="goto('levelSelect')"
+                @menu="backToMenu" @inventory="victoryInventory" />
             <InventoryPanel v-else-if="uiState === 'inventory'" @close="close" />
             <ShopPanel v-else-if="uiState === 'shop'" :scene-id="shopSceneId" @close="close" />
             <SkillTreePanel v-else-if="uiState === 'skillTree'" @close="close" />
@@ -366,7 +392,7 @@ defineExpose({ open, close, enterLevel, enterCamp, backToMenu, goto, hasSave });
 /* 交互面板接收鼠标；HUD 和教学提示须穿透到游戏画布。 */
 .ui-layer > :deep(:not(.hud):not(.hint)) { pointer-events: auto; }
 /* 内容超过小窗口时从顶部滚动，避免居中布局把标题或返回按钮裁到屏幕外。 */
-.ui-layer > :deep(:not(.hud):not(.hint)) {
+.ui-layer > :deep(:not(.hud):not(.hint):not(.victory)) {
     box-sizing: border-box;
     padding: 16px;
     overflow: auto;
@@ -375,6 +401,7 @@ defineExpose({ open, close, enterLevel, enterCamp, backToMenu, goto, hasSave });
     justify-content: safe center;
 }
 .ui-layer > :deep(.menu) { justify-content: flex-start; }
+.ui-layer > :deep(.victory) { padding: 0; }
 .ui-layer > :deep(.select) { justify-content: flex-start; }
 .ui-layer > :deep(.select > *) { flex-shrink: 0; }
 .ui-layer :deep(.panel) {

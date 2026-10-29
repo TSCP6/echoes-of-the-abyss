@@ -8,7 +8,7 @@ import type { KeymapData } from './domain/saveSchema';
 
 export type UiState =
     | 'none' | 'mainMenu' | 'levelSelect' | 'paused' | 'result'
-    | 'inventory' | 'shop' | 'skillTree' | 'settings' | 'records' | 'help';
+    | 'inventory' | 'shop' | 'skillTree' | 'settings' | 'records' | 'help' | 'victory';
 
 /** DR-04 事件名 → 载荷类型映射（唯一权威表） */
 export interface EventPayloads {
@@ -17,7 +17,8 @@ export interface EventPayloads {
     'player:died': { levelId: string; checkpointId: string; lostCoins: number }; // IF-E04
     'enemy:killed': { enemyId: string; coins: number; position: { x: number; y: number }; rewardKey?: string | null }; // IF-E05
     'level:cleared': { levelId: string; timeSec: number; kills: number; shards: number; coins: number;
-        earnedCoins?: number; firstClearCoins?: number; lostCoins?: number }; // IF-E06
+        earnedCoins?: number; firstClearCoins?: number; lostCoins?: number;
+        campaignVictory?: { firstClear: boolean } }; // IF-E06
     'inventory:changed': { slots: (SlotEntry | null)[]; equipped: { main: string | null; sub: string | null } }; // IF-E07
     'skill:unlocked': { skillId: string; remainingSkp: number };            // IF-E08
     'settings:changed': SettingsChangedPayload;                             // IF-E09

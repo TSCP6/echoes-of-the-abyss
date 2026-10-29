@@ -214,6 +214,21 @@ async function encodeSave(data: SaveData): Promise<string> {
 }
 
 describe('存档管理和导入事务', () => {
+    it('终章满包奖励通过正式存档与导入校验，拒绝未知物品及非法数量', async () => {
+        const s = new SaveSystem(); const ps = new ProgressService(); ps.reset();
+        s.register({ key: 'progress', toSnapshot: () => ps.toSnapshot(), fromSnapshot: value => ps.fromSnapshot(value) });
+        ps.setVictoryLoot([{ itemId: 'itm_potion_hp_l', count: 2 }]);
+        expect(s.write().ok).toBe(true); ps.reset();
+        const loaded = s.load();
+        expect(loaded.ok).toBe(true);
+        if (loaded.ok && loaded.value !== null) { ps.fromSnapshot(loaded.value.progress); }
+        expect(ps.getVictoryLoot()).toEqual([{ itemId: 'itm_potion_hp_l', count: 2 }]);
+        const data = portableSave(); data.progress.victoryLoot = ps.getVictoryLoot();
+        expect(s.inspectJson(await encodeSave(data)).ok).toBe(true);
+        for (const item of [{ itemId: 'unknown', count: 2 }, { itemId: 'itm_potion_hp_l', count: -1 }, { itemId: 'itm_potion_hp_l', count: 1.5 }]) {
+            data.progress.victoryLoot = [item]; expect(s.inspectJson(await encodeSave(data)).ok).toBe(false);
+        }
+    });
     it('旧版完整存档可预览与导入，缺少宝箱字段不拒绝', async () => {
         const s = new SaveSystem(); let received = 0;
         s.register({ key: 'player', toSnapshot: () => portableSave().player, fromSnapshot: p => { received = p.coins; } });

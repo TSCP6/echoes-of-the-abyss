@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 440" shape-rendering="crispEdges">
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#252744"/><stop offset=".55" stop-color="#65516b"/><stop offset="1" stop-color="#e8ad80"/></linearGradient>
+    <linearGradient id="haze" x2="0" y2="1"><stop stop-color="#e7b58b" stop-opacity="0"/><stop offset="1" stop-color="#edbc8b" stop-opacity=".7"/></linearGradient>
+  </defs>
+  <path fill="url(#sky)" d="M0 0h1280v440H0z"/>
+  <!-- 方形晨星与层叠日轮 -->
+  <path fill="#d6ccd0" opacity=".65" d="M106 44h3v3h-3zM343 26h2v2h-2zM528 56h3v3h-3zM1005 36h3v3h-3zM1170 91h2v2h-2zM697 22h2v2h-2z"/>
+  <path fill="#efc48e" opacity=".10" d="M798 46h100v16h36v32h20v100H742V94h20V62h36z"/>
+  <path fill="#f3cf9b" opacity=".23" d="M806 66h80v14h30v26h14v94H762v-94h14V80h30z"/>
+  <path fill="#f7d8a6" d="M816 88h60v12h20v20h12v80H784v-80h12v-20h20z"/>
+  <!-- 远山 -->
+  <path fill="#68576c" d="M0 220v-38h52v-30h48v-24h64v26h45v35h55v-20h56v-39h60v-16h53v34h36v28h90v25h64v-37h65v-32h43v22h38v36h66v-22h56v-39h70v-22h62v42h64v29h68v-15h70v-26h66v20h62v56z"/>
+  <path fill="url(#haze)" d="M0 190h1280v155H0z"/>
+  <!-- 云海：水平像素边缘 -->
+  <g fill="#e5bca4" opacity=".5"><path d="M528 232h330v8h168v9H460v-8h68zM860 190h226v8h130v8H824v-8h36zM222 268h290v8h188v8H172v-8h50z"/></g>
+  <g fill="#ad8c9a" opacity=".6"><path d="M652 274h310v10h240v12H552v-12h100zM342 310h388v8h202v10H274v-10h68z"/></g>
+  <!-- 左：森林遗迹 -->
+  <path fill="#34484b" d="M0 152h32v-30h28v-20h50v-23h38v24h36v24h34v38h26v48h-30v-24h-36v-26h-36v115h-32V161H84v21H42v27H0zM208 204h26v-36h30v-26h48v-23h34v25h32v32h22v48h-24v-20h-32v110h-26V196h-22v21h-30v18h-58z"/>
+  <path fill="#536459" d="M10 143h46v-26h60v-22h25v20h-20v17H78v26H10zM238 192h28v-28h52v-24h23v22h-22v17h-40v25h-41z"/>
+  <path fill="#243c42" d="M0 272h48v-17h42v-18h52v14h60v24h68v-16h76v18h44v163H0z"/>
+  <path fill="#68786b" d="M128 268v-60h20v-14h70v14h18v62h-20v-46h-68v44z"/>
+  <path fill="#384d4d" d="M150 202h50v9h-50zM132 240h13v8h-13zM219 233h12v7h-12z"/>
+  <path fill="#6e875a" d="M125 194h25v8h-18v30h-7zM202 194h26v12h-9v22h-7v-25h-10z"/>
+  <!-- 中：晶体矿道与断开的地层 -->
+  <path fill="#283d4c" d="M338 325h55v-20h70v24h48v27h63v-20h48v104H338z"/>
+  <path fill="#3a5660" d="m387 329 18-42 15 37 12 16-23 22zM466 345l18-67 16 34-3 30-17 26zM535 361l12-35 17 25-8 27z"/>
+  <path fill="#7da8a4" d="m387 329 18-42-3 50 7 25zM466 345l18-67-2 63-2 27zM535 361l12-35-1 42z"/>
+  <path fill="#41636b" d="M368 375h112v8H368zM499 394h78v7h-78z"/>
+  <!-- 右：天空神殿、浮岛 -->
+  <g fill="#777080"><path d="M1002 178v-58h-8v-11h46v11h-8v58zM1108 191v-89h-7V90h46v12h-8v89zM1190 210v-54h-7v-11h46v11h-8v54z"/><path d="M978 178h81v10h-9v16h-16v18h-26v-12h-20v-22h-10zM1087 191h169v13h-18v21h-27v17h-46v-12h-32v-26h-46z"/></g>
+  <g fill="#afa08f"><path d="M994 109h46v8h-46zM1101 90h46v8h-46zM1183 145h46v8h-46zM978 177h81v6h-81zM1087 190h169v7h-169z"/></g>
+  <path fill="#524c68" d="M1150 262h130v178h-164v-93h34zM1240 206h22v60h-22zM1233 194h36v12h-36z"/>
+  <path fill="#958181" d="M1140 261h140v12h-140zM1233 194h36v7h-36z"/>
+  <!-- 主角脚下的终章断台 -->
+  <path fill="#a29989" d="M692 317h282v13H692z"/>
+  <path fill="#676674" d="M708 330h252v20h-18v18h-20v26h-24v46H756v-38h-18v-34h-16v-18h-14z"/>
+  <path fill="#3d4055" d="M756 350h36v37h-12v53h-24zM842 367h20v73h-20zM916 330h25v17h-25zM813 333h8v29h-8z"/>
+  <path fill="#c6b59a" d="M692 317h282v5H692zM718 330h63v5h-63zM864 330h79v5h-79z"/>
+  <path fill="#7b9180" d="M693 314h28v8h-28zM930 314h27v8h-27zM948 322h9v20h-9z"/>
+</svg>

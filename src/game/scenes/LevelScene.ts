@@ -24,6 +24,7 @@ import { economyService } from '../domain/economyService';
 import { enemyRewardItems, grantChestReward } from '../domain/rewardService';
 import { ENEMY_MATERIAL_COUNTS, FIRST_CLEAR_COINS } from '../data/rewardDefaults';
 import { progressService } from '../domain/progressService';
+import { canFinishCampaign, claimVictoryLoot } from '../domain/campaignVictory';
 import { weaponService } from '../domain/weaponService';
 import { skillService } from '../domain/skillService';
 import { recordStore } from '../domain/recordStore';
@@ -70,6 +71,8 @@ export class LevelScene extends Scene {
     private earnedCoins = 0;
     private resumeRequested = false;
     private dead = false;
+    private victoryPending = false;
+    private finished = false;
     private activeCheckpoint: string | null = null;
     private overlayOpen = false;
     private hazards: ArenaHazard[] = [];
@@ -131,6 +134,17 @@ export class LevelScene extends Scene {
         else if (this.scene.isPaused()) { this.scene.resume(); }
     };
     private onEnemyKilled = (p: { enemyId: string; coins: number; position: { x: number; y: number }; rewardKey?: string | null }): void => {
+        if (this.finished || this.victoryPending) { return; }
+        const finalVictory = !this.dead && p.enemyId === this.ctx.bossId && canFinishCampaign(this.levelId)
+            && this.enemies.getEntities().some(enemy => enemy.def.id === p.enemyId && enemy.dead);
+        if (finalVictory) {
+            // 同一帧剩余攻击也不能让获胜者死亡；在战斗管线返回后统一结算。
+            this.victoryPending = true;
+            this.player.iFrameUntil = Number.POSITIVE_INFINITY;
+            this.hazards = [];
+            this.bossAbilities?.reset();
+            this.projectiles.clear();
+        }
         if (p.enemyId === this.ctx.bossId) { this.playRegionMusic(); }
         this.kills += 1;
         recordStore.addKill();
@@ -138,13 +152,21 @@ export class LevelScene extends Scene {
         // 召唤物无奖励；地图敌人同轮只认领一次，死亡/重进/续关不刷新。
         if (!p.rewardKey || !progressService.claimRunReward(this.levelId, p.rewardKey)) { return; }
         saveSystem.markDirty(); saveSystem.queueWrite();
-        this.pickups.spawnCoinBurst(p.position, p.coins); // FR-09 掉落
+        if (finalVictory) {
+            const before = economyService.getCoins();
+            economyService.addCoins(progressService.scaleRunCoins(this.levelId, p.coins));
+            this.earnedCoins += economyService.getCoins() - before;
+        } else { this.pickups.spawnCoinBurst(p.position, p.coins); } // FR-09 掉落
         const guaranteed = ENEMY_MATERIAL_COUNTS[p.enemyId] ?? 0;
         if (guaranteed > 0) {
             economyService.addMaterial('itm_relic_shard', guaranteed);
             this.fx.message(p.position.x, p.position.y - 48, `强化残片 +${guaranteed}`);
         }
-        for (const item of enemyRewardItems(p.enemyId, Math.random)) {
+        const items = enemyRewardItems(p.enemyId, Math.random);
+        if (finalVictory) {
+            progressService.setVictoryLoot([...progressService.getVictoryLoot(), ...items]);
+            claimVictoryLoot();
+        } else for (const item of items) {
             this.pickups.spawnItemDrop(p.position, item.itemId, item.count);
         }
     };
@@ -161,6 +183,8 @@ export class LevelScene extends Scene {
         this.levelId = data.levelId ?? '1-1';
         this.resumeRequested = data.resume === true;
         this.earnedCoins = 0;
+        this.victoryPending = false;
+        this.finished = false;
         this.ready = false; // 重建期旧管线停摆（preload 窗口期 update 跳过）
         this.overlayOpen = false;
         this.activeCheckpoint = null;
@@ -413,7 +437,7 @@ export class LevelScene extends Scene {
     };
 
     private onPlayerDeath(): void {
-        if (this.dead) { return; }
+        if (this.dead || this.victoryPending || this.finished) { return; }
         this.dead = true;
         this.playRegionMusic();
         this.playerCombatFx.clear();
@@ -429,11 +453,16 @@ export class LevelScene extends Scene {
     }
 
     private onGoalReached(): boolean {
+        if (this.finished) { return true; }
         if (this.dead) { return false; }
         // 要求本关配置的 Boss 已被击败，不能把“未找到存活 Boss”当作获胜。
         if (this.ctx.bossId !== null && !this.enemies.getEntities().some((e) => e.def.id === this.ctx.bossId && e.dead)) {
             return false;
         }
+        this.finished = true;
+        this.physics.pause();
+        this.player.body.setVelocity(0, 0);
+        const campaignVictory = canFinishCampaign(this.levelId);
         const shards = this.ctx.shards.filter((s) => progressService.isShardCollected(this.levelId, s.id)).length;
         audioDirector.playSfx('clear');
         const res = progressService.completeLevel(this.levelId);
@@ -456,7 +485,8 @@ export class LevelScene extends Scene {
             timeSec: Math.round(this.elapsedSec * 10) / 10,
             kills: this.kills,
             shards,
-            coins: economyService.getCoins(), earnedCoins: this.earnedCoins, firstClearCoins, lostCoins: 0
+            coins: economyService.getCoins(), earnedCoins: this.earnedCoins, firstClearCoins, lostCoins: 0,
+            ...(campaignVictory ? { campaignVictory: { firstClear: res.firstClear } } : {})
         });
         // FR-13 规则 2：关卡结算完成 = 写入点
         saveSystem.markDirty();
@@ -498,7 +528,8 @@ export class LevelScene extends Scene {
 
     update(_time: number, deltaMs: number): void {
         const dt = Math.min(deltaMs / 1000, 0.1); // 冻结/切回单帧巨型 dt 钳制（防物理爆冲，EX-05 精神）
-        if (this.overlayOpen || !this.ready) { return; }
+        if (this.overlayOpen || !this.ready || this.finished) { return; }
+        if (this.victoryPending) { this.onGoalReached(); return; }
 
         // 阶段 1：输入
         this.mark(); // 帧起点
@@ -523,6 +554,7 @@ export class LevelScene extends Scene {
         }
 
         // 阶段 2：玩家
+        if (this.victoryPending) { this.onGoalReached(); return; }
         this.bossAbilities?.preparePlayer();
         this.player.update(deltaMs);
         if (!this.dead) { this.devices?.update(dt, this.gateway.justPressed('interact')); }
@@ -537,6 +569,7 @@ export class LevelScene extends Scene {
         // 阶段 5：战斗
         if (!this.dead) { this.bossAbilities?.update(dt); }
         this.combat.update(dt);
+        if (this.victoryPending) { this.onGoalReached(); return; }
         this.mark();
 
         // 阶段 6：敌人

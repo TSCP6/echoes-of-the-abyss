@@ -26,6 +26,8 @@ export interface SaveProgressSection {
     clearCounts?: Record<string, number>;
     runRewards?: Record<string, string[]>;
     coinRemainders?: Record<string, number>;
+    /** 最终 Boss 满包掉落暂存；旧档缺失时为空。 */
+    victoryLoot?: { itemId: string; count: number }[];
     tutorialDone: boolean;
     /** 设计层补充字段（7.3.2）：旧档缺失时回退"最后解锁关卡的入口检查点"，向后兼容 */
     currentLevelId?: string | null;

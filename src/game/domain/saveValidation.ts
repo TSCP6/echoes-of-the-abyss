@@ -36,6 +36,9 @@ export function validPortableSave(value: unknown): value is SaveData {
         .every(([id, count]) => LEVEL_ORDER.includes(id) && integer(count, 0, 99)))) { return false; }
     if (g.openedChests !== undefined && (!strings(g.openedChests)
         || !g.openedChests.every(id => LEVEL_ORDER.some(l => id.startsWith(`${l}:`) && id.length > l.length + 1)))) { return false; }
+    if (g.victoryLoot !== undefined && (!Array.isArray(g.victoryLoot) || g.victoryLoot.length > 100
+        || !g.victoryLoot.every(item => object(item) && ITEMS.some(i => i.id === item.itemId)
+            && integer(item.count, 1)))) { return false; }
     if (inv.capacity !== 20 || !Array.isArray(inv.slots) || inv.slots.length > 20 || !object(inv.equipped)) { return false; }
     const slots = new Set<number>();
     for (const slot of inv.slots) {

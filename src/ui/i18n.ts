@@ -58,6 +58,24 @@ export const UI_TEXT = {
         retry: '重试',
         back: '返回关卡选择'
     },
+    victory: {
+        title: '深渊已息', subtitle: '晨光，终于抵达。', game: '深渊回响',
+        story: '你穿过林间遗迹，深入幽暗洞窟，最终让回响归于宁静。',
+        thanks: '每一次跃起，每一次重来，都让你走到了这里。',
+        journey: '走过的旅途', completed: '三章冒险已完成',
+        chapterNames: ['森林遗迹', '地下洞窟', '天空神殿'],
+        chapterNotes: ['穿过藤蔓与断垣', '点亮深处的微光', '在云端终结回响'],
+        bosses: ['石像守卫者', '深渊蛛后', '回响之影'], defeated: '已击败',
+        levels: '完成关卡', shards: '回响碎片', chests: '已开启宝箱', time: '累计游玩',
+        completeEcho: '完整回响', echoHint: '全部回响碎片已寻回', badge: '破晓行者',
+        saveScope: '本存档累计 · 包含重试与重玩', details: '冒险记录',
+        kills: '累计击杀', deaths: '累计死亡', coins: '剩余金币', best: '最终关最佳用时',
+        finalTime: '本次最终关用时', equipment: '此刻的装备', emptyHand: '未装备',
+        main: '主手', sub: '副手', camp: '返回营地', revisit: '重访关卡', menu: '返回标题',
+        replay: '重看结局', skip: '跳过演出', pending: '待领取战利品', claim: '领取',
+        pendingHint: '背包装不下的战利品已保存在存档中，腾出空间后可在此领取。',
+        inventory: '整理背包', noBest: '暂无记录'
+    },
     save: {
         title: '存档管理', current: '当前存档', preview: '待导入存档',
         level: '关卡', checkpoint: '检查点', savedAt: '保存时间', playTime: '累计游玩',

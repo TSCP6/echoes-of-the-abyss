@@ -31,6 +31,7 @@ export class ProgressService {
     private clearCounts: Record<string, number> = {};
     private runRewards: Record<string, string[]> = {};
     private coinRemainders: Record<string, number> = {};
+    private victoryLoot: { itemId: string; count: number }[] = [];
     private tutorialDone = false;
     private currentLevelId: string | null = null;
     private lastCheckpointId: string | null = null;
@@ -55,6 +56,7 @@ export class ProgressService {
         this.shards = [];
         this.openedChests = [];
         this.clearCounts = {}; this.runRewards = {}; this.coinRemainders = {};
+        this.victoryLoot = [];
         this.tutorialDone = false;
         this.currentLevelId = null;
         this.lastCheckpointId = null;
@@ -145,6 +147,16 @@ export class ProgressService {
         return this.openedChests.includes(`${levelId}:${chestId}`);
     }
 
+    getVictoryLoot(): { itemId: string; count: number }[] {
+        return this.victoryLoot.map(item => ({ ...item }));
+    }
+
+    setVictoryLoot(items: readonly { itemId: string; count: number }[]): void {
+        this.victoryLoot = items.filter(item => ConfigRegistry.items()[item.itemId] !== undefined
+            && Number.isSafeInteger(item.count) && item.count > 0).map(item => ({ ...item }));
+        this.dirty?.();
+    }
+
     markTutorialDone(): void { this.tutorialDone = true; this.dirty?.(); }
     isTutorialDone(): boolean { return this.tutorialDone; }
 
@@ -162,6 +174,7 @@ export class ProgressService {
             clearCounts: { ...this.clearCounts },
             runRewards: Object.fromEntries(Object.entries(this.runRewards).map(([id, keys]) => [id, [...keys]])),
             coinRemainders: { ...this.coinRemainders },
+            victoryLoot: this.getVictoryLoot(),
             tutorialDone: this.tutorialDone,
             currentLevelId: this.currentLevelId,
             lastCheckpointId: this.lastCheckpointId
@@ -194,6 +207,9 @@ export class ProgressService {
         this.shards = [...new Set(d.collectedShards ?? [])];
         this.openedChests = [...new Set((Array.isArray(d.openedChests) ? d.openedChests : [])
             .filter((id): id is string => typeof id === 'string' && order.some((levelId) => id.startsWith(`${levelId}:`) && id.length > levelId.length + 1)))];
+        this.victoryLoot = (Array.isArray(d.victoryLoot) ? d.victoryLoot : []).filter(item => item !== null && typeof item === 'object'
+            && ConfigRegistry.items()[item.itemId] !== undefined && Number.isSafeInteger(item.count) && item.count > 0)
+            .map(item => ({ ...item }));
         this.tutorialDone = d.tutorialDone === true;
         this.currentLevelId = typeof d.currentLevelId === 'string' && valid.has(d.currentLevelId) ? d.currentLevelId : null;
         this.lastCheckpointId = typeof d.lastCheckpointId === 'string' ? d.lastCheckpointId : null;

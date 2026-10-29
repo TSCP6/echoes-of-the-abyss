@@ -7,9 +7,9 @@ import { appLifecycle } from '../game/adapters/appLifecycle';
 // EX-04 / NFR-06：Canvas 回退时主菜单提示兼容模式（帧率目标 30 FPS）
 const compat = computed(() => appLifecycle.compatMode);
 
-defineProps<{ hasSave: boolean }>();
+defineProps<{ hasSave: boolean; hasVictory?: boolean }>();
 const emit = defineEmits<{
-    start: []; continue: []; levels: []; settings: []; help: []; records: []; saves: [];
+    start: []; continue: []; levels: []; settings: []; help: []; records: []; saves: []; ending: [];
 }>();
 </script>
 
@@ -28,6 +28,7 @@ const emit = defineEmits<{
             <button class="btn" @click="emit('help')">{{ UI_TEXT.menu.help }}</button>
             <button class="btn" @click="emit('records')">{{ UI_TEXT.menu.records }}</button>
             <button class="btn" @click="emit('saves')">{{ UI_TEXT.menu.saves }}</button>
+            <button v-if="hasVictory" class="btn ending" @click="emit('ending')">{{ UI_TEXT.victory.replay }}</button>
         </nav>
     </div>
 </template>
@@ -51,6 +52,7 @@ h1 { font-size: clamp(32px, 7vw, 56px); margin: auto 0 0; letter-spacing: clamp(
 .btn:hover:not(:disabled) { border-color: var(--accent); }
 .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.ending { color: var(--gold); border-color: #9b855d; }
 @media (max-height: 520px) {
     h1 { font-size: 36px; }
     .sub { margin-bottom: 12px; }
