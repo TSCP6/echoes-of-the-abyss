@@ -30,8 +30,12 @@ const campUnlocked = (sid: number): boolean =>
 
 <template>
     <div class="select">
-        <h2>{{ UI_TEXT.levelSelect.title }}</h2>
-        <p class="replay-hint">{{ UI_TEXT.levelSelect.replayHint }}</p>
+        <div class="heading">
+            <h2>{{ UI_TEXT.levelSelect.title }}</h2>
+            <button class="rules-trigger" aria-describedby="replay-rules">重玩规则 ⓘ
+                <span id="replay-rules" class="rules-tooltip" role="tooltip">{{ UI_TEXT.levelSelect.replayHint }}</span>
+            </button>
+        </div>
         <div v-for="sc in scenes" :key="sc.sid" class="scene-row">
             <h3>{{ sc.name }}
                 <button v-if="campUnlocked(sc.sid)" class="btn camp"
@@ -43,13 +47,13 @@ const campUnlocked = (sid: number): boolean =>
                     :disabled="!lv.unlocked"
                     :aria-label="lv.unlocked ? lv.levelId : `${lv.levelId} ${UI_TEXT.levelSelect.locked}`"
                     :aria-describedby="lv.unlocked ? `replay-${lv.levelId}` : undefined"
-                    :title="lv.unlocked ? lv.levelId : UI_TEXT.levelSelect.locked"
+                    :title="lv.unlocked ? undefined : UI_TEXT.levelSelect.locked"
                     @click="emit('enter', lv.levelId)">
                     <span class="node-heading">
                         <span class="id">{{ lv.unlocked ? lv.levelId : '🔒' }}</span>
                         <span v-if="lv.cleared" class="mark" aria-hidden="true">✓</span>
                     </span>
-                    <span v-if="lv.unlocked" :id="`replay-${lv.levelId}`" class="replay-details">
+                    <span v-if="lv.unlocked" :id="`replay-${lv.levelId}`" class="replay-details" role="tooltip">
                         <span>{{ UI_TEXT.levelSelect.clearCount(lv.clearCount) }} · {{ UI_TEXT.levelSelect.replayTier(lv.replayTier) }}</span>
                         <span class="coin-rate">{{ UI_TEXT.levelSelect.coinPercent(lv.coinPercent) }}</span>
                         <span>{{ UI_TEXT.levelSelect.enemyHpPercent(lv.enemyHpPercent) }}</span>
@@ -68,12 +72,21 @@ const campUnlocked = (sid: number): boolean =>
     box-sizing: border-box; padding: 24px 20px; background: rgba(26, 28, 44, 0.92); color: var(--fg);
 }
 h2 { margin: 0; }
-.replay-hint { max-width: 800px; margin: 0; color: var(--muted); font-size: 14px; line-height: 1.6; text-align: center; }
+.heading { position: relative; display: flex; align-items: center; gap: 14px; }
+.rules-trigger { border: 0; padding: 6px 0; color: var(--muted); background: transparent; font-size: 14px; cursor: help; }
+.rules-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rules-tooltip {
+    display: none; position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+    box-sizing: border-box; width: min(520px, calc(100vw - 48px)); padding: 12px; z-index: 3;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.35); line-height: 1.6; text-align: left;
+}
+.rules-trigger:hover .rules-tooltip, .rules-trigger:focus-visible .rules-tooltip { display: block; }
 .scene-row { width: 100%; max-width: 800px; text-align: center; }
 h3 { color: var(--muted); margin: 4px 0 8px; font-size: 16px; display: flex; gap: 10px; align-items: center; justify-content: center; }
 .nodes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .node {
-    min-height: 116px; padding: 10px 4px; font-size: 18px; cursor: pointer;
+    position: relative; min-height: 72px; padding: 10px 4px; font-size: 18px; cursor: pointer;
     background: var(--surface-2); color: var(--fg);
     border: 2px solid var(--border); border-radius: 8px;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -83,7 +96,13 @@ h3 { color: var(--muted); margin: 4px 0 8px; font-size: 16px; display: flex; gap
 .node.locked { opacity: 0.4; cursor: not-allowed; }
 .node.cleared { border-color: var(--accent); }
 .node-heading { display: flex; gap: 6px; align-items: center; }
-.replay-details { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; color: var(--muted); font-size: 14px; line-height: 1.4; }
+.replay-details {
+    display: none; position: absolute; bottom: calc(100% + 8px); left: -12px; right: -12px;
+    flex-direction: column; gap: 4px; padding: 10px 8px; z-index: 2;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.35); color: var(--muted); font-size: 14px; line-height: 1.4;
+}
+.node:hover:not(:disabled) .replay-details, .node:focus-visible .replay-details { display: flex; }
 .coin-rate { color: var(--gold); }
 .mark { color: var(--accent); font-size: 14px; }
 .btn { padding: 6px 16px; font-size: 14px; cursor: pointer; background: var(--surface-2); color: var(--fg); border: 2px solid var(--border); border-radius: 6px; }
