@@ -169,7 +169,7 @@ export class CombatResolver {
                     if (Geom.Rectangle.Overlaps(new Geom.Rectangle(pb.x, pb.y, pb.width, pb.height),
                         new Geom.Rectangle(r.x, r.y, r.width, r.height))) {
                         enemy.consumeNormalAttack();
-                        this.hitPlayer(attack.damage, enemy.def.id, enemy.sprite.x);
+                        this.hitPlayer(attack.damage, enemy.def.id, attack.fromX ?? enemy.sprite.x);
                         break;
                     }
                 }

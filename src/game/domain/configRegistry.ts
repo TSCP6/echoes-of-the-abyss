@@ -13,6 +13,7 @@ import type {
 import { BOSS_SKILL_KINDS } from './types';
 import { WEAPONS, INITIAL_WEAPONS, INITIAL_EQUIP } from '../data/weapons';
 import { ENEMIES } from '../data/enemies';
+import { ELITE_TAIL } from '../data/eliteTail';
 import { NORMAL_ENEMY_COMBAT } from '../data/normalEnemyCombat';
 import { BOSS_COMBAT_PROFILES } from '../data/bossCombatProfiles';
 import { SKILLS, SKP_TOTAL_COST } from '../data/skills';
@@ -125,6 +126,13 @@ function validateBossSkill(enemyId: string, skill: BossSkillDef): void {
 }
 
 function validateNormalEnemyCombat(): void {
+    for (const [field, value] of Object.entries(ELITE_TAIL)) {
+        checkRange('eliteTail', 'enm_elite', field, value, 0.01, 600);
+    }
+    checkRange('eliteTail', 'enm_elite', 'damage', ELITE_TAIL.damage, 5, 30);
+    if (ELITE_TAIL.maxFlightSec < 2 * ELITE_TAIL.range / ELITE_TAIL.speed) {
+        push('eliteTail', 'enm_elite', 'maxFlightSec', '须容纳完整往返时间', ELITE_TAIL.maxFlightSec);
+    }
     const table = 'normalEnemyCombat';
     const expected = { enm_patrol: 'ranged', enm_chaser: 'melee', enm_flyer: 'dive' };
     for (const [id, kind] of Object.entries(expected)) {

@@ -1,5 +1,6 @@
 import type { GameObjects, Scene } from 'phaser';
 import type { EnemyEntity } from './enemyAI';
+import { ELITE_TAIL } from '../data/eliteTail';
 
 const WARNING = 0xffd47a;
 const ACTIVE = 0xff6946;
@@ -17,6 +18,30 @@ export class NormalEnemyFx {
         const g = this.graphics;
         g.clear();
         for (const enemy of enemies) {
+            const tail = enemy.getEliteTailState();
+            if (tail !== null) {
+                const { x, y } = enemy.body.center;
+                if (tail.stage === 'windup') {
+                    g.lineStyle(2, WARNING, 0.75).lineBetween(x, y, x + tail.direction * ELITE_TAIL.range, y);
+                    g.lineStyle(3, 0xc6f477, 1).strokeCircle(x - tail.direction * 18, y, 8 + tail.progress * 6);
+                    g.fillStyle(WARNING, 0.9).fillRect(x - 22, enemy.body.y - 12, 44 * tail.progress, 4);
+                }
+                if (tail.blade !== null && tail.rect !== null) {
+                    const p = tail.blade;
+                    const color = tail.stage === 'inbound' ? 0xffb978 : 0xc6f477;
+                    const d = tail.direction * (tail.stage === 'inbound' ? -1 : 1);
+                    g.lineStyle(3, color, 0.9);
+                    g.lineBetween(p.x - d * 12, p.y - 10, p.x + d * 12, p.y);
+                    g.lineBetween(p.x + d * 12, p.y, p.x - d * 12, p.y + 10);
+                    g.lineStyle(2, color, 0.3).lineBetween(p.x - d * 30, p.y, p.x - d * 8, p.y);
+                    g.fillStyle(color, 0.08).fillRect(tail.rect.x, tail.rect.y, tail.rect.width, tail.rect.height);
+                }
+                if (tail.stage === 'recovery') {
+                    g.lineStyle(2, RECOVERY, 0.9).strokeEllipse(x, enemy.body.bottom, enemy.body.width + 16, 9);
+                    g.fillStyle(RECOVERY, 1).fillCircle(x, enemy.body.y - 8, 3);
+                }
+                continue;
+            }
             const state = enemy.getNormalCombatState();
             if (state === null) { continue; }
             const body = enemy.body;

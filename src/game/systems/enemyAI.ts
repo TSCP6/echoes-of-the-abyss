@@ -22,6 +22,8 @@ import type { AbilityRect } from '../domain/bossAbilities';
 import { NormalEnemyBrain, type NormalEnemyAttack, type NormalEnemySnapshot } from '../domain/normalEnemyBrain';
 import { NORMAL_ENEMY_COMBAT } from '../data/normalEnemyCombat';
 import { shouldSeparateOneway } from './onewaySeparation';
+import { EliteTail } from '../domain/eliteTail';
+import { ELITE_TAIL } from '../data/eliteTail';
 
 const PATROL_SPAN = 128;
 const CHASE_LOST_SEC = 2.5;
@@ -72,6 +74,8 @@ export class EnemyEntity {
     private wallRecovery = false;
     private phaseOpening: 'spiderEggs' | 'spiderDrop' | null = null;
     private normalBrain: NormalEnemyBrain | null = null;
+    private eliteTail: EliteTail | null = null;
+    private tryEliteCast: (nowMs: number) => boolean = () => true;
 
     constructor(scene: Scene, def: EnemyDef, x: number, y: number,
         private groundProbe: (x: number, y: number) => boolean, private visualId = def.id) {
@@ -118,13 +122,26 @@ export class EnemyEntity {
     }
 
     getNormalAttack(): NormalEnemyAttack | null {
+        const tail = this.getEliteTailState();
+        if (tail?.canHit && tail.rect !== null) { return { rect: tail.rect, damage: ELITE_TAIL.damage, fromX: tail.blade?.x }; }
         return this.stagger > 0 ? null : this.getNormalCombatState()?.attack ?? null;
     }
 
-    consumeNormalAttack(): void { this.normalBrain?.consumeAttack(); }
+    consumeNormalAttack(): void { this.normalBrain?.consumeAttack(); this.eliteTail?.consumeHit(); }
+
+    enableEliteTail(tryCast: (nowMs: number) => boolean = () => true): void {
+        if (this.def.id !== 'enm_elite') { return; }
+        this.eliteTail = new EliteTail(); this.tryEliteCast = tryCast;
+    }
+
+    getEliteTailState(): EliteTail['snapshot'] | null {
+        return this.dead || this.sleeping ? null : this.eliteTail?.snapshot ?? null;
+    }
 
     suppressesContactDamage(): boolean {
         const state = this.getNormalCombatState();
+        const tail = this.getEliteTailState();
+        if (tail !== null && ['windup', 'outbound', 'inbound', 'recovery'].includes(tail.stage)) { return true; }
         return this.abilityContactSuppressed || state !== null && ['windup', 'active', 'recovery'].includes(state.stage);
     }
 
@@ -133,6 +150,7 @@ export class EnemyEntity {
         if (this.dead) { return false; }
         this.hp -= amount;
         this.normalBrain?.interrupt();
+        this.eliteTail?.cancel();
         // Boss施招计时与范围预警共用节奏，普通攻击不会把其中一方单独暂停。
         const casting = this.def.kind === 'boss' && this.bossAttack !== null;
         this.stagger = this.def.kind === 'boss' ? 0 : HIT_STAGGER_SEC;
@@ -164,7 +182,8 @@ export class EnemyEntity {
             return false;
         }
 
-        if (this.normalBrain !== null) { this.updateNormal(dt, player, projectiles); }
+        if (this.eliteTail !== null) { this.updateEliteTail(dt, player, nowMs); }
+        else if (this.normalBrain !== null) { this.updateNormal(dt, player, projectiles); }
         else switch (this.def.kind) {
             case 'patrol':
                 if (this.visualId === 'spiderling') {
@@ -182,6 +201,49 @@ export class EnemyEntity {
         }
         this.visual.update(dt, this.isInvincible(nowMs) ? 'phase' : this.body.velocity.length() > 1 ? 'move' : 'idle');
         return false;
+    }
+
+    private updateEliteTail(dt: number, player: PlayerController, nowMs: number): void {
+        const skill = this.eliteTail!;
+        const previous = skill.snapshot;
+        const b = this.body;
+        const p = player.body.center;
+        if (player.getMotionState?.().state === 'dead') { skill.cancel(); }
+        let blocked = false;
+        const blade = previous.blade ?? (previous.stage === 'windup' ? previous.origin : null);
+        if (blade !== null) {
+            const direction = previous.stage === 'inbound' ? -previous.direction : previous.direction;
+            const distance = Math.abs(blade.x - previous.origin.x);
+            const remaining = previous.stage === 'inbound' ? distance : ELITE_TAIL.range - distance;
+            const travel = Math.min(ELITE_TAIL.speed * dt, remaining);
+            for (let at = 0; at <= Math.ceil(travel / 4); at++) {
+                const d = Math.min(at * 4, travel);
+                const x = blade.x + direction * (d + ELITE_TAIL.width / 2);
+                if ([-ELITE_TAIL.height / 2, 0, ELITE_TAIL.height / 2].some(y => this.groundProbe(x, blade.y + y))) {
+                    blocked = true; break;
+                }
+            }
+        }
+        skill.tick(dt, blocked);
+        const state = skill.snapshot;
+        b.setVelocityX(0);
+        if (['windup', 'outbound', 'inbound', 'recovery'].includes(state.stage)) { this.visual.face(state.direction); return; }
+        this.dir = p.x >= b.center.x ? 1 : -1;
+        this.visual.face(this.dir);
+        const distance = Math.abs(p.x - b.center.x);
+        let visible = distance <= this.def.detectRange && Math.abs(p.y - b.center.y) <= 48;
+        for (let d = 8; visible && d < distance; d += 8) {
+            visible = !this.groundProbe(b.center.x + this.dir * d, b.center.y);
+        }
+        if (!visible) { return; }
+        if (state.stage === 'idle' && distance <= ELITE_TAIL.triggerRange && b.blocked.down && this.tryEliteCast(nowMs)) {
+            skill.start(b.center.x, b.center.y, this.dir); return;
+        }
+        const front = b.center.x + this.dir * (b.width / 2 + this.def.moveSpeed * dt + EDGE_PROBE_PX);
+        if (distance > ELITE_TAIL.triggerRange && b.blocked.down
+            && !(this.dir > 0 ? b.blocked.right : b.blocked.left) && this.groundProbe(front, b.bottom + EDGE_PROBE_PX)) {
+            b.setVelocityX(this.dir * this.def.moveSpeed);
+        }
     }
 
     private updateNormal(dt: number, player: PlayerController, projectiles: ProjectilePool | null): void {
@@ -485,6 +547,7 @@ export class EnemyEntity {
         this.diving = false;
         this.diveStagger = 0;
         this.flyT = 0;
+        if (this.eliteTail !== null) { this.eliteTail = new EliteTail(); }
         if (this.normalBrain !== null) {
             this.normalBrain = new NormalEnemyBrain(this.def, this.normalBrain.combat, { ...this.normalBrain.home });
         }
@@ -498,6 +561,7 @@ export class EnemyEntity {
 }
 
 export class EnemyAI {
+    private nextEliteCastAtMs = 0;
     private enemies: EnemyEntity[] = [];
     private initialCount = 0;
     private summonColliders: Physics.Arcade.Collider[] = [];
@@ -510,6 +574,13 @@ export class EnemyAI {
             const def = ConfigRegistry.enemies()[spawn.defId];
             if (def === undefined) { continue; }
             const enemy = new EnemyEntity(scene, def, spawn.x, spawn.y, this.groundProbe);
+            if (ctx.levelId?.startsWith('3-') && def.id === 'enm_elite') {
+                enemy.enableEliteTail(nowMs => {
+                    if (nowMs < this.nextEliteCastAtMs) { return false; }
+                    this.nextEliteCastAtMs = nowMs + ELITE_TAIL.castSpacingSec * 1000;
+                    return true;
+                });
+            }
             if (def.kind === 'boss') { enemy.bossArena = ctx.bossArena ?? null; }
             this.enemies.push(enemy);
         }
@@ -562,6 +633,7 @@ export class EnemyAI {
 
     /** FR-11 规则 7：玩家死亡后敌人重置 */
     resetAll(): void {
+        this.nextEliteCastAtMs = 0;
         this.clearSummons();
         for (const e of this.enemies) { e.reset(); }
     }

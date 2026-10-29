@@ -25,7 +25,8 @@ function encounter(id: string, px: number, py = 300) {
     };
     const scene = { physics: { add: { sprite: () => sprite } } } as unknown as Scene;
     let ground = true;
-    const enemy = new EnemyEntity(scene, def, 1000, 300, (_x, y) => id !== 'enm_flyer' && ground && y > body.bottom);
+    let wall: { x: number; width: number } | null = null;
+    const enemy = new EnemyEntity(scene, def, 1000, 300, (x, y) => !!wall && x >= wall.x && x <= wall.x + wall.width || id !== 'enm_flyer' && ground && y > body.bottom);
     const player = { sprite: { x: px, y: py }, body: { center: { x: px, y: py } } } as PlayerController;
     const shots: ProjectileSpec[] = [];
     const pool = { spawn: (spec: ProjectileSpec) => { shots.push(spec); } } as unknown as ProjectilePool;
@@ -34,7 +35,7 @@ function encounter(id: string, px: number, py = 300) {
     const step = (dt = 0.05) => { time += dt; enemy.update(dt, player, time * 1000, events, pool); };
     const run = (seconds: number) => { for (let t = 0; t < seconds - 0.001; t += 0.05) { step(); } };
     const target = (x: number, y = 300) => { player.sprite.x = x; player.sprite.y = y; player.body.center.set?.(x, y); Object.assign(player.body.center, { x, y }); };
-    return { enemy, body, sprite, shots, step, run, target, noGround: () => { ground = false; } };
+    return { enemy, body, sprite, shots, step, run, target, noGround: () => { ground = false; }, wallAt: (x: number) => { wall = { x, width: 32 }; } };
 }
 
 describe('普通敌人攻击行为', () => {
@@ -93,5 +94,34 @@ describe('普通敌人攻击行为', () => {
         f.step();
         expect(Number.isFinite(f.body.velocity.x)).toBe(true);
         expect(Number.isFinite(f.body.velocity.y)).toBe(true);
+    });
+});
+
+describe('第三章精英尾刃集成',()=>{
+    it('实体扫描去程墙体提前折返，回程受阻立即清除尾刃', () => {
+        const f = encounter('enm_elite', 1120);
+        f.enemy.enableEliteTail(); f.step(); f.run(0.8);
+        f.wallAt(1100);
+        for (let i = 0; i < 20 && f.enemy.getEliteTailState()?.stage !== 'inbound'; i++) { f.step(); }
+        const returning = f.enemy.getEliteTailState()!;
+        expect(returning.stage).toBe('inbound');
+        expect(returning.blade!.x).toBeLessThan(1100);
+        f.wallAt(returning.blade!.x - 24); f.step();
+        expect(f.enemy.getEliteTailState()?.stage).toBe('recovery');
+        expect(f.enemy.getNormalAttack()).toBeNull();
+    });
+
+    it('有明显停步前摇，释放飞刃后有独立伤害盒，同次只命中一次',()=>{
+        const f=encounter('enm_elite',1120);f.enemy.enableEliteTail();f.step();
+        expect(f.body.velocity.x).toBe(0);expect(f.enemy.getEliteTailState()?.stage).toBe('windup');
+        f.run(0.8);expect(f.enemy.getNormalAttack()).not.toBeNull();
+        f.enemy.consumeNormalAttack();expect(f.enemy.getNormalAttack()).toBeNull();
+        f.enemy.applyHit(1,900);expect(f.enemy.getEliteTailState()?.blade).toBeNull();
+        expect(f.enemy.suppressesContactDamage()).toBe(true);
+        f.enemy.reset();expect(f.enemy.getEliteTailState()?.stage).toBe('idle');
+    });
+    it('共享起手闸可拒绝本帧施法，并且不会主动走下悬崖',()=>{
+        const f=encounter('enm_elite',1180);f.enemy.enableEliteTail(()=>false);f.noGround();f.step();
+        expect(f.enemy.getEliteTailState()?.stage).toBe('idle');expect(f.body.velocity.x).toBe(0);
     });
 });

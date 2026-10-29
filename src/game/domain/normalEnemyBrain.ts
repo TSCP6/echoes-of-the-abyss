@@ -19,6 +19,7 @@ export interface NormalEnemyInput extends EnemyPoint {
 export interface NormalEnemyAttack {
     rect: { x: number; y: number; width: number; height: number };
     damage: number;
+    fromX?: number;
 }
 export interface NormalEnemySnapshot {
     kind: NormalEnemyCombatDef['kind']; stage: NormalEnemyStage; facing: 1 | -1;
