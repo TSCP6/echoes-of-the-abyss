@@ -24,18 +24,18 @@
 
 沿用 Phaser 4、Vue 3、TypeScript strict、Vite、Vitest 和 Arcade Physics。依赖的精确版本以 `package.json` 和 `package-lock.json` 为准，不按旧模板说明将 Phaser 当作 3.x 使用。
 
-| 路径 | 职责与约束 |
-| --- | --- |
-| `src/game/data/` | 玩家、敌人、武器、技能、物品和关卡等配置表；数值保持单一来源 |
-| `src/game/domain/` | 领域规则与状态；保持可在 Node 环境测试，不引入 Phaser 运行时或 Vue/DOM 耦合 |
-| `src/game/systems/` | 输入、物理、战斗、相机、音频、特效和场景调度 |
-| `src/game/scenes/` | 场景生命周期和系统组装；避免将领域规则全部堆入 Scene |
-| `src/game/adapters/` | 存储、音频、全屏及浏览器生命周期适配 |
-| `src/game/events.ts` | 跨层事件类型和收发门面；复用已有契约，监听与解绑配对 |
-| `src/ui/` | Vue DOM 界面；复用已有状态桥接、文案和样式令牌 |
-| `public/assets/` | 随游戏发布的本地运行时资源与关卡地图 |
-| `tools/` | 地图生成、可达性审计、素材处理和浏览器检查脚本 |
-| `docs/` | 需求、设计、验收、开发调整与素材许可记录 |
+| 路径                 | 职责与约束                                                                  |
+| -------------------- | --------------------------------------------------------------------------- |
+| `src/game/data/`     | 玩家、敌人、武器、技能、物品和关卡等配置表；数值保持单一来源                |
+| `src/game/domain/`   | 领域规则与状态；保持可在 Node 环境测试，不引入 Phaser 运行时或 Vue/DOM 耦合 |
+| `src/game/systems/`  | 输入、物理、战斗、相机、音频、特效和场景调度                                |
+| `src/game/scenes/`   | 场景生命周期和系统组装；避免将领域规则全部堆入 Scene                        |
+| `src/game/adapters/` | 存储、音频、全屏及浏览器生命周期适配                                        |
+| `src/game/events.ts` | 跨层事件类型和收发门面；复用已有契约，监听与解绑配对                        |
+| `src/ui/`            | Vue DOM 界面；复用已有状态桥接、文案和样式令牌                              |
+| `public/assets/`     | 随游戏发布的本地运行时资源与关卡地图                                        |
+| `tools/`             | 地图生成、可达性审计、素材处理和浏览器检查脚本                              |
+| `docs/`              | 需求、设计、验收、开发调整与素材许可记录                                    |
 
 - 修改前阅读相关实现及测试，沿用现有类型、服务接口和 Result 错误处理方式。
 - 领域命令优先直接调用服务接口，事件用于状态通知；跨层桥接沿用 `events.ts` 的实际约定，避免散落字符串事件和隐式状态修改。
@@ -66,16 +66,16 @@
 
 在仓库根目录执行。Windows PowerShell 中优先使用 `npm.cmd` / `npx.cmd`，避免脚本执行策略问题。
 
-| 用途 | 命令 |
-| --- | --- |
-| 开发服务 | `npm.cmd run dev-nolog` |
-| 类型检查 | `npx.cmd --no-install vue-tsc --noEmit` |
-| 单元测试 | `npx.cmd --no-install vitest run` |
-| 定向单测 | `npx.cmd --no-install vitest run <测试文件路径>` |
-| 覆盖率 | `npx.cmd --no-install vitest run --coverage` |
-| 生产构建 | `npm.cmd run build-nolog` |
-| 地图可达性 | `python -X utf8 tools/audit_reach.py` |
-| 敌人美术帧校验 | `python -X utf8 tools/check_enemy_art.py` |
+| 用途           | 命令                                             |
+| -------------- | ------------------------------------------------ |
+| 开发服务       | `npm.cmd run dev-nolog`                          |
+| 类型检查       | `npx.cmd --no-install vue-tsc --noEmit`          |
+| 单元测试       | `npx.cmd --no-install vitest run`                |
+| 定向单测       | `npx.cmd --no-install vitest run <测试文件路径>` |
+| 覆盖率         | `npx.cmd --no-install vitest run --coverage`     |
+| 生产构建       | `npm.cmd run build-nolog`                        |
+| 地图可达性     | `python -X utf8 tools/audit_reach.py`            |
+| 敌人美术帧校验 | `python -X utf8 tools/check_enemy_art.py`        |
 
 - 使用 `dev-nolog` / `build-nolog`，避免默认脚本执行 `log.js` 外发遥测。
 - 开发服务使用 `vite/config.dev.mjs`；端口被占用时用 `npm.cmd run dev-nolog -- --port <可用端口>`，核实实际地址后再访问。不要为腾端口结束无关进程。
@@ -93,3 +93,11 @@
 - 推送前取得用户明确授权；若用户本轮已明确要求推送，不重复询问。不要自行强制推送、改写共享历史或执行破坏性清理。
 - 不提交依赖目录、构建产物、临时测试输出、密钥或受限原始素材包。
 - 完成时给出关键文件、验证结果和本地提交号；需要用户试玩时提供具体操作与预期现象。
+
+## 子智能体说明
+
+开启新的子智能体时尽量只读取当前的任务内容，不用读取整个对话的上下文，尽量减小开销。
+
+## 会话提示词说明
+
+同一个会话中的提示词默认不与上文产生联系，除非是让你继续之类的提示词是根据你的计划来进行，因此，每次执行不必读取会话完整上下文。
