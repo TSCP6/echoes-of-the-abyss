@@ -32,6 +32,7 @@ import { ConfigRegistry } from '../domain/configRegistry';
 import { EventBus } from '../EventBus';
 import { emitEvent, onEvent, offEvent } from '../events';
 import { audioDirector } from '../systems/audioDirector';
+import { regionBgm } from '../data/audioCatalog';
 import { warnThrottled } from '../domain/warn';
 import { TutorialDirector } from '../systems/tutorialDirector';
 import { createRegionBackdrop } from '../systems/regionBackdrop';
@@ -130,6 +131,7 @@ export class LevelScene extends Scene {
         else if (this.scene.isPaused()) { this.scene.resume(); }
     };
     private onEnemyKilled = (p: { enemyId: string; coins: number; position: { x: number; y: number } }): void => {
+        if (p.enemyId === this.ctx.bossId) { this.playRegionMusic(); }
         this.kills += 1;
         recordStore.addKill();
         resourceSystem.notifyKill(); // FR-06 规则 5
@@ -271,15 +273,15 @@ export class LevelScene extends Scene {
         };
         this.combat = new CombatResolver(this, this.player, this.enemies, this.projectiles, this.fx);
         this.playerCombatFx = new PlayerCombatFx(this, this.player);
-        this.combat.onWeaponVisual = (def, rect) => this.playerCombatFx.weapon(def, rect);
+        this.combat.onWeaponVisual = (def, rect, skillId) => {
+            this.playerCombatFx.weapon(def, rect);
+            if (skillId === undefined) { audioDirector.playWeapon(def.id); }
+        };
         this.bossAbilities = this.ctx.bossArena === null ? null
             : new BossAbilitySystem(this, this.ctx, this.enemies, this.player, this.combat);
         this.combat.onPlayerDied = () => this.onPlayerDeath();
         this.combat.onEnemyHit = () => audioDirector.playSfx('hit_melee'); // AT-56 命中音效
-        // 攻击发起音效（TutorialDirector 在其后链式追加完成判定，6.2.3）
-        this.combat.onAttackBegan = (type) => {
-            audioDirector.playSfx(type === 'ranged' ? 'shoot' : 'swing');
-        };
+        // 音色由已接受的真实武器动作触发；TutorialDirector 继续独立监听 onAttackBegan。
         this.combat.onAttackRejected = (message) => {
             this.fx.message(this.player.sprite.x - 32, this.player.sprite.y - 48, message);
             audioDirector.playSfx('ui_error');
@@ -339,7 +341,7 @@ export class LevelScene extends Scene {
         this.pickups.onCoinPicked = (amount) => { this.earnedCoins += amount; prevCoin?.(amount); audioDirector.playSfx('coin'); };
         const prevChest = this.pickups.onChestOpened;
         this.pickups.onChestOpened = () => { prevChest?.(); audioDirector.playSfx('buy'); };
-        audioDirector.playBgm('level');
+        this.playRegionMusic();
         onEvent('player:damaged', this.onPlayerDamaged);
         onEvent('skill:unlocked', this.onSkillUnlocked);
 
@@ -383,7 +385,7 @@ export class LevelScene extends Scene {
         const p = this.player.getMotionState();
         const ef = decision.value.effect;
         this.playerCombatFx.skill(id, ef);
-        audioDirector.playSfx(ef.heal !== undefined ? 'heal' : 'skill'); // AT-56 技能/治疗音效
+        audioDirector.playSkill(id); // 一次施放只响一次，齐射的多枚弹丸不叠加发射声。
         if (ef.damage !== undefined && ef.radius !== undefined) {
             this.combat.queueAreaDamage(p.x, p.y, ef.radius, ef.damage);
         } else if (ef.projectileCount !== undefined) {
@@ -410,6 +412,7 @@ export class LevelScene extends Scene {
     private onPlayerDeath(): void {
         if (this.dead) { return; }
         this.dead = true;
+        this.playRegionMusic();
         this.playerCombatFx.clear();
         this.bossAbilities?.reset();
         recordStore.addDeath();
@@ -468,6 +471,11 @@ export class LevelScene extends Scene {
         audioDirector.setBossPhase(boss.phaseIndex);
     }
 
+    private playRegionMusic(): void {
+        const region = ConfigRegistry.levels().find(l => l.id === this.levelId)!.sceneId;
+        audioDirector.playBgm(regionBgm(region));
+    }
+
     private respawn(): void {
         this.playerCombatFx.clear();
         const point = this.respawnPoint();
@@ -487,7 +495,6 @@ export class LevelScene extends Scene {
 
     update(_time: number, deltaMs: number): void {
         const dt = Math.min(deltaMs / 1000, 0.1); // 冻结/切回单帧巨型 dt 钳制（防物理爆冲，EX-05 精神）
-        audioDirector.tick(dt); // MOD-08：合并窗口时钟 + 交叉淡化斜坡
         if (this.overlayOpen || !this.ready) { return; }
 
         // 阶段 1：输入

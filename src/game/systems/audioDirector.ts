@@ -1,205 +1,181 @@
-/**
- * MOD-08 AudioDirector（Phaser 呈现层）—— FR-16 规则 1/2/5、NFR-10、EX-08。
- * - ≥18 音效 + 2 BGM + 3 Boss 紧张变体（DD-11 清单，双格式 ogg/m4a 兼容 Safari ≥17）；
- * - 同音效 50 ms 合并（Map<key, lastPlayTime>，游戏时钟，AT-58）；
- * - BGM 交叉淡化 0.8 s：tick 驱动音量互补斜坡（不依赖场景 tween——场景停止不中断淡化）；
- * - Boss 战切紧张变体：setBossPhase(phase) 由 LevelScene 在 onBossPhase 直调（6.2.3）；
- * - 三路音量实时应用：订阅 settings:changed（master×channel 乘积，IF-X02）；
- * - 缺资源静默跳过 + console.warn（FR-16 边界）；未解锁（EX-08）挂起队列，解锁后冲刷。
- */
+/** MOD-08：长曲 BGM、0.8 秒交叉淡化、50 毫秒去重及有上限的一次性音效。 */
 import { onEvent, offEvent, type EventPayloads } from '../events';
 import { audioAdapter } from '../adapters/audioAdapter';
+import { settingsStore } from '../domain/settingsStore';
 import { warnThrottled } from '../domain/warn';
+import { BGM, SFX, WEAPON_SFX, SKILL_SFX, MUSIC_MIX_GAIN, type BgmKey, type SfxKey } from '../data/audioCatalog';
+export type { BgmKey, SfxKey } from '../data/audioCatalog';
 
-/** DD-11 音效键 → 文件（public/assets/audio/，双格式） */
-export type SfxKey =
-    | 'jump' | 'land' | 'swing' | 'hit_melee' | 'shoot' | 'hit_taken'
-    | 'coin' | 'pickup_item' | 'checkpoint' | 'death' | 'skill' | 'dash' | 'heal' | 'clear'
-    | 'ui_click' | 'ui_open' | 'ui_close' | 'ui_error' | 'buy';
-
-const SFX_FILES: Record<SfxKey, string> = {
-    jump: 'sfx_jump', land: 'sfx_land', swing: 'sfx_swing', hit_melee: 'sfx_hit_melee',
-    shoot: 'sfx_shoot', hit_taken: 'sfx_hit_taken', coin: 'sfx_coin', pickup_item: 'sfx_pickup_item',
-    checkpoint: 'sfx_checkpoint', death: 'sfx_death', skill: 'sfx_skill', dash: 'sfx_dash',
-    heal: 'sfx_heal', clear: 'sfx_clear',
-    ui_click: 'sfx_ui_click', ui_open: 'sfx_ui_open', ui_close: 'sfx_ui_close',
-    ui_error: 'sfx_ui_error', buy: 'sfx_buy'
-};
-
-/** BGM 曲目（DD-11：每场景 1 首 + Boss 紧张变体） */
-export type BgmKey = 'menu' | 'level' | 'boss1' | 'boss2' | 'boss3';
-const BGM_FILES: Record<BgmKey, string> = {
-    menu: 'bgm_scene1', level: 'bgm_scene2',
-    boss1: 'bgm_boss1_tense', boss2: 'bgm_boss2_tense', boss3: 'bgm_boss3_tense'
-};
-
-const MERGE_MS = 50;       // FR-16 规则 2
-const CROSSFADE_SEC = 0.8; // FR-16 规则 5
-
-interface Fade {
-    snd: Phaser.Sound.WebAudioSound;
-    from: number;
-    to: number;
-    t: number;
-    killOnEnd: boolean;
-}
+type Sound = Phaser.Sound.WebAudioSound;
+interface Fade { from: number; to: number; t: number; killOnEnd: boolean }
+interface Music { gain: number; fade: Fade | null }
+const CROSSFADE_SEC = 0.8;
+const MAX_SFX = 8;
+const IMPORTANT_SFX = new Set<SfxKey>(['hit_taken', 'death', 'checkpoint', 'clear', 'heal']);
 
 class AudioDirectorImpl {
     private game: Phaser.Game | null = null;
     private sm: Phaser.Sound.WebAudioSoundManager | null = null;
-    private lastPlay = new Map<string, number>();
-    private clock = 0;
+    private clockMs = 0;
+    private lastPlay = new Map<SfxKey, number>();
+    private activeSfx = new Map<Sound, { key: SfxKey; gain: number }>();
+    private music = new Map<Sound, Music>();
     private currentBgm: BgmKey | null = null;
-    private bgmSound: Phaser.Sound.WebAudioSound | null = null;
-    private fades: Fade[] = [];
-    private pendingSfx: SfxKey[] = [];
+    private bgmSound: Sound | null = null;
+    private bossGain = 0.82;
     private pendingBgm: BgmKey | null = null;
+    private pendingSfx = new Map<SfxKey, number>();
     private volumes = { master: 0.8, music: 0.6, sfx: 0.9 };
-    private settingsHandler: ((p: EventPayloads['settings:changed']) => void) | null = null;
+    private onStep = (_time: number, deltaMs: number): void => this.tick(deltaMs / 1000);
+    private onDestroy = (): void => this.detach();
+    private onSettings = (p: EventPayloads['settings:changed']): void => {
+        this.volumes = { master: p.masterVolume / 100, music: p.musicVolume / 100, sfx: p.sfxVolume / 100 };
+        this.applyVolumes();
+    };
 
-    /** Preloader create 绑定（音频资源已加载，key = 文件名） */
     attach(game: Phaser.Game): void {
+        this.detach();
         this.game = game;
         this.sm = game.sound as Phaser.Sound.WebAudioSoundManager;
-        this.clock = 0;
-        this.lastPlay.clear();
-        this.pendingSfx = [];
-        this.fades = [];
-        this.settingsHandler = (p) => {
-            this.volumes = { master: p.masterVolume / 100, music: p.musicVolume / 100, sfx: p.sfxVolume / 100 };
-            this.applyVolumes();
-        };
-        onEvent('settings:changed', this.settingsHandler);
+        this.clockMs = 0;
+        this.onSettings(settingsStore.getSnapshot());
+        onEvent('settings:changed', this.onSettings);
+        // 全局 STEP 不随关卡 pause/shutdown 停止，菜单和营地也会推进淡化。
+        game.events.on('step', this.onStep);
+        game.events.once('destroy', this.onDestroy);
         audioAdapter.onUnlocked(() => this.flushPending());
     }
 
     detach(): void {
-        if (this.settingsHandler !== null) { offEvent('settings:changed', this.settingsHandler); this.settingsHandler = null; }
-        this.bgmSound = null;
-        this.currentBgm = null;
-        this.fades = [];
-        this.game = null;
-        this.sm = null;
+        if (this.game !== null) {
+            offEvent('settings:changed', this.onSettings);
+            this.game.events.off('step', this.onStep);
+            this.game.events.off('destroy', this.onDestroy);
+        }
+        for (const sound of [...this.music.keys(), ...this.activeSfx.keys()]) { this.dispose(sound); }
+        this.music.clear(); this.activeSfx.clear(); this.lastPlay.clear(); this.pendingSfx.clear();
+        this.pendingBgm = null; this.bgmSound = null; this.currentBgm = null; this.bossGain = 0.82;
+        this.sm = null; this.game = null;
+        audioAdapter.onUnlocked(() => {});
     }
 
-    /** 管线阶段 1（游戏时钟，50 ms 合并窗口同源；交叉淡化斜坡推进） */
+    private alive(sound: Sound): boolean {
+        return !sound.pendingRemove && (!('volumeNode' in sound) || sound.volumeNode !== null);
+    }
+    private dispose(sound: Sound): void {
+        if (this.alive(sound)) { sound.stop(); sound.destroy(); }
+    }
+    private hasAudio(file: string): boolean {
+        if (this.game?.cache.audio.exists(file)) { return true; }
+        warnThrottled(`audio-missing-${file}`, `音频资源缺失，静默跳过：${file}`);
+        return false;
+    }
+
+    /** 参数始终为秒；去重时钟显式换算成毫秒。由全局 STEP 唯一调用。 */
     tick(dt: number): void {
-        this.clock += dt;
-        for (const f of [...this.fades]) {
-            // 场景卸载可能先于淡化结束销毁 sound（volumeNode 置 null）：跳过并移除该 fade
-            const wa = f.snd as Phaser.Sound.WebAudioSound;
-            if (wa.volumeNode === null || wa.volumeNode === undefined) {
-                this.fades.splice(this.fades.indexOf(f), 1);
-                continue;
-            }
-            f.t += dt;
-            const k = Math.min(1, f.t / CROSSFADE_SEC);
-            f.snd.setVolume(f.from + (f.to - f.from) * k);
-            if (k >= 1) {
-                this.fades.splice(this.fades.indexOf(f), 1);
-                if (f.killOnEnd) { f.snd.stop(); f.snd.destroy(); }
+        if (!Number.isFinite(dt) || dt < 0) { return; }
+        this.clockMs += dt * 1000;
+        for (const [sound, state] of this.music) {
+            if (!this.alive(sound)) { this.music.delete(sound); continue; }
+            const fade = state.fade;
+            if (fade !== null) {
+                fade.t += dt;
+                const k = Math.min(1, fade.t / CROSSFADE_SEC);
+                state.gain = fade.from + (fade.to - fade.from) * k;
+                if (k === 1) {
+                    state.fade = null;
+                    if (fade.killOnEnd) { this.dispose(sound); this.music.delete(sound); continue; }
+                }
             }
         }
+        this.applyVolumes();
     }
 
-    /** destroyed sound 的 volume getter 会触 volumeNode.gain 空引用：安全读取 */
-    private safeVolume(snd: Phaser.Sound.WebAudioSound): number | null {
-        return snd.volumeNode === null || snd.volumeNode === undefined ? null : snd.volume;
-    }
+    playWeapon(id: string): void { const key = WEAPON_SFX[id]; if (key !== undefined) { this.playSfx(key); } }
+    playSkill(id: string): void { const key = SKILL_SFX[id]; if (key !== undefined) { this.playSfx(key); } }
 
-    /** 资源存在性经 cache.audio（SoundManager 无 exists；FR-16 缺资源静默跳过） */
-    private hasAudio(file: string): boolean {
-        return this.game !== null && this.game.cache.audio.exists(file);
-    }
-
-    /** FR-16 规则 2：同音效 50 ms 内合并为一次播放 */
     playSfx(key: SfxKey): void {
         const sm = this.sm;
         if (sm === null) { return; }
         if (!audioAdapter.isUnlocked()) {
-            // EX-08：未解锁挂起（去重），解锁后冲刷
-            if (!this.pendingSfx.includes(key)) { this.pendingSfx.push(key); }
+            this.pendingSfx.set(key, this.clockMs);
+            if (this.pendingSfx.size > 3) { this.pendingSfx.delete(this.pendingSfx.keys().next().value!); }
             return;
         }
         const last = this.lastPlay.get(key);
-        if (last !== undefined && this.clock - last < MERGE_MS) { return; }
-        this.lastPlay.set(key, this.clock);
-        const file = SFX_FILES[key];
-        if (!this.hasAudio(file)) {
-            warnThrottled(`audio-missing-${file}`, `音效资源缺失，静默跳过：${file}`);
-            return;
+        if (last !== undefined && this.clockMs - last < 50) { return; }
+        if (this.volumes.master * this.volumes.sfx === 0 || !this.hasAudio(SFX[key].file)) { return; }
+        for (const sound of this.activeSfx.keys()) { if (!this.alive(sound)) { this.activeSfx.delete(sound); } }
+        if ([...this.activeSfx.values()].filter(s => s.key === key).length >= 2) { return; }
+        if (this.activeSfx.size >= MAX_SFX) {
+            if (!IMPORTANT_SFX.has(key)) { return; }
+            const oldest = this.activeSfx.keys().next().value!;
+            this.dispose(oldest); this.activeSfx.delete(oldest);
         }
-        sm.play(file, { volume: this.volumes.master * this.volumes.sfx });
+        this.lastPlay.set(key, this.clockMs);
+        const gain = SFX[key].gain;
+        const sound = sm.add(SFX[key].file, { volume: this.volumes.master * this.volumes.sfx * gain }) as Sound;
+        this.activeSfx.set(sound, { key, gain });
+        sound.once('destroy', () => this.activeSfx.delete(sound));
+        sound.once('complete', () => { this.activeSfx.delete(sound); this.dispose(sound); });
+        if (!sound.play()) { this.activeSfx.delete(sound); this.dispose(sound); }
     }
 
-    /** BGM 切换：0.8 s 交叉淡化（双实例音量互补，tick 驱动）；同曲不重启 */
+    private fade(sound: Sound, to: number, killOnEnd: boolean): void {
+        const state = this.music.get(sound);
+        if (state !== undefined) { state.fade = { from: state.gain, to, t: 0, killOnEnd }; }
+    }
+
     playBgm(key: BgmKey): void {
         const sm = this.sm;
-        if (sm === null || key === this.currentBgm) { return; }
+        if (sm === null) { return; }
         if (!audioAdapter.isUnlocked()) { this.pendingBgm = key; return; }
-        const file = BGM_FILES[key];
-        this.currentBgm = key;
-        if (!this.hasAudio(file)) {
-            warnThrottled(`audio-missing-${file}`, `BGM 资源缺失，静默跳过：${file}`);
-            return;
+        if (key === this.currentBgm && this.bgmSound !== null && this.alive(this.bgmSound)) { return; }
+        if (!this.hasAudio(BGM[key])) { return; }
+        // 重新定向现有淡化；旧曲不再同时保留淡入和淡出两条斜坡。
+        for (const sound of this.music.keys()) {
+            if (sound === this.bgmSound) { this.fade(sound, 0, true); }
+            else { this.dispose(sound); this.music.delete(sound); }
         }
-        const targetVol = this.volumes.master * this.volumes.music;
-        const old = this.bgmSound;
-        const next = sm.add(file, { loop: true, volume: 0 }) as Phaser.Sound.WebAudioSound;
-        next.play();
-        this.fades.push({ snd: next, from: 0, to: targetVol, t: 0, killOnEnd: false });
-        if (old !== null) {
-            const v = this.safeVolume(old);
-            if (v !== null) {
-                this.fades.push({ snd: old, from: v, to: 0, t: 0, killOnEnd: true });
-            }
-        }
-        this.bgmSound = next;
+        const next = sm.add(BGM[key], { loop: true, volume: 0 }) as Sound;
+        if (!next.play()) { this.dispose(next); return; }
+        this.music.set(next, { gain: 0, fade: null });
+        this.bgmSound = next; this.currentBgm = key;
+        this.fade(next, key === 'boss' ? this.bossGain : 1, false);
     }
 
-    /** Boss 战紧张变体（FR-16 规则 1；LevelScene onBossPhase 直调） */
+    /** 同一首钢琴战斗曲保持时间轴，只轻微增强强度，避免阶段切换重播开头。 */
     setBossPhase(phaseIndex: number): void {
-        const key: BgmKey = phaseIndex <= 0 ? 'boss1' : phaseIndex === 1 ? 'boss2' : 'boss3';
-        this.playBgm(key);
+        this.bossGain = phaseIndex <= 0 ? 0.82 : phaseIndex === 1 ? 0.90 : 1;
+        if (this.currentBgm === 'boss' && this.bgmSound !== null) { this.fade(this.bgmSound, this.bossGain, false); }
+        else { this.playBgm('boss'); }
     }
 
     stopBgm(): void {
-        if (this.bgmSound !== null) {
-            const v = this.safeVolume(this.bgmSound as Phaser.Sound.WebAudioSound);
-            if (v !== null) {
-                this.fades.push({ snd: this.bgmSound, from: v, to: 0, t: 0, killOnEnd: true });
-            }
-        }
-        this.bgmSound = null;
-        this.currentBgm = null;
+        this.pendingBgm = null;
+        for (const sound of this.music.keys()) { this.fade(sound, 0, true); }
+        this.bgmSound = null; this.currentBgm = null;
     }
 
-    /** 三路音量实时应用（IF-X02：master×channel 乘积） */
     private applyVolumes(): void {
-        const bgm = this.bgmSound;
-        if (bgm !== null && bgm.isPlaying) {
-            const wa = bgm as Phaser.Sound.WebAudioSound;
-            if (wa.volumeNode === null || wa.volumeNode === undefined) { this.bgmSound = null; return; }
-            const fading = this.fades.some((f) => f.snd === bgm);
-            if (!fading) { bgm.setVolume(this.volumes.master * this.volumes.music); }
+        const musicVolume = this.volumes.master * this.volumes.music * MUSIC_MIX_GAIN;
+        for (const [sound, state] of this.music) {
+            if (this.alive(sound)) { sound.setVolume(musicVolume * state.gain); }
         }
-        // SFX 为一次性播放，音量在 play 时乘入
+        for (const [sound, state] of this.activeSfx) {
+            if (this.alive(sound)) { sound.setVolume(this.volumes.master * this.volumes.sfx * state.gain); }
+        }
     }
 
-    /** 解锁成功后冲刷挂起请求（IF-X02 约定） */
     private flushPending(): void {
-        const sfx = this.pendingSfx;
-        this.pendingSfx = [];
-        for (const k of sfx) { this.lastPlay.delete(k); this.playSfx(k); }
-        if (this.pendingBgm !== null) {
-            const b = this.pendingBgm;
-            this.pendingBgm = null;
-            this.playBgm(b);
-        }
+        const pending = [...this.pendingSfx]; this.pendingSfx.clear();
+        // 只保留手势附近 120ms 内的反馈，开场前的跳跃/拾取声不会补播。
+        for (const [key, at] of pending) { if (this.clockMs - at <= 120) { this.playSfx(key); } }
+        const bgm = this.pendingBgm; this.pendingBgm = null;
+        if (bgm !== null) { this.playBgm(bgm); }
     }
 
-    /** 仅供测试：合并窗口时钟注入 */
-    _setClock(ms: number): void { this.clock = ms; }
+    _setClock(ms: number): void { this.clockMs = ms; }
 }
 
 export const audioDirector = new AudioDirectorImpl();

@@ -55,7 +55,7 @@ export class CombatResolver {
     /** TutorialDirector / 挥击音效：攻击发起（场景内直调，6.2.3） */
     onAttackBegan: ((type: WeaponDef['type']) => void) | null = null;
     onAttackRejected: ((message: string) => void) | null = null;
-    onWeaponVisual: ((def: WeaponDef, rect?: { x: number; y: number; width: number; height: number }) => void) | null = null;
+    onWeaponVisual: ((def: WeaponDef, rect?: { x: number; y: number; width: number; height: number }, skillId?: string) => void) | null = null;
     /** 命中敌人音效/教学钩子（场景内直调，6.2.3） */
     onEnemyHit: (() => void) | null = null;
 
@@ -106,7 +106,7 @@ export class CombatResolver {
             side: 'player', sourceId: def.id, weaponLevelFactor: weaponService.getLevelFactor(def.id, hand), visualSkillId
         });
         this.onAttackBegan?.('ranged');
-        this.onWeaponVisual?.(def);
+        this.onWeaponVisual?.(def, undefined, visualSkillId);
     }
 
     /** 范围伤害（旋风斩等技能执行器调用，FR-07 规则 4） */

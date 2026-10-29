@@ -200,9 +200,9 @@ const onSceneReady = (scene: unknown): void => {
         requestedGameplay = null;
         uiState.value = 'none';
     }
-    // FR-16 规则 1：每场景 1 首 BGM（菜单 bgm_scene1；关卡/营地 bgm_scene2；Boss 变体由 LevelScene 切）
+    // 菜单与安全营地使用舒缓钢琴；区域探索和 Boss 入场由 LevelScene 切换。
     if (sceneKey.value === 'Menu') { audioDirector.playBgm('menu'); }
-    if (sceneKey.value === 'Camp') { audioDirector.playBgm('level'); }
+    if (sceneKey.value === 'Camp') { audioDirector.playBgm('menu'); }
     if (sceneKey.value === 'Menu' && requestedGameplay === null && booted.value && uiState.value === 'none') {
         uiState.value = 'mainMenu';
     }

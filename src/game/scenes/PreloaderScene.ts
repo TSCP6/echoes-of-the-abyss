@@ -18,6 +18,7 @@ import { bindViewportLayout, centerDesignCamera } from '../systems/viewportLayou
 import { registerRegionArt } from '../systems/regionBackdrop';
 import { loadEnemyArt, registerEnemyAnimations } from '../systems/enemyVisuals';
 import { registerPickupTextures } from '../systems/pickupVisuals';
+import { AUDIO_FILES } from '../data/audioCatalog';
 
 export class PreloaderScene extends Scene {
     private retryCount = 0;
@@ -64,13 +65,7 @@ export class PreloaderScene extends Scene {
         this.load.image('bg_green', 'art/bg_green.png');
         loadEnemyArt(this);
         // DD-11 音频清单（双格式 ogg/m4a：Safari ≥17 不解 Vorbis，NFR-06）
-        const audioFiles = [
-            'sfx_jump', 'sfx_land', 'sfx_swing', 'sfx_hit_melee', 'sfx_shoot', 'sfx_hit_taken',
-            'sfx_coin', 'sfx_pickup_item', 'sfx_checkpoint', 'sfx_death', 'sfx_skill', 'sfx_dash',
-            'sfx_heal', 'sfx_clear', 'sfx_ui_click', 'sfx_ui_open', 'sfx_ui_close', 'sfx_ui_error', 'sfx_buy',
-            'bgm_scene1', 'bgm_scene2', 'bgm_boss1_tense', 'bgm_boss2_tense', 'bgm_boss3_tense'
-        ];
-        for (const f of audioFiles) {
+        for (const f of AUDIO_FILES) {
             this.load.audio(f, [`audio/${f}.ogg`, `audio/${f}.m4a`]);
         }
         // EX-03：资源加载失败 → 错误清单 + 重试（≤3 次后提示刷新）
