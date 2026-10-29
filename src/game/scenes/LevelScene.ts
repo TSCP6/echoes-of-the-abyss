@@ -130,11 +130,14 @@ export class LevelScene extends Scene {
         if (p.open) { if (this.scene.isActive()) { this.scene.pause(); } }
         else if (this.scene.isPaused()) { this.scene.resume(); }
     };
-    private onEnemyKilled = (p: { enemyId: string; coins: number; position: { x: number; y: number } }): void => {
+    private onEnemyKilled = (p: { enemyId: string; coins: number; position: { x: number; y: number }; rewardKey?: string | null }): void => {
         if (p.enemyId === this.ctx.bossId) { this.playRegionMusic(); }
         this.kills += 1;
         recordStore.addKill();
         resourceSystem.notifyKill(); // FR-06 规则 5
+        // 召唤物无奖励；地图敌人同轮只认领一次，死亡/重进/续关不刷新。
+        if (!p.rewardKey || !progressService.claimRunReward(this.levelId, p.rewardKey)) { return; }
+        saveSystem.markDirty(); saveSystem.queueWrite();
         this.pickups.spawnCoinBurst(p.position, p.coins); // FR-09 掉落
         const guaranteed = ENEMY_MATERIAL_COUNTS[p.enemyId] ?? 0;
         if (guaranteed > 0) {

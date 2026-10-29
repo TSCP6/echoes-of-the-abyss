@@ -9,8 +9,13 @@
 import { ConfigRegistry } from './configRegistry';
 import { warnThrottled } from './warn';
 import type { SaveProgressSection } from './saveSchema';
+import { replayProfile } from './replayRules';
 
 export interface LevelProgressView {
+    clearCount: number;
+    replayTier: number;
+    coinPercent: number;
+    enemyHpPercent: number;
     levelId: string;
     unlocked: boolean;
     cleared: boolean;
@@ -23,6 +28,9 @@ export class ProgressService {
     private cleared: string[] = [];
     private shards: string[] = []; // 全局 shard id："1-1-a"
     private openedChests: string[] = []; // 关卡 id + 宝箱对象名，独立于成长碎片
+    private clearCounts: Record<string, number> = {};
+    private runRewards: Record<string, string[]> = {};
+    private coinRemainders: Record<string, number> = {};
     private tutorialDone = false;
     private currentLevelId: string | null = null;
     private lastCheckpointId: string | null = null;
@@ -46,6 +54,7 @@ export class ProgressService {
         this.cleared = [];
         this.shards = [];
         this.openedChests = [];
+        this.clearCounts = {}; this.runRewards = {}; this.coinRemainders = {};
         this.tutorialDone = false;
         this.currentLevelId = null;
         this.lastCheckpointId = null;
@@ -53,6 +62,11 @@ export class ProgressService {
 
     getLevelViews(): LevelProgressView[] {
         return ConfigRegistry.levels().map((def) => ({
+            clearCount: this.getClearCount(def.id),
+            replayTier: replayProfile(def.id, this.getClearCount(def.id)).replayTier,
+            coinPercent: replayProfile(def.id, this.getClearCount(def.id)).coinPercent,
+            enemyHpPercent: def.bossId === null ? replayProfile(def.id, this.getClearCount(def.id)).hpPercent
+                : replayProfile(def.id, this.getClearCount(def.id)).bossHpPercent,
             levelId: def.id,
             unlocked: this.unlocked.includes(def.id),
             cleared: this.cleared.includes(def.id),
@@ -64,6 +78,25 @@ export class ProgressService {
     isUnlocked(levelId: string): boolean { return this.unlocked.includes(levelId); }
     isCleared(levelId: string): boolean { return this.cleared.includes(levelId); }
 
+    getClearCount(levelId: string): number { return this.clearCounts[levelId] ?? 0; }
+
+    /** 同轮奖励记录不因死亡、重进、续关而清除。 */
+    claimRunReward(levelId: string, key: string): boolean {
+        if (!key || !ConfigRegistry.levelOrder().includes(levelId)) { return false; }
+        const claimed = this.runRewards[levelId] ??= [];
+        if (claimed.includes(key)) { return false; }
+        claimed.push(key); this.dirty?.();
+        return true;
+    }
+
+    scaleRunCoins(levelId: string, amount: number): number {
+        if (!Number.isSafeInteger(amount) || amount < 0 || !ConfigRegistry.levelOrder().includes(levelId)) { return 0; }
+        const scaled = amount * replayProfile(levelId, this.getClearCount(levelId)).coinPercent + (this.coinRemainders[levelId] ?? 0);
+        this.coinRemainders[levelId] = scaled % 100;
+        this.dirty?.();
+        return Math.floor(scaled / 100);
+    }
+
     /** FR-12 规则 1/2：通关推进解锁；返回首通标志与新解锁列表（AT-41~44） */
     completeLevel(levelId: string): { firstClear: boolean; unlocked: string[] } {
         const order = ConfigRegistry.levelOrder();
@@ -74,6 +107,8 @@ export class ProgressService {
         }
         const firstClear = !this.cleared.includes(levelId);
         if (firstClear) { this.cleared.push(levelId); }
+        this.clearCounts[levelId] = Math.min(Number.MAX_SAFE_INTEGER, this.getClearCount(levelId) + 1);
+        delete this.runRewards[levelId]; delete this.coinRemainders[levelId];
         const newly: string[] = [];
         const next = order[idx + 1];
         if (next !== undefined && !this.unlocked.includes(next)) {
@@ -124,6 +159,9 @@ export class ProgressService {
             clearedLevels: [...this.cleared],
             collectedShards: [...this.shards],
             openedChests: [...this.openedChests],
+            clearCounts: { ...this.clearCounts },
+            runRewards: Object.fromEntries(Object.entries(this.runRewards).map(([id, keys]) => [id, [...keys]])),
+            coinRemainders: { ...this.coinRemainders },
             tutorialDone: this.tutorialDone,
             currentLevelId: this.currentLevelId,
             lastCheckpointId: this.lastCheckpointId
@@ -143,6 +181,16 @@ export class ProgressService {
         }
         this.unlocked = prefix.length > 0 ? prefix : (order[0] !== undefined ? [order[0]] : []);
         this.cleared = (d.clearedLevels ?? []).filter((id) => valid.has(id) && this.unlocked.includes(id));
+        this.clearCounts = {}; this.runRewards = {}; this.coinRemainders = {};
+        for (const id of order) {
+            const count = d.clearCounts?.[id];
+            this.clearCounts[id] = this.cleared.includes(id)
+                ? (Number.isSafeInteger(count) && count! >= 1 ? count! : 1) : 0;
+            const keys = d.runRewards?.[id];
+            if (Array.isArray(keys)) { this.runRewards[id] = [...new Set(keys.filter(k => typeof k === 'string' && k.length > 0 && k.length <= 200))]; }
+            const remainder = d.coinRemainders?.[id];
+            if (Number.isInteger(remainder) && remainder! >= 0 && remainder! < 100) { this.coinRemainders[id] = remainder!; }
+        }
         this.shards = [...new Set(d.collectedShards ?? [])];
         this.openedChests = [...new Set((Array.isArray(d.openedChests) ? d.openedChests : [])
             .filter((id): id is string => typeof id === 'string' && order.some((levelId) => id.startsWith(`${levelId}:`) && id.length > levelId.length + 1)))];

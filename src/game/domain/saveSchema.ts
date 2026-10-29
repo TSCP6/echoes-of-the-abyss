@@ -22,6 +22,10 @@ export interface SaveProgressSection {
     collectedShards: string[];      // 全局唯一 shard id（"1-1-a" 形式）
     /** 已领取宝箱，格式为 关卡id:对象名；旧档缺失按空集合恢复。 */
     openedChests?: string[];
+    /** 每关成功通关次数；旧档已通关关卡按一次恢复。 */
+    clearCounts?: Record<string, number>;
+    runRewards?: Record<string, string[]>;
+    coinRemainders?: Record<string, number>;
     tutorialDone: boolean;
     /** 设计层补充字段（7.3.2）：旧档缺失时回退"最后解锁关卡的入口检查点"，向后兼容 */
     currentLevelId?: string | null;

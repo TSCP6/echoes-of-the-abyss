@@ -45,7 +45,7 @@ function summons() {
         },
         collider: (...args: unknown[]) => { collisions.push(args); return { destroy() {} }; }
     } } } as unknown as Scene;
-    const ctx = { enemySpawns: [{ defId: 'enm_boss_spider', x: 1000, y: 300 }], collisionGroup: {}, onewayGroup: {} } as LevelContext;
+    const ctx = { levelId: '1-4', enemySpawns: [{ defId: 'enm_boss_spider', x: 1000, y: 300 }], collisionGroup: {}, onewayGroup: {} } as LevelContext;
     const ai = new EnemyAI(scene, ctx, f.player, () => true);
     return { ai, collisions, sprites, ctx };
 }

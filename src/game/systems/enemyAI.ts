@@ -11,6 +11,8 @@
 import { Geom, Physics, type Scene, type Tilemaps } from 'phaser';
 import type { EnemyDef, BossPhaseDef } from '../domain/types';
 import { ConfigRegistry } from '../domain/configRegistry';
+import { progressService } from '../domain/progressService';
+import { replayProfile, scaleEnemy, type ReplayProfile } from '../domain/replayRules';
 import type { LevelContext } from './levelLoader';
 import type { PlayerController } from './playerController';
 import type { ProjectilePool } from './projectilePool';
@@ -44,6 +46,8 @@ export interface EnemyEvents {
 }
 
 export class EnemyEntity {
+    rewardKey: string | null = null;
+    private damagePercent = 100;
     readonly sprite: Physics.Arcade.Sprite;
     hp: number;
     readonly def: EnemyDef;
@@ -78,7 +82,8 @@ export class EnemyEntity {
     private tryEliteCast: (nowMs: number) => boolean = () => true;
 
     constructor(scene: Scene, def: EnemyDef, x: number, y: number,
-        private groundProbe: (x: number, y: number) => boolean, private visualId = def.id) {
+        private groundProbe: (x: number, y: number) => boolean, private visualId = def.id, damagePercent = 100) {
+        this.damagePercent = damagePercent;
         this.def = def;
         this.hp = def.hp;
         if (def.id === 'enm_boss_spider') {
@@ -100,7 +105,7 @@ export class EnemyEntity {
         this.sprite.setDepth(6);
         const combat = NORMAL_ENEMY_COMBAT[def.id];
         if (combat !== undefined && visualId === def.id) {
-            this.normalBrain = new NormalEnemyBrain(def, combat, { x, y: y + 24 - def.hurtboxSize.h / 2 });
+            this.normalBrain = new NormalEnemyBrain(def, { ...combat, damage: Math.round(combat.damage * damagePercent / 100) }, { x, y: y + 24 - def.hurtboxSize.h / 2 });
         }
     }
 
@@ -123,7 +128,7 @@ export class EnemyEntity {
 
     getNormalAttack(): NormalEnemyAttack | null {
         const tail = this.getEliteTailState();
-        if (tail?.canHit && tail.rect !== null) { return { rect: tail.rect, damage: ELITE_TAIL.damage, fromX: tail.blade?.x }; }
+        if (tail?.canHit && tail.rect !== null) { return { rect: tail.rect, damage: Math.round(ELITE_TAIL.damage * this.damagePercent / 100), fromX: tail.blade?.x }; }
         return this.stagger > 0 ? null : this.getNormalCombatState()?.attack ?? null;
     }
 
@@ -561,6 +566,7 @@ export class EnemyEntity {
 }
 
 export class EnemyAI {
+    private profile: ReplayProfile;
     private nextEliteCastAtMs = 0;
     private enemies: EnemyEntity[] = [];
     private initialCount = 0;
@@ -570,10 +576,13 @@ export class EnemyAI {
 
     constructor(private scene: Scene, private ctx: LevelContext, private player: PlayerController,
         private groundProbe: (x: number, y: number) => boolean) {
+        this.profile = replayProfile(ctx.levelId, progressService.getClearCount(ctx.levelId));
         for (const spawn of ctx.enemySpawns) {
-            const def = ConfigRegistry.enemies()[spawn.defId];
-            if (def === undefined) { continue; }
-            const enemy = new EnemyEntity(scene, def, spawn.x, spawn.y, this.groundProbe);
+            const base = ConfigRegistry.enemies()[spawn.defId];
+            if (base === undefined) { continue; }
+            const def = scaleEnemy(base, this.profile);
+            const enemy = new EnemyEntity(scene, def, spawn.x, spawn.y, this.groundProbe, def.id, this.profile.damagePercent);
+            enemy.rewardKey = `enemy:${spawn.defId}:${spawn.x}:${spawn.y}`;
             if (ctx.levelId?.startsWith('3-') && def.id === 'enm_elite') {
                 enemy.enableEliteTail(nowMs => {
                     if (nowMs < this.nextEliteCastAtMs) { return false; }
@@ -616,7 +625,7 @@ export class EnemyAI {
     summonAt(x: number, y: number, defId: string, visualId = defId): void {
         const def = ConfigRegistry.enemies()[defId];
         if (def === undefined) { return; }
-        const enemy = new EnemyEntity(this.scene, def, x, y, this.groundProbe, visualId);
+        const enemy = new EnemyEntity(this.scene, scaleEnemy(def, this.profile), x, y, this.groundProbe, visualId, this.profile.damagePercent);
         this.enemies.push(enemy);
         this.summonColliders.push(this.scene.physics.add.collider(enemy.sprite, this.ctx.collisionGroup));
         this.summonColliders.push(this.scene.physics.add.collider(enemy.sprite, this.ctx.onewayGroup, undefined, (object, target) => {

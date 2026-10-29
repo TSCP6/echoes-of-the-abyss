@@ -13,6 +13,7 @@ import { progressService } from '../domain/progressService';
 import { PICKUP_TEXTURES } from './pickupVisuals';
 import { grantRewardItem } from '../domain/rewardService';
 import { CHEST_MATERIAL_COUNTS } from '../data/rewardDefaults';
+import { COINS_CAP } from '../data/playerDefaults';
 import { ConfigRegistry } from '../domain/configRegistry';
 import { saveSystem } from '../domain/saveSystem';
 
@@ -22,6 +23,7 @@ const MAGNET_SPEED = 300;
 const COIN_POOL = 64;
 
 interface Coin {
+    rewards: Array<{ key: string | null; amount: number }>;
     sprite: GameObjects.Sprite;
     age: number;
     active: boolean;
@@ -60,16 +62,16 @@ export class PickupSystem {
             sprite.setDepth(5);
             sprite.setScale(0.5); // 64px 帧 → 32px 世界（2x 素材约定，DD-11）
             sprite.setVisible(false);
-            this.coins.push({ sprite, age: 0, active: false, value: 0 });
+            this.coins.push({ sprite, age: 0, active: false, value: 0, rewards: [] });
         }
         // 预置金币堆（FR-09 规则 5 的关卡采集点）
         for (const cluster of ctx.coinClusters) {
-            this.spawnCoinBurst({ x: cluster.x, y: cluster.y }, cluster.count, true);
+            this.spawnCoinBurst({ x: cluster.x, y: cluster.y }, cluster.count, true, `coin:${cluster.x}:${cluster.y}`);
         }
     }
 
     /** enemy:killed 掉落入口（IF-M18）；preplaced = 预置金币立即允许吸附。 */
-    spawnCoinBurst(pos: { x: number; y: number }, count: number, preplaced = false): void {
+    spawnCoinBurst(pos: { x: number; y: number }, count: number, preplaced = false, rewardPrefix: string | null = null): void {
         if (!Number.isSafeInteger(count) || count <= 0 || this.coins.length === 0) { return; }
         // 金额与显示数量分离：每次最多 8 枚，Boss 奖励仍完整保存。
         const free = this.coins.filter((coin) => !coin.active);
@@ -80,12 +82,14 @@ export class PickupSystem {
                 Math.hypot(coin.sprite.x - pos.x, coin.sprite.y - pos.y)
                     < Math.hypot(nearest.sprite.x - pos.x, nearest.sprite.y - pos.y) ? coin : nearest);
             target.value += count;
+            target.rewards.push({ key: rewardPrefix === null ? null : `${rewardPrefix}:merged`, amount: count });
             return;
         }
         for (let i = 0; i < visibleCount; i++) {
             const coin = free[i];
             coin.active = true;
             coin.value = Math.floor(count / visibleCount) + (i < count % visibleCount ? 1 : 0);
+            coin.rewards = [{ key: rewardPrefix === null ? null : `${rewardPrefix}:${i}`, amount: coin.value }];
             coin.age = preplaced ? MAGNET_DELAY_SEC : 0;
             coin.sprite.setVisible(true);
             coin.sprite.setPosition(pos.x + (i % 4) * 10 - 15, pos.y - Math.floor(i / 4) * 10);
@@ -144,12 +148,15 @@ export class PickupSystem {
             const dist = Math.hypot(dx, dy);
             if (dist < 20) {
                 const before = economyService.getCoins();
-                economyService.addCoins(coin.value);
+                const raw = coin.rewards.reduce((total, reward) => total + (reward.key === null
+                    || progressService.claimRunReward(this.ctx.levelId, reward.key) ? reward.amount : 0), 0);
+                economyService.addCoins(progressService.scaleRunCoins(this.ctx.levelId, raw));
+                saveSystem.markDirty(); saveSystem.queueWrite();
                 const added = economyService.getCoins() - before;
                 if (added > 0) {
                     this.floatText(coin.sprite.x, coin.sprite.y - 10, `+${added} 金币`);
                     this.onCoinPicked?.(added);
-                } else {
+                } else if (before >= COINS_CAP) {
                     this.floatText(coin.sprite.x, coin.sprite.y - 10, '金币已满');
                 }
                 coin.active = false;

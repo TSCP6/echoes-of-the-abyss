@@ -290,7 +290,7 @@ export class CombatResolver {
         this.onEnemyHit?.(); // AT-56 命中音效钩子
         if (died) {
             const coins = enemy.def.coinsDrop[0] + Math.floor(this.rng() * (enemy.def.coinsDrop[1] - enemy.def.coinsDrop[0] + 1));
-            emitEvent('enemy:killed', { enemyId: enemy.def.id, coins, position: { x: enemy.sprite.x, y: enemy.sprite.y } });
+            emitEvent('enemy:killed', { enemyId: enemy.def.id, coins, position: { x: enemy.sprite.x, y: enemy.sprite.y }, rewardKey: enemy.rewardKey });
         }
     }
 

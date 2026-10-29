@@ -25,6 +25,12 @@ export const UI_TEXT = {
     levelSelect: {
         title: '关卡选择',
         locked: '未解锁',
+        camp: '营地',
+        clearCount: (count: number) => `通关 ${count} 次`,
+        replayTier: (tier: number) => `重玩 ${tier} 档`,
+        coinPercent: (percent: number) => `金币收益 ${percent}%`,
+        enemyHpPercent: (percent: number) => `敌人生命 ${percent}%`,
+        replayHint: '每次成功通关后，下次进入该关提升一档，最高 3 档。金币收益依次为 100% / 65% / 40% / 25%，最低 25%。死亡或续关不加档；同轮重复击杀不重复领取金币。敌人生命包含章节与 Boss 各自的强度调整。',
         back: '返回主菜单',
         sceneNames: ['森林遗迹', '地下洞窟', '天空神殿'] as string[]
     },

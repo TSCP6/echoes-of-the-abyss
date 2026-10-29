@@ -35,7 +35,8 @@ function fixture(onGoal: () => boolean) {
             sprites.push(result);
             return result;
     };
-    const scene = { add: { sprite: () => makeSprite(), text: () => ({ text: '', setText(value: string) { this.text = value; return this; }, setOrigin() { return this; }, setDepth() { return this; }, destroy() {} }) }, tweens: { add() {} }, physics: { add: {
+    const messages: string[] = [];
+    const scene = { add: { sprite: () => makeSprite(), text: (_x: number, _y: number, text: string) => ({ text: (messages.push(text), text), setText(value: string) { this.text = value; return this; }, setOrigin() { return this; }, setDepth() { return this; }, destroy() {} }) }, tweens: { add() {} }, physics: { add: {
         group: () => ({ add() {} }), collider() {}, sprite: () => makeSprite(true)
     } } } as unknown as Scene;
     const player = { sprite: { x: 5, y: 5 } } as PlayerController;
@@ -43,7 +44,7 @@ function fixture(onGoal: () => boolean) {
         goal: new Geom.Rectangle(0, 0, 20, 20) } as unknown as LevelContext;
     let chestOpens = 0;
     const pickups = new PickupSystem(scene, player, ctx, { onGoal, onCheckpoint() {}, onShard() {}, onChest() { chestOpens++; }, onHint() {} });
-    return { pickups, player, ctx, sprites, chestOpens: () => chestOpens };
+    return { pickups, player, ctx, sprites, messages, chestOpens: () => chestOpens };
 }
 
 describe('PickupSystem 终点确认', () => {
@@ -91,6 +92,30 @@ describe('PickupSystem 终点确认', () => {
 });
 
 describe('金币拾取时机', () => {
+    it('低收益余数累计不误提示金币已满', () => {
+        for (let i = 0; i < 3; i++) { progressService.completeLevel('1-4'); }
+        const f = fixture(() => false);
+        f.pickups.spawnCoinBurst({ x: 20, y: 5 }, 1);
+        f.player.sprite.x = 5; f.player.sprite.y = 5;
+        f.pickups.update(0);
+        expect(economyService.getCoins()).toBe(0);
+        expect(f.messages).not.toContain('金币已满');
+    });
+
+    it('预置金币跨重建不重领，通关后按65%整堆收益兑现', () => {
+        const collect = () => {
+            const f = fixture(() => false);
+            f.pickups.spawnCoinBurst({ x: 100, y: 5 }, 20, true, 'coin:test');
+            for (const sprite of f.sprites.filter(s => s.visible)) {
+                f.player.sprite.x = sprite.x; f.player.sprite.y = sprite.y; f.pickups.update(0);
+            }
+        };
+        collect(); expect(economyService.getCoins()).toBe(20);
+        collect(); expect(economyService.getCoins()).toBe(20);
+        progressService.completeLevel('1-4');
+        collect(); expect(economyService.getCoins()).toBe(33);
+    });
+
     it('320金币使用少量显示实体兑现全额，池满后的奖励合并保留', () => {
         const f = fixture(() => false);
         const picked = vi.fn();

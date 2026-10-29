@@ -15,7 +15,7 @@ export interface EventPayloads {
     'hud:update': HudSnapshot;                                              // IF-E02
     'player:damaged': { amount: number; sourceId: string; hp: number };     // IF-E03
     'player:died': { levelId: string; checkpointId: string; lostCoins: number }; // IF-E04
-    'enemy:killed': { enemyId: string; coins: number; position: { x: number; y: number } }; // IF-E05
+    'enemy:killed': { enemyId: string; coins: number; position: { x: number; y: number }; rewardKey?: string | null }; // IF-E05
     'level:cleared': { levelId: string; timeSec: number; kills: number; shards: number; coins: number;
         earnedCoins?: number; firstClearCoins?: number; lostCoins?: number }; // IF-E06
     'inventory:changed': { slots: (SlotEntry | null)[]; equipped: { main: string | null; sub: string | null } }; // IF-E07

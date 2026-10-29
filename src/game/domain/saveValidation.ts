@@ -27,6 +27,13 @@ export function validPortableSave(value: unknown): value is SaveData {
         || !strings(g.collectedShards) || !g.collectedShards.every(id => LEVEL_ORDER.some(l => ['a', 'b', 'c'].some(s => id === `${l}-${s}`)))
         || typeof g.tutorialDone !== 'boolean' || !nullableString(g.currentLevelId) || !nullableString(g.lastCheckpointId)) { return false; }
     if (typeof g.currentLevelId === 'string' && !g.unlockedLevels.includes(g.currentLevelId)) { return false; }
+    if (g.clearCounts !== undefined && (!object(g.clearCounts) || !Object.entries(g.clearCounts)
+        .every(([id, count]) => LEVEL_ORDER.includes(id) && integer(count)))) { return false; }
+    if (g.runRewards !== undefined && (!object(g.runRewards) || !Object.entries(g.runRewards)
+        .every(([id, keys]) => LEVEL_ORDER.includes(id) && strings(keys) && keys.length <= 10000
+            && keys.every(key => key.length > 0 && key.length <= 200)))) { return false; }
+    if (g.coinRemainders !== undefined && (!object(g.coinRemainders) || !Object.entries(g.coinRemainders)
+        .every(([id, count]) => LEVEL_ORDER.includes(id) && integer(count, 0, 99)))) { return false; }
     if (g.openedChests !== undefined && (!strings(g.openedChests)
         || !g.openedChests.every(id => LEVEL_ORDER.some(l => id.startsWith(`${l}:`) && id.length > l.length + 1)))) { return false; }
     if (inv.capacity !== 20 || !Array.isArray(inv.slots) || inv.slots.length > 20 || !object(inv.equipped)) { return false; }
