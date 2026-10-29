@@ -413,9 +413,6 @@ defineExpose({ open, close, enterLevel, enterCamp, backToMenu, goto, hasSave });
 @media (max-width: 640px) {
     .ui-layer :deep(.panel) { padding: 16px; }
     .ui-layer :deep(.tree .cols) { flex-wrap: wrap; gap: 16px; }
-    .ui-layer :deep(.select .scene-row) { width: min(324px, 100%); }
-    .ui-layer :deep(.select .nodes) { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-    .ui-layer :deep(.select .node) { box-sizing: border-box; width: 100%; min-width: 0; height: 64px; }
     .ui-layer :deep(.shop .row) { flex-wrap: wrap; }
     .ui-layer :deep(.help td) { padding: 5px 8px; }
     .ui-layer :deep(.inv .grid) { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
