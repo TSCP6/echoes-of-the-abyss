@@ -3,7 +3,7 @@
  * 金币掉落走 EnemyDef.coinsDrop（EconomyService 直接掷点），此处只管物品/材料。
  * weight 为相对权重；countMin/countMax 为产出数量区间。
  */
-import type { LootTableDef } from '../domain/types';
+import type { LootTableDef } from '../domain/shared/types';
 
 export const LOOT_TABLES: LootTableDef[] = [
     {

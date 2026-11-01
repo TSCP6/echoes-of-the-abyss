@@ -4,7 +4,7 @@
  * 四个示例技能（旋风斩/多重射击/回响冲刺/治疗祷言）参数 = SRS 附录 A 默认值。
  * prerequisiteId 构成同分支线性森林（无环，V4 校验）；每分支 7 节点。
  */
-import type { SkillDef } from '../domain/types';
+import type { SkillDef } from '../domain/shared/types';
 
 export const SKILLS: SkillDef[] = [
     // ================= 刃影分支 blade（近战强化，7 节点，SKP 17）=================

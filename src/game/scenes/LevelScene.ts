@@ -6,45 +6,47 @@
  * Boss：阶段切换锁相机（FR-02 规则 5）+ HUD 血条（FR-14 规则 5）；召唤/危险区技能经 EnemyEvents。
  */
 import { Geom, Scene, Scenes, Tilemaps } from 'phaser';
-import { LevelLoader, type LevelContext } from '../systems/levelLoader';
-import { PlayerController } from '../systems/playerController';
-import { PlayerCombatFx } from '../systems/playerCombatFx';
-import { CameraRig } from '../systems/cameraRig';
-import { InputGateway } from '../systems/inputGateway';
-import { PickupSystem } from '../systems/pickupSystem';
-import { EnemyAI, type ArenaHazard } from '../systems/enemyAI';
-import { ProjectilePool } from '../systems/projectilePool';
-import { CombatResolver } from '../systems/combatResolver';
-import { NormalEnemyFx } from '../systems/normalEnemyFx';
-import { WorldFxLayer } from '../systems/worldFxLayer';
-import { sceneDirector } from '../systems/sceneDirector';
-import { hudViewModel } from '../domain/hudViewModel';
-import { resourceSystem } from '../domain/resourceSystem';
-import { economyService } from '../domain/economyService';
-import { enemyRewardItems, grantChestReward } from '../domain/rewardService';
-import { ENEMY_MATERIAL_COUNTS, FIRST_CLEAR_COINS } from '../data/rewardDefaults';
-import { progressService } from '../domain/progressService';
-import { canFinishCampaign, claimVictoryLoot } from '../domain/campaignVictory';
-import { weaponService } from '../domain/weaponService';
-import { skillService } from '../domain/skillService';
-import { recordStore } from '../domain/recordStore';
-import { saveSystem } from '../domain/saveSystem';
-import { ConfigRegistry } from '../domain/configRegistry';
+import { executePlayerSkill } from '../systems/player/playerSkillExecutor';
+import { settleLevel } from '../systems/world/levelSettlement';
+import { LevelLoader, type LevelContext } from '../systems/world/levelLoader';
+import { PlayerController } from '../systems/player/playerController';
+import { PlayerCombatFx } from '../systems/player/playerCombatFx';
+import { CameraRig } from '../systems/presentation/cameraRig';
+import { InputGateway } from '../systems/player/inputGateway';
+import { PickupSystem } from '../systems/world/pickupSystem';
+import { EnemyAI, type ArenaHazard } from '../systems/enemies/enemyAI';
+import { ProjectilePool } from '../systems/combat/projectilePool';
+import { CombatResolver } from '../systems/combat/combatResolver';
+import { NormalEnemyFx } from '../systems/enemies/normalEnemyFx';
+import { WorldFxLayer } from '../systems/presentation/worldFxLayer';
+import { sceneDirector } from '../systems/flow/sceneDirector';
+import { hudViewModel } from '../domain/player/hudViewModel';
+import { resourceSystem } from '../domain/player/resourceSystem';
+import { economyService } from '../domain/economy/economyService';
+import { enemyRewardItems, grantChestReward } from '../domain/economy/rewardService';
+import { ENEMY_MATERIAL_COUNTS } from '../data/rewardDefaults';
+import { progressService } from '../domain/progression/progressService';
+import { canFinishCampaign, claimVictoryLoot } from '../domain/progression/campaignVictory';
+import { weaponService } from '../domain/player/weaponService';
+import { skillService } from '../domain/player/skillService';
+import { recordStore } from '../domain/progression/recordStore';
+import { saveSystem } from '../domain/persistence/saveSystem';
+import { ConfigRegistry } from '../domain/shared/configRegistry';
 import { EventBus } from '../EventBus';
 import { emitEvent, onEvent, offEvent } from '../events';
-import { audioDirector } from '../systems/audioDirector';
+import { audioDirector } from '../systems/presentation/audioDirector';
 import { regionBgm } from '../data/audioCatalog';
-import { warnThrottled } from '../domain/warn';
-import { TutorialDirector } from '../systems/tutorialDirector';
-import { createRegionBackdrop } from '../systems/regionBackdrop';
-import { LevelDeviceSystem } from '../systems/levelDeviceSystem';
-import { createLevelScenery } from '../systems/levelScenery';
-import { bindViewportLayout } from '../systems/viewportLayout';
-import { BossDangerFx } from '../systems/bossDangerFx';
-import { bossPalette, bossSummonPositions } from '../systems/bossSkillPresentation';
-import { BossArena } from '../systems/bossArena';
-import { BossAbilitySystem } from '../systems/bossAbilitySystem';
-import { PICKUP_TEXTURES } from '../systems/pickupVisuals';
+import { warnThrottled } from '../domain/shared/warn';
+import { TutorialDirector } from '../systems/flow/tutorialDirector';
+import { createRegionBackdrop } from '../systems/world/regionBackdrop';
+import { LevelDeviceSystem } from '../systems/world/levelDeviceSystem';
+import { createLevelScenery } from '../systems/world/levelScenery';
+import { bindViewportLayout } from '../systems/presentation/viewportLayout';
+import { BossDangerFx } from '../systems/boss/bossDangerFx';
+import { bossPalette, bossSummonPositions } from '../systems/boss/bossSkillPresentation';
+import { BossArena } from '../systems/boss/bossArena';
+import { BossAbilitySystem } from '../systems/boss/bossAbilitySystem';
+import { PICKUP_TEXTURES } from '../systems/world/pickupVisuals';
 
 const DEATH_PAUSE_MS = 800; // FR-16 规则 3
 
@@ -397,39 +399,8 @@ export class LevelScene extends Scene {
         return map[action] ?? action;
     }
 
-    /** 技能释放（FR-07 规则 4/6）：决策与执行分离（4.3.5） */
     private tryCastSlot(slot: 0 | 1 | 2 | 3): void {
-        const id = skillService.getLoadout()[slot];
-        if (id === null) { this.combat.onAttackRejected?.(`技能 ${slot + 1} 未绑定，请按 Y 学习并绑定`); return; }
-        const equipped = weaponService.getEquippedDefs();
-        const rangedHand = equipped.main?.type === 'ranged' ? 'main' : equipped.sub?.type === 'ranged' ? 'sub' : null;
-        const def = rangedHand === null ? null : equipped[rangedHand];
-        if (ConfigRegistry.skills()[id]?.effect.projectileCount !== undefined && def === null) {
-            this.combat.onAttackRejected?.('此技能需要主手或副手装备远程武器'); return;
-        }
-        const decision = skillService.tryCast(id);
-        if (!decision.ok) { this.combat.onAttackRejected?.(decision.message); return; }
-        const p = this.player.getMotionState();
-        const ef = decision.value.effect;
-        this.playerCombatFx.skill(id, ef);
-        audioDirector.playSkill(id); // 一次施放只响一次，齐射的多枚弹丸不叠加发射声。
-        if (ef.damage !== undefined && ef.radius !== undefined) {
-            this.combat.queueAreaDamage(p.x, p.y, ef.radius, ef.damage);
-        } else if (ef.projectileCount !== undefined) {
-            const count = ef.projectileCount;
-            const spread = ef.spreadDeg ?? 15;
-            for (let i = 0; i < count; i++) {
-                const angle = (i - (count - 1) / 2) * (spread / Math.max(1, count - 1));
-                if (def !== null && def.type === 'ranged') {
-                    this.combat.spawnProjectile({ ...def, baseDamage: ef.damage ?? def.baseDamage }, angle, rangedHand ?? 'main', id);
-                }
-            }
-        } else if (ef.dashDistance !== undefined) {
-            this.player.iFrameUntil = this.time.now + (ef.invincibleMs ?? 200);
-            this.player.startDash(ef.dashDistance, 200);
-        } else if (ef.heal !== undefined) {
-            resourceSystem.heal(ef.heal);
-        }
+        executePlayerSkill(slot, { player: this.player, combat: this.combat, effects: this.playerCombatFx, nowMs: this.time.now });
     }
 
     private onSkillUnlocked = ({ skillId }: { skillId: string }): void => {
@@ -462,32 +433,10 @@ export class LevelScene extends Scene {
         this.finished = true;
         this.physics.pause();
         this.player.body.setVelocity(0, 0);
-        const campaignVictory = canFinishCampaign(this.levelId);
-        const shards = this.ctx.shards.filter((s) => progressService.isShardCollected(this.levelId, s.id)).length;
-        audioDirector.playSfx('clear');
-        const res = progressService.completeLevel(this.levelId);
-        let firstClearCoins = 0;
-        if (res.firstClear) {
-            const before = economyService.getCoins();
-            const chapter = ConfigRegistry.levels().find(l => l.id === this.levelId)!.sceneId;
-            economyService.addCoins((this.ctx.bossId === null ? FIRST_CLEAR_COINS.normal : FIRST_CLEAR_COINS.boss) * chapter);
-            firstClearCoins = economyService.getCoins() - before;
-        }
-        // FR-19：最佳成绩（AT-64 新纪录判定）
-        recordStore.submitResult(this.levelId, this.elapsedSec, shards);
-        recordStore.setShardsTotal(progressService.toSnapshot().collectedShards.length);
-        // 首通奖励：Boss 关 +2 SKP（附录 A）；碎片 SKP 已在采集时发放
-        if (res.firstClear && this.ctx.bossId !== null) {
-            skillService.grantBossSkp(ConfigRegistry.bossSkpReward());
-        }
-        emitEvent('level:cleared', {
-            levelId: this.levelId,
-            timeSec: Math.round(this.elapsedSec * 10) / 10,
-            kills: this.kills,
-            shards,
-            coins: economyService.getCoins(), earnedCoins: this.earnedCoins, firstClearCoins, lostCoins: 0,
-            ...(campaignVictory ? { campaignVictory: { firstClear: res.firstClear } } : {})
-        });
+        const shards = this.ctx.shards.filter((shard) => progressService.isShardCollected(this.levelId, shard.id)).length;
+        const result = settleLevel({ levelId: this.levelId, bossId: this.ctx.bossId, shards,
+            elapsedSec: this.elapsedSec, kills: this.kills, earnedCoins: this.earnedCoins });
+        emitEvent('level:cleared', result);
         // FR-13 规则 2：关卡结算完成 = 写入点
         saveSystem.markDirty();
         saveSystem.queueWrite();

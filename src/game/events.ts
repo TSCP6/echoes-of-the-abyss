@@ -3,8 +3,8 @@
  * ARCH-10：EventBus 只传这 12 个通知事件，载荷只读；禁止用事件发起命令。
  * 事件名字面量的单一出处（TT-05 门禁 ④）。
  */
-import type { HudSnapshot, SlotEntry } from './domain/types';
-import type { KeymapData } from './domain/saveSchema';
+import type { HudSnapshot, SlotEntry } from './domain/shared/types';
+import type { KeymapData } from './domain/persistence/saveSchema';
 
 export type UiState =
     | 'none' | 'mainMenu' | 'levelSelect' | 'paused' | 'result'

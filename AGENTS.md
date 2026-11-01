@@ -48,8 +48,8 @@
 - 玩家运动数值从 `src/game/data/playerDefaults.ts` 读取，世界重力和审计模型不能另写一份。调参时检查配置校验与现有关卡可达性。
 - 保持土狼时间、跳跃缓冲、可变跳高、单向平台和检查点重试等既有机制；明确的玩法变更按用户要求实施并记录。
 - 地图位于 `public/assets/levels/`，支持用户用 Tiled 手工编辑。运行生成器前先比对目标地图与生成逻辑，确认是否存在手工修改；不要默认重新生成全部关卡。
-- 确需生成时，优先使用 `python -X utf8 tools/gen_levels.py <level_id>` 定向更新，并检查最终 JSON 差异；需要保持可重建的调整同步到生成器。
-- 改图或改变运动参数后运行 `python -X utf8 tools/audit_reach.py`，并在浏览器实测受影响的跳跃、平台、深渊和终点路线。审计通过不能替代实际游玩验证。
+- 确需生成时，优先使用 `python -X utf8 tools/maps/gen_levels.py <level_id>` 定向更新，并检查最终 JSON 差异；需要保持可重建的调整同步到生成器。
+- 改图或改变运动参数后运行 `python -X utf8 tools/maps/audit_reach.py`，并在浏览器实测受影响的跳跃、平台、深渊和终点路线。审计通过不能替代实际游玩验证。
 - 保持地图图层、对象命名和数量符合 `levelLoader.ts` 的校验要求，不为通过测试而削弱校验。
 - 动画和特效应与真实攻击范围、前摇、命中时序一致；纯视觉任务不要顺带改变伤害、冷却或战斗数值。
 - 场景退出、死亡重试和切关时，清理监听器、计时器、碰撞器、召唤物、弹丸及特效，防止重复注册和残留状态。
@@ -74,13 +74,13 @@
 | 定向单测       | `npx.cmd --no-install vitest run <测试文件路径>` |
 | 覆盖率         | `npx.cmd --no-install vitest run --coverage`     |
 | 生产构建       | `npm.cmd run build-nolog`                        |
-| 地图可达性     | `python -X utf8 tools/audit_reach.py`            |
-| 敌人美术帧校验 | `python -X utf8 tools/check_enemy_art.py`        |
+| 地图可达性     | `python -X utf8 tools/maps/audit_reach.py`            |
+| 敌人美术帧校验 | `python -X utf8 tools/assets/check_enemy_art.py`        |
 
 - 使用 `dev-nolog` / `build-nolog`，避免默认脚本执行 `log.js` 外发遥测。
 - 开发服务使用 `vite/config.dev.mjs`；端口被占用时用 `npm.cmd run dev-nolog -- --port <可用端口>`，核实实际地址后再访问。不要为腾端口结束无关进程。
 - 行为变更补充有意义的回归测试，优先验证公开行为和边界情况；修改代码后运行相关测试、类型检查及生产构建。
-- 界面、输入、场景、物理和特效变更须在真实浏览器运行验证，按需复用 `tools/*.check.mjs`，并检查控制台异常。缺少浏览器验证条件时说明缺口。
+- 界面、输入、场景、物理和特效变更须在真实浏览器运行验证，按需复用 `tools/browser/**/*.check.mjs`，并检查控制台异常。缺少浏览器验证条件时说明缺口。
 - 浏览器自动化需注意隐藏标签页的帧暂停，以及短促按键可能未被逐帧输入采样捕获；不要将自动化输入伪影直接判定为游戏缺陷。
 - 纯文档修改检查事实、路径、命令、内容一致性和 Git 差异，无需为此运行整套游戏测试。
 - 人工试玩、真人可用性、长期稳定性和跨浏览器验收必须分别记录；历史通过次数不作为本次验证证据。
@@ -101,3 +101,11 @@
 ## 会话提示词说明
 
 同一个会话中的提示词默认不与上文产生联系，除非是让你继续之类的提示词是根据你的计划来进行，因此，每次执行不必读取会话完整上下文。
+
+
+## 整理后的文件定位
+
+- `src/game/domain/` 按 combat、player、progression、economy、persistence、shared 分类；系统按 player、enemies、boss、combat、world、presentation、flow 分类。
+- Vue 页面/面板/共用组件/组合函数/表现辅助分别位于 `src/ui/views/`、`panels/`、`components/`、`composables/`、`presentation/`。
+- 单元测试集中 `tests/game/`、`tests/ui/`；Python工具回归位于 `tests/tools/`。新增测试跟随对应职责目录，不放回src。
+- 迁移对照见 `docs/代码路径迁移对照.md`，工具入口见 `tools/README.md`。

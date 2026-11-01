@@ -6,8 +6,8 @@
  * 惰性探测：构造不触碰 globalThis（Node/测试环境 import 期无 localStorage），首次方法调用时探测并缓存。
  * 测试接缝：构造时可注入 Storage 实现（13.2 mock 接缝）。
  */
-import { ok, fail, type Result } from '../domain/result';
-import { SAVE_KEY_PREFIX, PROBE_KEY } from '../domain/saveSchema';
+import { ok, fail, type Result } from '../domain/shared/result';
+import { SAVE_KEY_PREFIX, PROBE_KEY } from '../domain/persistence/saveSchema';
 
 export class StorageAdapter {
     private storage: Storage | null | undefined;

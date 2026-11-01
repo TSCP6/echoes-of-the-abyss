@@ -9,88 +9,50 @@
  */
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { EventBus } from '../game/EventBus';
-import { AppBoot } from '../game/domain/appBoot';
-import { progressService } from '../game/domain/progressService';
-import { campaignSummary } from '../game/domain/campaignVictory';
-import { saveSystem } from '../game/domain/saveSystem';
-import { sceneDirector } from '../game/systems/sceneDirector';
-import { emitEvent, onEvent, offEvent, type UiState, type EventPayloads } from '../game/events';
-import { audioDirector } from '../game/systems/audioDirector';
+import { AppBoot } from '../game/domain/shared/appBoot';
+import { progressService } from '../game/domain/progression/progressService';
+import { campaignSummary } from '../game/domain/progression/campaignVictory';
+import { saveSystem } from '../game/domain/persistence/saveSystem';
+import { sceneDirector } from '../game/systems/flow/sceneDirector';
+import { emitEvent, onEvent, offEvent, type EventPayloads } from '../game/events';
+import { audioDirector } from '../game/systems/presentation/audioDirector';
 import { audioAdapter } from '../game/adapters/audioAdapter';
-import MainMenuView from './MainMenuView.vue';
-import LevelSelectView from './LevelSelectView.vue';
-import PauseOverlay from './PauseOverlay.vue';
-import ResultView from './ResultView.vue';
-import VictoryView from './VictoryView.vue';
-import HelpView from './HelpView.vue';
-import HudOverlay from './HudOverlay.vue';
-import InventoryPanel from './InventoryPanel.vue';
-import ShopPanel from './ShopPanel.vue';
-import SkillTreePanel from './SkillTreePanel.vue';
-import SettingsPanel from './SettingsPanel.vue';
-import RecordsView from './RecordsView.vue';
-import TutorialHints from './TutorialHints.vue';
-import SaveManagerPanel from './SaveManagerPanel.vue';
+import MainMenuView from './views/MainMenuView.vue';
+import LevelSelectView from './views/LevelSelectView.vue';
+import PauseOverlay from './panels/PauseOverlay.vue';
+import ResultView from './views/ResultView.vue';
+import VictoryView from './views/VictoryView.vue';
+import HelpView from './views/HelpView.vue';
+import HudOverlay from './components/HudOverlay.vue';
+import InventoryPanel from './panels/InventoryPanel.vue';
+import ShopPanel from './panels/ShopPanel.vue';
+import SkillTreePanel from './panels/SkillTreePanel.vue';
+import SettingsPanel from './panels/SettingsPanel.vue';
+import RecordsView from './views/RecordsView.vue';
+import TutorialHints from './components/TutorialHints.vue';
+import SaveManagerPanel from './panels/SaveManagerPanel.vue';
 import { UI_TEXT } from './i18n';
+import { useOverlayNavigation } from './composables/useOverlayNavigation';
+import { useSaveActions } from './composables/useSaveActions';
 
-const uiState = ref<UiState>('none');
+const { uiState, open, close, goto, reset, closeForGameplay } = useOverlayNavigation();
 const booted = ref(false);
-const hasSave = ref(false);
 const sceneKey = ref('');
 const resultData = ref<EventPayloads['level:cleared'] | null>(null);
 const hasVictory = ref(false);
 const victoryFirstClear = ref(false);
 const victoryIntro = ref(true);
 const shopSceneId = ref<1 | 2 | 3>(1);
-const history: UiState[] = [];
 let requestedGameplay: 'Level' | 'Camp' | null = null;
-const saveManagerOpen = ref(false);
-const saveSummary = ref<ReturnType<typeof saveSystem.getSummary>>(null);
-const saveFailed = ref(false);
-const saveNotice = ref('');
-let noticeTimer: ReturnType<typeof setTimeout> | undefined;
-
-function refreshSave(): void {
-    saveSummary.value = saveSystem.getSummary();
-    hasSave.value = saveSummary.value !== null;
-    hasVictory.value = campaignSummary().completed;
-}
-
-function showSaveManager(): void {
-    refreshSave();
-    saveManagerOpen.value = true;
-}
-
-function onSaveWritten(): void {
-    refreshSave();
-    if (saveFailed.value) {
-        clearTimeout(noticeTimer);
-        saveNotice.value = '';
+const { hasSave, saveManagerOpen, saveSummary, saveFailed, saveNotice,
+    initializeSave, showSaveManager, retrySave, exportSave, onSaveImported, saveAndQuit } = useSaveActions({
+    onRefresh: () => { hasVictory.value = campaignSummary().completed; },
+    onQuit: () => {
+        requestedGameplay = null;
+        reset('mainMenu');
+        sceneDirector.gotoMenu();
     }
-    saveFailed.value = false;
-}
-
-/** 成功提示仅用于用户明确发起的保存操作，自动存档不刷新计时。 */
-function showManualSaveNotice(message: string): void {
-    saveNotice.value = message;
-    clearTimeout(noticeTimer);
-    noticeTimer = setTimeout(() => { saveNotice.value = ''; }, 4000);
-}
-
-function onSaveFailed(payload: EventPayloads['save:failed']): void {
-    clearTimeout(noticeTimer);
-    saveFailed.value = true;
-    saveNotice.value = payload.reason === 'QUOTA' ? UI_TEXT.save.failedQuota : UI_TEXT.save.failedUnavailable;
-}
-
-function retrySave(): void {
-    if (saveSystem.retryWrite().ok) { showManualSaveNotice(UI_TEXT.save.written); }
-}
-function exportSave(): void { saveSystem.exportJson(); }
-function onSaveImported(): void {
-    refreshSave();
-    showManualSaveNotice(UI_TEXT.save.imported);
-}
+});
 
 function continueGame(): void {
     const currentLevel = progressService.getCurrentLevel();
@@ -103,65 +65,25 @@ function continueGame(): void {
 const showHud = computed(() => sceneKey.value === 'Level' && uiState.value === 'none');
 const showTutorial = computed(() => sceneKey.value === 'Level');
 
-function open(next: UiState): void {
-    if (uiState.value !== 'none') { history.push(uiState.value); }
-    uiState.value = next;
-    emitEvent('ui:overlay', { name: next, open: true });
-    audioDirector.playSfx('ui_open');
-}
-
-function close(): void {
-    const prev = uiState.value;
-    uiState.value = history.length > 0 ? history.pop() as UiState : 'none';
-    // 返回上一层面板时仍应暂停；只有最后一层关闭才恢复玩法。
-    const next = uiState.value;
-    emitEvent('ui:overlay', { name: next === 'none' ? prev : next, open: next !== 'none' });
-    audioDirector.playSfx('ui_close');
-}
-
-function goto(state: UiState): void {
-    history.length = 0;
-    uiState.value = state;
-    emitEvent('ui:overlay', { name: state, open: true });
-    audioDirector.playSfx('ui_click');
-}
-
 /** 供子视图调用：进入关卡（关 overlay + 切场景） */
 function enterLevel(levelId: string, resume = false): void {
     requestedGameplay = 'Level';
-    history.length = 0;
-    const prev = uiState.value;
-    uiState.value = 'none';
-    if (prev !== 'none') { emitEvent('ui:overlay', { name: prev, open: false }); }
+    closeForGameplay();
     sceneDirector.gotoLevel(levelId, resume);
 }
 
 function enterCamp(sceneId: 1 | 2 | 3): void {
     requestedGameplay = 'Camp';
-    history.length = 0;
-    const prev = uiState.value;
-    uiState.value = 'none';
-    if (prev !== 'none') { emitEvent('ui:overlay', { name: prev, open: false }); }
+    closeForGameplay();
     sceneDirector.gotoCamp(sceneId);
 }
 
 function backToMenu(): void {
     requestedGameplay = null;
-    history.length = 0;
-    uiState.value = 'mainMenu';
+    reset('mainMenu');
     // FR-13 规则 2：退出到主菜单 = 写入点
     saveSystem.markDirty();
     saveSystem.queueWrite();
-    sceneDirector.gotoMenu();
-}
-
-function saveAndQuit(): void {
-    const saved = saveSystem.write();
-    if (!saved.ok) { return; }
-    showManualSaveNotice(UI_TEXT.save.written);
-    requestedGameplay = null;
-    history.length = 0;
-    uiState.value = 'mainMenu';
     sceneDirector.gotoMenu();
 }
 
@@ -193,8 +115,7 @@ const onLevelCleared = (p: EventPayloads['level:cleared']): void => {
     hasVictory.value = campaignSummary().completed;
     victoryFirstClear.value = p.campaignVictory?.firstClear ?? false;
     victoryIntro.value = true;
-    history.length = 0;
-    uiState.value = p.campaignVictory && hasVictory.value ? 'victory' : 'result';
+    reset(p.campaignVictory && hasVictory.value ? 'victory' : 'result');
     emitEvent('ui:overlay', { name: uiState.value, open: true });
 };
 function replayEnding(): void {
@@ -292,8 +213,6 @@ onMounted(() => {
     onEvent('game:requestLevelSelect', onLevelSelectRequest);
     onEvent('game:requestSkillTree', onSkillTreeRequest);
     onEvent('level:cleared', onLevelCleared);
-    onEvent('save:written', onSaveWritten);
-    onEvent('save:failed', onSaveFailed);
     EventBus.on('current-scene-ready', (s: unknown) => {
         readyCount += 1;
         lastKey = sceneKeyOf(s);
@@ -312,9 +231,7 @@ onMounted(() => {
     window.addEventListener('keyup', onKeyup, true);
     window.addEventListener('blur', onBlur);
     AppBoot.ready.then((r) => {
-        hasSave.value = r.save !== null;
-        saveSummary.value = saveSystem.getSummary();
-        hasVictory.value = campaignSummary().completed;
+        initializeSave(r.save !== null);
         booted.value = true;
         if (sceneKey.value === 'Menu') { uiState.value = 'mainMenu'; }
     }).catch(() => {
@@ -323,9 +240,6 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-    clearTimeout(noticeTimer);
-    offEvent('save:written', onSaveWritten);
-    offEvent('save:failed', onSaveFailed);
     offEvent('game:requestPause', onPauseRequest);
     offEvent('game:requestInventory', onInventoryRequest);
     offEvent('game:requestShop', onShopRequest);

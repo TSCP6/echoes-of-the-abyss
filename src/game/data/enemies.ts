@@ -4,7 +4,7 @@
  * 普通敌人主动攻击与飞行追踪参数集中在 normalEnemyCombat.ts；moveSpeed=50 为紫鹰巡航速度上限。
  * Boss 技能脚本为配置数据（DD-06），数值域受 V2/V4 校验（damage 5~30、cooldownSec 0.5~8）。
  */
-import type { EnemyDef } from '../domain/types';
+import type { EnemyDef } from '../domain/shared/types';
 
 export const ENEMIES: EnemyDef[] = [
     {

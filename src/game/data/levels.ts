@@ -4,7 +4,7 @@
  * targetTimeSec 常规 180~300 / Boss 240~420（附录 B 目标时长换算，SRS 5.1 范围内）。
  * tilemapAsset 指向 public/assets/levels/*.json（DD-04，DEC-7 CSV 明文）。
  */
-import type { LevelDef } from '../domain/types';
+import type { LevelDef } from '../domain/shared/types';
 
 export const LEVELS: LevelDef[] = [
     // ---- 场景一 森林遗迹 ----

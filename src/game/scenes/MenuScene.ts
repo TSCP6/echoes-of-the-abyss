@@ -4,7 +4,7 @@
  */
 import { Scene } from 'phaser';
 import { EventBus } from '../EventBus';
-import { centerDesignCamera, createViewportBackground } from '../systems/viewportLayout';
+import { centerDesignCamera, createViewportBackground } from '../systems/presentation/viewportLayout';
 
 export class MenuScene extends Scene {
     constructor() { super('Menu'); }

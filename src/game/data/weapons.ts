@@ -3,7 +3,7 @@
  * 数值 = SRS 附录 A 武器表；短剑/轻弩为初始武器（price null）。
  * 副武器购买价按强度递增（附录 A：120/180/300；第 4 把取中间档 240，属数据内容制作 DD-06）。
  */
-import type { WeaponDef } from '../domain/types';
+import type { WeaponDef } from '../domain/shared/types';
 
 export const WEAPONS: WeaponDef[] = [
     {

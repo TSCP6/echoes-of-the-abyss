@@ -3,7 +3,7 @@
  * 不加载大资源（保持首屏轻，FLOW-R1）。create 时向 SceneDirector 注册 game 实例（唯一注册点）。
  */
 import { Scene } from 'phaser';
-import { sceneDirector } from '../systems/sceneDirector';
+import { sceneDirector } from '../systems/flow/sceneDirector';
 import { appLifecycle } from '../adapters/appLifecycle';
 
 export class BootScene extends Scene {

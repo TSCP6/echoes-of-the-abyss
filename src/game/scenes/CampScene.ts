@@ -4,18 +4,18 @@
  */
 import { Input, Scene, Scenes, type GameObjects } from 'phaser';
 import { EventBus } from '../EventBus';
-import { sceneDirector } from '../systems/sceneDirector';
-import { InputGateway } from '../systems/inputGateway';
+import { sceneDirector } from '../systems/flow/sceneDirector';
+import { InputGateway } from '../systems/player/inputGateway';
 import { CURRENT_SCENE_READY, emitEvent, onEvent, offEvent } from '../events';
-import { centerDesignCamera } from '../systems/viewportLayout';
-import { createRegionBackdrop } from '../systems/regionBackdrop';
-import { createCampScenery, type CampScenery } from '../systems/campScenery';
-import { CampInteraction, type CampFacility } from '../systems/campInteraction';
+import { centerDesignCamera } from '../systems/presentation/viewportLayout';
+import { createRegionBackdrop } from '../systems/world/regionBackdrop';
+import { createCampScenery, type CampScenery } from '../systems/world/campScenery';
+import { CampInteraction, type CampFacility } from '../systems/world/campInteraction';
 import { CAMP_FACILITIES, getCampPalette } from '../data/campPresentation';
-import { settingsStore } from '../domain/settingsStore';
-import { economyService } from '../domain/economyService';
-import { skillService } from '../domain/skillService';
-import { effectiveKeys, type GameAction } from '../domain/keymap';
+import { settingsStore } from '../domain/player/settingsStore';
+import { economyService } from '../domain/economy/economyService';
+import { skillService } from '../domain/player/skillService';
+import { effectiveKeys, type GameAction } from '../domain/player/keymap';
 import { UI_TEXT } from '../../ui/i18n';
 
 interface FacilityView {

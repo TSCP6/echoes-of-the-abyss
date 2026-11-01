@@ -6,12 +6,12 @@
  * - EX-06：resize 由 ScaleManager EXPAND + viewportLayout 处理，DOM HUD 同步锚定画布；
  * - EXD-4：window error / unhandledrejection / Vue errorHandler → console 记录 + 游戏健康则 gotoMenu + DOM 横幅；同错 1 分钟去重。
  */
-import { sceneDirector } from '../systems/sceneDirector';
+import { sceneDirector } from '../systems/flow/sceneDirector';
 import { audioAdapter } from './audioAdapter';
 import { fullscreenAdapter } from './fullscreenAdapter';
-import { warnThrottled } from '../domain/warn';
+import { warnThrottled } from '../domain/shared/warn';
 import { CANVAS, WEBGL } from 'phaser';
-import { saveSystem } from '../domain/saveSystem';
+import { saveSystem } from '../domain/persistence/saveSystem';
 
 class AppLifecycleImpl {
     private game: Phaser.Game | null = null;

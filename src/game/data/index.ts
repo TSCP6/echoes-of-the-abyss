@@ -15,5 +15,5 @@ export {
     DEATH_COIN_LOSS_RATIO, DEATH_COIN_LOSS_CAP, COINS_CAP,
     SKP_OBTAINABLE_TOTAL, SKP_FROM_SHARDS, SKP_FROM_BOSSES, SKP_FULL_UNLOCK_COST
 } from './playerDefaults';
-export type { ConfigValidationError } from '../domain/configRegistry';
-export { validateAll, ConfigRegistry, markValidated } from '../domain/configRegistry';
+export type { ConfigValidationError } from '../domain/shared/configRegistry';
+export { validateAll, ConfigRegistry, markValidated } from '../domain/shared/configRegistry';

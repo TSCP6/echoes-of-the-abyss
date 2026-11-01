@@ -21,11 +21,11 @@ onMounted(() => {
     }
     // DEV：领域层探针（冒烟/AT 验证接缝；生产 tree-shake）
     if (import.meta.env.DEV) {
-        void import('./game/domain/devProbe').then((mod) => mod.installDevProbe());
+        void import('./game/domain/shared/devProbe').then((mod) => mod.installDevProbe());
     }
     // DEV：音频探针（AT-56~58 冒烟接缝；生产 tree-shake）
     if (import.meta.env.DEV) {
-        void import('./game/systems/audioDirector').then((mod) => {
+        void import('./game/systems/presentation/audioDirector').then((mod) => {
             interface DevAudioProbe { director: typeof mod.audioDirector }
             const devWin = window as unknown as { __SEAPP_AUDIO__?: DevAudioProbe };
             devWin.__SEAPP_AUDIO__ = { director: mod.audioDirector };
@@ -33,7 +33,7 @@ onMounted(() => {
     }
     // DEV：场景编排探针（transitioning 观测；生产 tree-shake）
     if (import.meta.env.DEV) {
-        void import('./game/systems/sceneDirector').then((mod) => {
+        void import('./game/systems/flow/sceneDirector').then((mod) => {
             interface DevDirectorProbe { director: typeof mod.sceneDirector }
             const devWin = window as unknown as { __SEAPP_DIRECTOR__?: DevDirectorProbe };
             devWin.__SEAPP_DIRECTOR__ = { director: mod.sceneDirector };

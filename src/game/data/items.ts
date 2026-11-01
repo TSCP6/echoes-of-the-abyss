@@ -3,7 +3,7 @@
  * 类别：material（遗迹残片，升级材料）、consumable（药水/弹药）、weapon（背包内武器物品，与 WeaponDef 同 id）。
  * icon 为图集帧名（DD-11）；V3 校验引用完整性。
  */
-import type { ItemDef } from '../domain/types';
+import type { ItemDef } from '../domain/shared/types';
 
 export const ITEMS: ItemDef[] = [
     // ---- 材料 ----

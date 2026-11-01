@@ -5,8 +5,8 @@
  * 解锁成功后经 onUnlocked 回调通知 AudioDirector 冲刷挂起播放队列。
  * 失焦暂停：onVisibility(hidden) 由 AppLifecycle 转发（EX-05）。
  */
-import type { Result } from '../domain/result';
-import { ok, fail } from '../domain/result';
+import type { Result } from '../domain/shared/result';
+import { ok, fail } from '../domain/shared/result';
 
 class AudioAdapterImpl {
     private unlocked = false;

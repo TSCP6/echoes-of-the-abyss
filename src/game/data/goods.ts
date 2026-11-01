@@ -4,7 +4,7 @@
  * 场景推进解锁：场景 2 解锁中级药水；场景 3 解锁高级药水与最后两把武器。
  * 副武器购买价按强度递增（附录 A：120/180/300，飞镖枪取 240）。
  */
-import type { ShopGoodsDef } from '../domain/types';
+import type { ShopGoodsDef } from '../domain/shared/types';
 
 export const GOODS: ShopGoodsDef[] = [
     // ---- 场景 1 起解锁：基础消耗品与弹药 ----

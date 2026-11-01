@@ -2,7 +2,7 @@
  * DR-01 PlayerDefaults —— SRS 5.1 PlayerState 默认值列 + 附录 A 玩家运动物理常量。
  * MotionModel / ResourceSystem / PlayerController 的数值来源（ARCH-8 配置驱动）。
  */
-import type { PlayerDefaults } from '../domain/types';
+import type { PlayerDefaults } from '../domain/shared/types';
 
 export const PLAYER_DEFAULTS: PlayerDefaults = {
     hp: 100, hpMax: 100,

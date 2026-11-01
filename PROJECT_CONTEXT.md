@@ -1,8 +1,10 @@
 # PROJECT_CONTEXT.md —— 《深渊回响》(SEAPP) 开发上下文
 
+> 2026-11-01 代码结构整理：domain/systems/ui按职责归类，TS与Python测试集中tests，工具迁入tools/maps、assets、browser。EnemyAI、LevelScene、UiLayer有限拆分，不改玩法/存档。当前入口见 `docs/代码导读.md`、`docs/代码路径迁移对照.md`、`tools/README.md`；下方旧行号和验证数量保留为历史记录，以本次符号索引为准。
+
 > 2026-11-01 地图细节精调：1-1第二枚碎片移至墙顶中央，2-1/2-3五组低净空木台调整并同步2-1一组金币，实际JSON及生成规则一致。见 `docs/地图细节与收集空间精调.md`。
 
-> 2026-10-29 选关紧凑节点：关卡按钮改为64×48、三章细线路径与主题标记，锁定保留编号、Boss菱形、完成徽记；提示浮层独立宽度并清理窄屏撑大覆盖。入口 `src/ui/LevelSelectView.vue`，本次验证见 `docs/关卡选择紧凑节点调整.md`。
+> 2026-10-29 选关紧凑节点：关卡按钮改为64×48、三章细线路径与主题标记，锁定保留编号、Boss菱形、完成徽记；提示浮层独立宽度并清理窄屏撑大覆盖。入口 `src/ui/views/LevelSelectView.vue`，本次验证见 `docs/关卡选择紧凑节点调整.md`。
 
 > 2026-10-29 终章胜利结算：全部前置关卡完成后，最终 Boss 真死亡自动安全结算；新增晨光三地像素全景、可跳过演出、三章纪念卡、累计统计与完整回响徽记、返回营地/选关/标题和主菜单重看。满包最终掉落以可选 victoryLoot 随旧 v1 存档兼容保存；见 `docs/终章胜利结算.md`。
 
@@ -10,16 +12,16 @@
 
 > 2026-10-29 音频更新：旧短提示循环改为四首 CC0 长曲（柔和钢琴/环境氛围），32组音效覆盖六武器与九主动技能。音频清单 `data/audioCatalog.ts`；全局STEP推进淡化、修复50ms单位混用、实时静音和叠音上限；来源与本次验证见 `docs/音乐与音效更新.md`、`docs/素材许可清单.md`。
 
-> 2026-10-29 第三章精英新增“回旋尾刃”：0.75秒固定方向预警、260px往返、单次16伤害、1秒安全后摇及3秒冷却；多只错开1.15秒起手。纯规则 domain/eliteTail.ts，配置 data/eliteTail.ts；保留早期精英行为，详见 `docs/第三章精英回旋尾刃.md`。
+> 2026-10-29 第三章精英新增“回旋尾刃”：0.75秒固定方向预警、260px往返、单次16伤害、1秒安全后摇及3秒冷却；多只错开1.15秒起手。纯规则 domain/combat/eliteTail.ts，配置 data/eliteTail.ts；保留早期精英行为，详见 `docs/第三章精英回旋尾刃.md`。
 
 > 2026-10-28 自动保存提示调整：自动保存成功静默，手动保存保留确认，失败继续提醒；见 `docs/自动保存静默提示调整.md`。
 
 > 更新时点：提交 `f0c576a` 之后（M4 收尾 + 手感方案 C 完成）。
 > 面向：后续会话/接手者。基线文档：`docs/需求分析文档.md`(SRS v1.0)、`docs/设计文档.md`(SDD v1.0)、
 > `docs/M4验收记录.md`（AT-52~75 实测）、`docs/素材许可清单.md`（CC0 登记）。
-> 2026-10-26 画幅调整：采用 `Scale.EXPAND` 等比铺满窗口；共享布局见 `systems/viewportLayout.ts`。
+> 2026-10-26 画幅调整：采用 `Scale.EXPAND` 等比铺满窗口；共享布局见 `systems/presentation/viewportLayout.ts`。
 > 2026-10-26 修复：P1-01~04 均已提交；本轮剩余问题及新增缺陷详见 `docs/剩余问题修复记录.md`。最终单测 150/150，类型检查和生产构建通过；浏览器 53 项检查及 20 次切关回归通过。
-> 2026-10-27 Boss 锁场调整：三个 Boss 地图用 `boss_arena` 对象统一驱动平滑取景与左右物理封锁；击败、重试和切关时解除。实现见 `systems/bossArena.ts`，原因与验证见 `docs/Boss战场镜头与边界修复.md`。
+> 2026-10-27 Boss 锁场调整：三个 Boss 地图用 `boss_arena` 对象统一驱动平滑取景与左右物理封锁；击败、重试和切关时解除。实现见 `systems/boss/bossArena.ts`，原因与验证见 `docs/Boss战场镜头与边界修复.md`。
 > 2026-10-27 1-1 手工地图修复：保留用户布局，为四个瓦片层补齐 CSV 编码声明，并为新增 GID 29/30/31 补齐 solid；见 `docs/1-1手工地图加载修复.md`。
 > 2026-10-27 资源提示：金币/回响碎片/玩家弹丸采用独立轮廓；HUD 显示 SKP、强化残片与弹药余量，修复背包点击弹药误耗，帮助页补充玩法和补给路径；见 `docs/资源区分与弹药提示调整.md`。
 > 2026-10-27 关卡与营地改造：十二关新增树冠、双层遗迹、下潜矿井、回折竖井、浮岛与符文路线；三区域使用独立地形与四组背景变体，三营地美术交互重做。地图设计与本次验证见 `docs/关卡差异化改造.md`、`docs/营地改造.md`。实际地图审计改为读取 JSON，生成器必须明确指定关卡；1-1 手工基线保存在 `tools/maps/1-1-authored.json`。高台落地用 32px tileBias，运动参数仍以源码为准。
@@ -27,11 +29,11 @@
 > 2026-10-27 技能与操作修复：技能树中文介绍、1–4 显式绑定与存档、主副手远程技能、生存被动和冲刺执行；补齐飞镖枪装备指引、S/↓+跳跃下穿单向平台，金币改为无刚体悬浮拾取。见 `docs/技能装备与平台拾取修复.md`。
 
 > 2026-10-27 接触伤害调整：所有敌人（含 Boss）接触伤害统一为 5，玩家受击击退强度由 120 降至 60，并改为读取 playerDefaults；当时第一个 Boss 三阶段冲刺前摇延长至 0.9/0.8/0.7 秒。后续独立技能方案改为第一阶段不冲撞，后两阶段保留 0.8/0.7 秒；见 `docs/敌人接触伤害与击退调整.md`。
-> 2026-10-28 Boss 差异化：守卫重锤/震波/撞墙收招，蛛后减速网/可破坏卵/锁定俯袭，回响之影换位/三段剑舞/固定延迟剑痕。预警与伤害共用领域几何；阶段转换、死亡与切场景清理，玩家范围技能排队遵循 K7。入口见 `domain/bossAbilities.ts`、`systems/bossAbilitySystem.ts`，数值和本次验证见 `docs/Boss技能差异化配置.md`、`docs/Boss技能差异化改造.md`。
+> 2026-10-28 Boss 差异化：守卫重锤/震波/撞墙收招，蛛后减速网/可破坏卵/锁定俯袭，回响之影换位/三段剑舞/固定延迟剑痕。预警与伤害共用领域几何；阶段转换、死亡与切场景清理，玩家范围技能排队遵循 K7。入口见 `domain/combat/bossAbilities.ts`、`systems/boss/bossAbilitySystem.ts`，数值和本次验证见 `docs/Boss技能差异化配置.md`、`docs/Boss技能差异化改造.md`。
 
-> 2026-10-28 普通敌人美术补齐：追击型改为蓝色负鼠、飞行型改为紫鹰、精英怪改为绿色鳄龙，并接入共享死亡消散；只改表现及飞行贴图朝向，保持战斗配置和碰撞尺寸。入口 `systems/normalEnemyArt.ts`，本次素材与验证见 `docs/普通敌人美术替换.md`。
+> 2026-10-28 普通敌人美术补齐：追击型改为蓝色负鼠、飞行型改为紫鹰、精英怪改为绿色鳄龙，并接入共享死亡消散；只改表现及飞行贴图朝向，保持战斗配置和碰撞尺寸。入口 `systems/enemies/normalEnemyArt.ts`，本次素材与验证见 `docs/普通敌人美术替换.md`。
 
-> 2026-10-28 普通敌人行为差异化：巡逻怪改慢速单发远程，追击怪改快速近战扑击，紫鹰范围追踪、末段锁定俯冲、低空后摇与归巢。配置 `data/normalEnemyCombat.ts`，纯规则 `domain/normalEnemyBrain.ts`，预警 `systems/normalEnemyFx.ts`；本次验证与可选美术提示词见 `docs/普通敌人行为差异化调整.md`、`docs/普通敌人攻击动画提示词.md`。
+> 2026-10-28 普通敌人行为差异化：巡逻怪改慢速单发远程，追击怪改快速近战扑击，紫鹰范围追踪、末段锁定俯冲、低空后摇与归巢。配置 `data/normalEnemyCombat.ts`，纯规则 `domain/combat/normalEnemyBrain.ts`，预警 `systems/enemies/normalEnemyFx.ts`；本次验证与可选美术提示词见 `docs/普通敌人行为差异化调整.md`、`docs/普通敌人攻击动画提示词.md`。
 
 > 2026-10-28 玩家战斗美术：6 把武器的持握实体、挥击/后坐与三类远程弹体，9 主动技能特效及12被动生效提示，27独立原创SVG图标接入背包/商店/技能树/HUD。攻击姿态保留角色本体，特效从实际判定位置/范围读取；详见 `docs/武器与技能美术动画.md`。
 
@@ -67,7 +69,7 @@ src/game/
     onewaySeparation.ts   ★单向平台扫掠分离纯函数（prevBottom <= top+2；含单测 levelLoader.test.ts）
     enemyAI.ts            4 brain（patrol/chaser/flyer/boss 三阶段+DD-06 技能循环）
     combatResolver.ts     命中/击退/i-frame/queueAreaDamage、蛛卵破坏；钩子 onAttackBegan/onEnemyHit
-    bossAbilitySystem.ts / bossAbilityFx.ts  独立 Boss 技能桥接及共享几何预警，规则在 domain/bossAbilities.ts
+    bossAbilitySystem.ts / bossAbilityFx.ts  独立 Boss 技能桥接及共享几何预警，规则在 domain/combat/bossAbilities.ts
     cameraRig.ts          插值跟随/沉降/lockTo/shake（震屏开关旁路）
     pickupSystem.ts       金币三阶段/检查点/碎片/宝箱/hints 触发区；钩子 onCoinPicked/onChestOpened
     audioDirector.ts      MOD-08：50ms 合并/0.8s 交叉淡化(tick 驱动)/Boss 变体/三路音量/EX-08 挂起队列
@@ -122,8 +124,8 @@ docs/                     SRS / SDD / M4验收记录 / 素材许可清单 / AI�
 
 - 手感：改 `src/game/data/playerDefaults.ts`（±20% 内无需动校验）；重力只改这一处。
 - 敌人/Boss：`src/game/data/enemies.ts`（校验 kind/id、伤害、冷却及专属技能的有限数值与必需参数；见 `docs/Boss技能差异化配置.md`）。
-- 地图：Tiled 打开 `public/assets/levels/<id>.json` 保存；或改 `tools/gen_levels.py` 后
-  `python tools/gen_levels.py [id]` + `python tools/audit_reach.py`（必须 0 违规）。
+- 地图：Tiled 打开 `public/assets/levels/<id>.json` 保存；或改 `tools/maps/gen_levels.py` 后
+  `python tools/maps/gen_levels.py [id]` + `python tools/maps/audit_reach.py`（必须 0 违规）。
   图层/对象命名规则见 levelLoader 校验：player_spawn 恰 1、goal 恰 1、cp_N（常规 ≥2）、碎片恰 3 唯一、
   敌人对象名 ∈ EnemyDef、hints 属性 action。
 - 命令：`npm run dev-nolog`（dev，勿用 `dev`——log.js 外发遥测）；`npm run build-nolog`；
@@ -148,15 +150,15 @@ docs/                     SRS / SDD / M4验收记录 / 素材许可清单 / AI�
 | ---------------------------------------------------- | ----------------------------------------------- |
 | src/game/data/playerDefaults.ts:14-24                | 玩家物理数值（gravity/jumpVelocity/walkSpeed…） |
 | src/game/main.ts:24                                  | Arcade 世界重力（读配置）                       |
-| src/game/domain/configRegistry.ts:309-322            | ±20% 容差校验（within20）                       |
-| src/game/systems/onewaySeparation.ts                 | 单向平台扫掠判定                                |
-| src/game/systems/levelLoader.ts:150-153              | onewayProcess 委托点                            |
-| src/game/systems/playerController.ts:104-107,150-166 | update 守卫 / 起跳与可变跳高                    |
+| src/game/domain/shared/configRegistry.ts:309-322            | ±20% 容差校验（within20）                       |
+| src/game/systems/world/onewaySeparation.ts                 | 单向平台扫掠判定                                |
+| src/game/systems/world/levelLoader.ts:150-153              | onewayProcess 委托点                            |
+| src/game/systems/player/playerController.ts:104-107,150-166 | update 守卫 / 起跳与可变跳高                    |
 | src/game/scenes/LevelScene.ts:57-94,354-470          | ready 闸/EX-11/TT-06；十阶段管线                |
-| src/game/systems/sceneDirector.ts:35-77              | fadeTo/awaitTarget/request(pending)             |
-| src/game/systems/audioDirector.ts:86-108,136-174     | tick 淡化/safeVolume/playBgm                    |
-| src/game/systems/tutorialDirector.ts                 | 教学队列模型                                    |
-| src/ui/HudOverlay.vue:43-54                          | 画布锚定 rAF                                    |
+| src/game/systems/flow/sceneDirector.ts:35-77              | fadeTo/awaitTarget/request(pending)             |
+| src/game/systems/presentation/audioDirector.ts:86-108,136-174     | tick 淡化/safeVolume/playBgm                    |
+| src/game/systems/flow/tutorialDirector.ts                 | 教学队列模型                                    |
+| src/ui/components/HudOverlay.vue:43-54                          | 画布锚定 rAF                                    |
 | src/ui/UiLayer.vue:178-186                           | 手势解锁 AudioContext                           |
-| tools/gen_levels.py / tools/audit_reach.py           | 地图生成 / 可达性门禁                           |
+| tools/maps/gen_levels.py / tools/maps/audit_reach.py           | 地图生成 / 可达性门禁                           |
 | docs/M4验收记录.md                                   | AT 实测证据与人工项清单                         |

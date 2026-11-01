@@ -1,4 +1,4 @@
-import type { NormalEnemyCombatDef } from '../domain/normalEnemyBrain';
+import type { NormalEnemyCombatDef } from '../domain/combat/normalEnemyBrain';
 
 /** 普通敌人的主动攻击配置；移动速度、侦测距离及接触伤害仍读 EnemyDef。 */
 export const NORMAL_ENEMY_COMBAT: Record<string, NormalEnemyCombatDef> = {

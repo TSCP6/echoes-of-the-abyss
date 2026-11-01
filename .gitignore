@@ -33,3 +33,7 @@ coverage
 # Screenshots, browser logs, downloaded source packs and temporary review exports.
 /output/
 /.playwright-mcp/
+
+# Python 工具运行缓存
+__pycache__/
+*.py[cod]

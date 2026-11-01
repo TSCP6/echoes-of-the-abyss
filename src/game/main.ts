@@ -5,7 +5,7 @@ import { LevelScene } from './scenes/LevelScene';
 import { CampScene } from './scenes/CampScene';
 import { AUTO, Game, Scale } from 'phaser';
 import { PLAYER_DEFAULTS } from './data/playerDefaults';
-import { DESIGN_WIDTH, DESIGN_HEIGHT } from './systems/viewportLayout';
+import { DESIGN_WIDTH, DESIGN_HEIGHT } from './systems/presentation/viewportLayout';
 
 // 以 1024×768 为最小逻辑视野，等比缩放并扩展视口以铺满浏览器（EX-06）。
 const config: Phaser.Types.Core.GameConfig = {

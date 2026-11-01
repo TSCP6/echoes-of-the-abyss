@@ -5,9 +5,9 @@
  * UI 提示"请按 F11 手动全屏"并恢复开关状态（FR-18 边界）。
  * fullscreenchange 订阅 → SettingsStore.setFullscreen 同步（不跨会话恢复，浏览器策略）。
  */
-import type { Result } from '../domain/result';
-import { ok, fail } from '../domain/result';
-import { settingsStore } from '../domain/settingsStore';
+import type { Result } from '../domain/shared/result';
+import { ok, fail } from '../domain/shared/result';
+import { settingsStore } from '../domain/player/settingsStore';
 
 class FullscreenAdapterImpl {
     private listening = false;

@@ -4,20 +4,20 @@
  * M1/M2：SaveSystem 于 P3 接入，此处新档基线（inventory/weapon initNewGame）+ resolve({save:null})。
  */
 import { Scene } from 'phaser';
-import { validateAll, markValidated } from '../domain/configRegistry';
-import { progressService } from '../domain/progressService';
-import { inventoryStore } from '../domain/inventoryStore';
-import { weaponService } from '../domain/weaponService';
-import { AppBoot } from '../domain/appBoot';
+import { validateAll, markValidated } from '../domain/shared/configRegistry';
+import { progressService } from '../domain/progression/progressService';
+import { inventoryStore } from '../domain/player/inventoryStore';
+import { weaponService } from '../domain/player/weaponService';
+import { AppBoot } from '../domain/shared/appBoot';
 import { emitEvent } from '../events';
-import { bootstrapSave, syncSkpFromProgress } from '../domain/saveBootstrap';
-import { saveSystem } from '../domain/saveSystem';
-import type { SaveData } from '../domain/saveSchema';
-import { audioDirector } from '../systems/audioDirector';
-import { bindViewportLayout, centerDesignCamera } from '../systems/viewportLayout';
-import { registerRegionArt } from '../systems/regionBackdrop';
-import { loadEnemyArt, registerEnemyAnimations } from '../systems/enemyVisuals';
-import { registerPickupTextures } from '../systems/pickupVisuals';
+import { bootstrapSave, syncSkpFromProgress } from '../domain/persistence/saveBootstrap';
+import { saveSystem } from '../domain/persistence/saveSystem';
+import type { SaveData } from '../domain/persistence/saveSchema';
+import { audioDirector } from '../systems/presentation/audioDirector';
+import { bindViewportLayout, centerDesignCamera } from '../systems/presentation/viewportLayout';
+import { registerRegionArt } from '../systems/world/regionBackdrop';
+import { loadEnemyArt, registerEnemyAnimations } from '../systems/enemies/enemyVisuals';
+import { registerPickupTextures } from '../systems/world/pickupVisuals';
 import { AUDIO_FILES } from '../data/audioCatalog';
 
 export class PreloaderScene extends Scene {
